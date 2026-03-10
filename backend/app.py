@@ -203,7 +203,14 @@ def get_game_summary(game_id):
 @app.route("/api/games/<game_id>/boxscore")
 def get_game_boxscore(game_id):
     return safe_call(
-        lambda: boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
+        lambda: boxscoretraditionalv2.BoxScoreTraditionalV2(
+            game_id=game_id,
+            start_period=0,
+            end_period=10,
+            start_range=0,
+            end_range=0,
+            range_type=0,
+        )
     )
 
 

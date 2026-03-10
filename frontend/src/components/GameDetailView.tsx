@@ -241,7 +241,7 @@ function PlayersBox({ title, players, onSelectPlayer }: { title: string; players
           ))}
           {!players.length && (
             <tr>
-              <td colSpan={5} style={{ color: '#6b7280' }}>Statistiche giocatori non disponibili</td>
+              <td colSpan={5} style={{ color: 'var(--text-subtle)' }}>Statistiche giocatori non disponibili</td>
             </tr>
           )}
         </tbody>

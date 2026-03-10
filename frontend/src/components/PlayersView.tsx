@@ -45,7 +45,7 @@ export default function PlayersView({ onSelectPlayer }: Props) {
             />
           </div>
           {query && (
-            <span style={{ fontSize: 13, color: '#6b7280' }}>{filtered.length} risultati</span>
+            <span style={{ fontSize: 13, color: 'var(--text-subtle)' }}>{filtered.length} risultati</span>
           )}
         </div>
 
@@ -66,7 +66,7 @@ export default function PlayersView({ onSelectPlayer }: Props) {
         </div>
 
         {filtered.length > 200 && (
-          <p style={{ textAlign: 'center', color: '#6b7280', fontSize: 13, marginTop: 16 }}>
+          <p style={{ textAlign: 'center', color: 'var(--text-subtle)', fontSize: 13, marginTop: 16 }}>
             Mostrando 200 di {filtered.length} — affina la ricerca
           </p>
         )}
@@ -90,7 +90,7 @@ function PlayerCard({ player, onClick }: { player: any; onClick: () => void }) {
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 40, background: 'linear-gradient(135deg,#1a2235,#0d1117)'
+            fontSize: 40, background: 'linear-gradient(135deg, var(--image-grad-start), var(--image-grad-end))'
           }}>👤</div>
         )}
         {player.TEAM_ABBREVIATION && (

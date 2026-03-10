@@ -117,7 +117,7 @@ export default function ScoreboardView({ onSelectGame }: Props) {
             onChange={e => setDate(e.target.value)}
           />
           {!loading && games.length > 0 && (
-            <span style={{ fontSize: 13, color: '#6b7280' }}>{games.length} partite</span>
+            <span style={{ fontSize: 13, color: 'var(--text-subtle)' }}>{games.length} partite</span>
           )}
         </div>
 
@@ -145,7 +145,7 @@ function GameCard({ game, date, onSelectGame }: { game: any; date: string; onSel
   const s2 = t2.PTS;
   const statusText = formatStatusInItalian(game.GAME_STATUS_TEXT, date);
   const isLive = /quarto|intervallo|supplementari/i.test(statusText);
-  const statusColor = isLive ? '#ef4444' : '#9ca3af';
+  const statusColor = isLive ? 'var(--danger-text)' : 'var(--text-muted)';
 
   return (
     <div

@@ -142,11 +142,11 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
             <p>{info?.TEAM_CONFERENCE ? `Conferenza ${info.TEAM_CONFERENCE === 'East' ? 'Est' : 'Ovest'}` : 'Conferenza'} · {info?.TEAM_DIVISION}</p>
             {info?.W !== undefined && (
               <p style={{ marginTop: 8, fontSize: 16 }}>
-                <span style={{ color: '#22c55e', fontWeight: 700 }}>{info.W}V</span>
+                <span style={{ color: 'var(--badge-green-text)', fontWeight: 700 }}>{info.W}V</span>
                 {' - '}
-                <span style={{ color: '#ef4444', fontWeight: 700 }}>{info.L}S</span>
+                <span style={{ color: 'var(--danger-text)', fontWeight: 700 }}>{info.L}S</span>
                 {info.PCT !== undefined && (
-                  <span style={{ color: '#9ca3af', marginLeft: 8 }}>
+                  <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
                     {(info.PCT * 100).toFixed(1)}%
                   </span>
                 )}
@@ -182,9 +182,9 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
                     style={{ cursor: onSelectPlayer ? 'pointer' : 'default' }}
                     onClick={() => onSelectPlayer?.(p.PLAYER_ID)}
                   >
-                    <td style={{ color: '#6b7280' }}>{p.NUM}</td>
+                    <td style={{ color: 'var(--text-subtle)' }}>{p.NUM}</td>
                     <td style={{ width: 32 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', background: '#1a2235' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', background: 'var(--surface-3)' }}>
                         <img
                           src={playerImageUrl(p.PLAYER_ID)}
                           alt={p.PLAYER}
@@ -226,12 +226,12 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
                       <tr key={i}>
                         <td>{formatDateIt(g.GAME_DATE)}</td>
                         <td>{g.MATCHUP}</td>
-                        <td style={{ color: g.WL === 'W' ? '#22c55e' : '#ef4444', fontWeight: 700 }}>{g.WL}</td>
+                        <td style={{ color: g.WL === 'W' ? 'var(--badge-green-text)' : 'var(--danger-text)', fontWeight: 700 }}>{g.WL}</td>
                         <td className="highlight">{g.PTS}</td>
                         <td>{g.REB}</td>
                         <td>{g.AST}</td>
                         <td>{g.FG_PCT?.toFixed(3)}</td>
-                        <td style={{ color: g.PLUS_MINUS > 0 ? '#22c55e' : g.PLUS_MINUS < 0 ? '#ef4444' : undefined, fontWeight: 600 }}>
+                        <td style={{ color: g.PLUS_MINUS > 0 ? 'var(--badge-green-text)' : g.PLUS_MINUS < 0 ? 'var(--danger-text)' : undefined, fontWeight: 600 }}>
                           {g.PLUS_MINUS > 0 ? `+${g.PLUS_MINUS}` : g.PLUS_MINUS}
                         </td>
                       </tr>

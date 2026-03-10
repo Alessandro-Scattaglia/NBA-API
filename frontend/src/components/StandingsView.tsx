@@ -50,6 +50,11 @@ export default function StandingsView({ season }: { season: string }) {
 }
 
 function ConferenceStandings({ label, teams }: { label: string; teams: any[] }) {
+  const ranked = teams
+    .map((t, i) => ({ ...t, _rank: Number(t.PlayoffRank) > 0 ? Number(t.PlayoffRank) : i + 1 }))
+    .sort((a, b) => a._rank - b._rank);
+  const hasPlayIn = ranked.some(t => Number(t.PlayoffRank) >= 9);
+  const playoffCut = hasPlayIn ? 6 : 8;
   return (
     <div className="conference-block">
       <h3>{label}</h3>
@@ -68,15 +73,15 @@ function ConferenceStandings({ label, teams }: { label: string; teams: any[] }) 
             </tr>
           </thead>
           <tbody>
-            {teams.map((t, i) => {
-              const isPlayoff = i < 6;
-              const isPlayIn = i >= 6 && i < 10;
-              const rankColor = isPlayoff ? '#22c55e' : isPlayIn ? '#ffc107' : '#6b7280';
+            {ranked.map((t, i) => {
+              const isPlayoff = i < playoffCut;
+              const isPlayIn = hasPlayIn && i >= playoffCut && i < 10;
+              const rankColor = isPlayoff ? 'var(--badge-green-text)' : isPlayIn ? 'var(--gold)' : 'var(--text-subtle)';
               const streakWin = String(t.strCurrentStreak ?? '').startsWith('W');
               return (
                 <tr key={t.TeamID}>
                   <td>
-                    <span style={{ color: rankColor, fontWeight: 700 }}>{i + 1}</span>
+                    <span style={{ color: rankColor, fontWeight: 700 }}>{t._rank}</span>
                   </td>
                   <td style={{ width: 26 }}>
                     <img
@@ -87,11 +92,11 @@ function ConferenceStandings({ label, teams }: { label: string; teams: any[] }) 
                     />
                   </td>
                   <td className="highlight">{t.TeamCity} {t.TeamName}</td>
-                  <td style={{ color: '#22c55e', fontWeight: 700 }}>{t.WINS}</td>
-                  <td style={{ color: '#ef4444' }}>{t.LOSSES}</td>
+                  <td style={{ color: 'var(--badge-green-text)', fontWeight: 700 }}>{t.WINS}</td>
+                  <td style={{ color: 'var(--danger-text)' }}>{t.LOSSES}</td>
                   <td>{t.WinPCT?.toFixed(3)}</td>
-                  <td style={{ color: '#9ca3af' }}>{t.ConferenceGamesBack}</td>
-                  <td style={{ color: streakWin ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
+                  <td style={{ color: 'var(--text-muted)' }}>{t.ConferenceGamesBack}</td>
+                  <td style={{ color: streakWin ? 'var(--badge-green-text)' : 'var(--danger-text)', fontWeight: 600 }}>
                     {t.strCurrentStreak}
                   </td>
                   <td>{t.L10}</td>
@@ -101,9 +106,17 @@ function ConferenceStandings({ label, teams }: { label: string; teams: any[] }) 
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 11, color: '#6b7280' }}>
-        <span><span style={{ color: '#22c55e', fontWeight: 700 }}>■</span> Playoff (1-6)</span>
-        <span><span style={{ color: '#ffc107', fontWeight: 700 }}>■</span> Play-In (7-10)</span>
+      <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-subtle)' }}>
+        <span>
+          <span style={{ color: 'var(--badge-green-text)', fontWeight: 700 }}>■</span>{' '}
+          Playoff (1-{playoffCut})
+        </span>
+        {hasPlayIn && (
+          <span>
+            <span style={{ color: 'var(--gold)', fontWeight: 700 }}>■</span>{' '}
+            Play-In (7-10)
+          </span>
+        )}
       </div>
     </div>
   );

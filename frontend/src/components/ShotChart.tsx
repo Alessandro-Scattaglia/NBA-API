@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 interface Shot {
   LOC_X: number;
@@ -19,12 +19,19 @@ const H = 470;
 const cx = (locX: number) => locX + 250;
 const cy = (locY: number) => 418 - locY;
 
-function drawCourt(ctx: CanvasRenderingContext2D) {
-  const line = '#2d3d55';
-  const paint = 'rgba(29,66,138,0.10)';
+function drawCourt(
+  ctx: CanvasRenderingContext2D,
+  colors: {
+    line: string;
+    paint: string;
+    fill: string;
+    hoop: string;
+  }
+) {
+  const { line, paint, fill, hoop } = colors;
 
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0d1117';
+  ctx.fillStyle = fill;
   ctx.fillRect(0, 0, W, H);
 
   // Paint fill
@@ -50,7 +57,7 @@ function drawCourt(ctx: CanvasRenderingContext2D) {
   ctx.setLineDash([]);
 
   // Basket circle
-  ctx.strokeStyle = '#ef4444';
+  ctx.strokeStyle = hoop;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(cx(0), cy(0), 7.5, 0, 2 * Math.PI);
@@ -94,6 +101,15 @@ function drawCourt(ctx: CanvasRenderingContext2D) {
 
 export default function ShotChart({ shots }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [themeVersion, setThemeVersion] = useState(0);
+
+  useEffect(() => {
+    const appEl = document.querySelector('.app');
+    if (!appEl) return;
+    const observer = new MutationObserver(() => setThemeVersion(v => v + 1));
+    observer.observe(appEl, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -101,7 +117,19 @@ export default function ShotChart({ shots }: Props) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    drawCourt(ctx);
+    const appEl = document.querySelector('.app') as HTMLElement | null;
+    const styles = getComputedStyle(appEl || document.documentElement);
+    const colors = {
+      line: styles.getPropertyValue('--shot-line').trim() || '#2d3d55',
+      paint: styles.getPropertyValue('--shot-paint').trim() || 'rgba(29,66,138,0.10)',
+      fill: styles.getPropertyValue('--shot-fill').trim() || '#0d1117',
+      hoop: styles.getPropertyValue('--shot-hoop').trim() || '#ef4444',
+      make: styles.getPropertyValue('--shot-make').trim() || 'rgba(34,197,94,0.8)',
+      makeBorder: styles.getPropertyValue('--shot-make-border').trim() || 'rgba(34,197,94,1)',
+      miss: styles.getPropertyValue('--shot-miss').trim() || 'rgba(239,68,68,0.55)'
+    };
+
+    drawCourt(ctx, colors);
 
     shots.forEach(shot => {
       const x = cx(shot.LOC_X);
@@ -109,15 +137,15 @@ export default function ShotChart({ shots }: Props) {
       const made = shot.SHOT_MADE_FLAG === 1;
 
       if (made) {
-        ctx.fillStyle = 'rgba(34,197,94,0.80)';
-        ctx.strokeStyle = 'rgba(34,197,94,1)';
+        ctx.fillStyle = colors.make;
+        ctx.strokeStyle = colors.makeBorder;
         ctx.lineWidth = 0.8;
         ctx.beginPath();
         ctx.arc(x, y, 3.5, 0, 2 * Math.PI);
         ctx.fill();
         ctx.stroke();
       } else {
-        ctx.strokeStyle = 'rgba(239,68,68,0.55)';
+        ctx.strokeStyle = colors.miss;
         ctx.lineWidth = 1.5;
         const s = 3;
         ctx.beginPath();
@@ -126,7 +154,7 @@ export default function ShotChart({ shots }: Props) {
         ctx.stroke();
       }
     });
-  }, [shots]);
+  }, [shots, themeVersion]);
 
   const made = shots.filter(s => s.SHOT_MADE_FLAG === 1).length;
   const total = shots.length;
@@ -134,8 +162,8 @@ export default function ShotChart({ shots }: Props) {
 
   return (
     <div className="shot-chart-container">
-      <p style={{ fontSize: 14, color: '#9ca3af' }}>
-        {made}/{total} canestri · <strong style={{ color: '#f9fafb' }}>{pct}% dal campo</strong>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+        {made}/{total} canestri · <strong style={{ color: 'var(--text)' }}>{pct}% dal campo</strong>
       </p>
       <canvas
         ref={canvasRef}
@@ -145,11 +173,11 @@ export default function ShotChart({ shots }: Props) {
       />
       <div className="shot-chart-legend">
         <div className="legend-item">
-          <div className="legend-dot" style={{ background: 'rgba(34,197,94,0.8)' }} />
+          <div className="legend-dot" style={{ background: 'var(--shot-make)' }} />
           <span>Canestro ({made})</span>
         </div>
         <div className="legend-item">
-          <div className="legend-dot" style={{ background: 'rgba(239,68,68,0.55)', borderRadius: 2 }} />
+          <div className="legend-dot" style={{ background: 'var(--shot-miss)', borderRadius: 2 }} />
           <span>Sbagliato ({total - made})</span>
         </div>
       </div>

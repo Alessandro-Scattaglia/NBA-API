@@ -8,6 +8,7 @@ interface Props {
 
 export default function TeamStatsView({ season, onSelectTeam }: Props) {
   const [data, setData] = useState<any>(null);
+  const [teamsMeta, setTeamsMeta] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,13 +16,27 @@ export default function TeamStatsView({ season, onSelectTeam }: Props) {
     setLoading(true);
     setError(null);
     setData(null);
-    api.getTeamStats(season)
-      .then(setData)
-      .catch(e => setError(e.message))
+    Promise.allSettled([api.getTeamStats(season), api.getAllTeams()])
+      .then(([statsRes, teamsRes]) => {
+        if (statsRes.status === 'fulfilled') setData(statsRes.value);
+        if (teamsRes.status === 'fulfilled') setTeamsMeta(teamsRes.value || []);
+        if (statsRes.status === 'rejected') setError(statsRes.reason?.message || String(statsRes.reason));
+      })
       .finally(() => setLoading(false));
   }, [season]);
 
   const rows: any[] = data?.LeagueDashTeamStats || [];
+  const conferenceEntries: Array<[number, string]> = teamsMeta
+    .map(t => [Number(t.id ?? t.TEAM_ID ?? t.teamId), String(t.conference ?? t.CONFERENCE)] as [number, string])
+    .filter(([id, conf]) => Number.isFinite(id) && conf && conf !== 'undefined');
+  const conferenceById = new Map<number, string>(conferenceEntries);
+  const rowsWithConf = rows.map(t => ({
+    ...t,
+    _conf: t.TEAM_CONFERENCE || t.CONFERENCE || conferenceById.get(t.TEAM_ID),
+  }));
+  const east = rowsWithConf.filter(t => String(t._conf).toLowerCase() === 'east');
+  const west = rowsWithConf.filter(t => String(t._conf).toLowerCase() === 'west');
+  const other = rowsWithConf.filter(t => !['east', 'west'].includes(String(t._conf).toLowerCase()));
 
   return (
     <>
@@ -35,52 +50,67 @@ export default function TeamStatsView({ season, onSelectTeam }: Props) {
         {!loading && !error && !rows.length && <div className="empty-state">Nessun dato disponibile</div>}
 
         {!!rows.length && (
-          <div className="stats-table-wrapper">
-            <table className="stats-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th colSpan={2}>Squadra</th>
-                  <th>V</th>
-                  <th>S</th>
-                  <th>PTS</th>
-                  <th>REB</th>
-                  <th>AST</th>
-                  <th>FG%</th>
-                  <th>3P%</th>
-                  <th>Net Rt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows
-                  .sort((a, b) => (b.W_PCT ?? 0) - (a.W_PCT ?? 0))
-                  .map((t, i) => (
-                    <tr key={t.TEAM_ID} onClick={() => onSelectTeam(t.TEAM_ID)} style={{ cursor: 'pointer' }}>
-                      <td>{i + 1}</td>
-                      <td style={{ width: 28 }}>
-                        <img
-                          src={teamLogoUrl(t.TEAM_ID)}
-                          alt={t.TEAM_NAME}
-                          style={{ width: 22, height: 22, objectFit: 'contain' }}
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      </td>
-                      <td className="highlight">{t.TEAM_NAME}</td>
-                      <td>{t.W}</td>
-                      <td>{t.L}</td>
-                      <td>{typeof t.PTS === 'number' ? t.PTS.toFixed(1) : '—'}</td>
-                      <td>{typeof t.REB === 'number' ? t.REB.toFixed(1) : '—'}</td>
-                      <td>{typeof t.AST === 'number' ? t.AST.toFixed(1) : '—'}</td>
-                      <td>{typeof t.FG_PCT === 'number' ? t.FG_PCT.toFixed(3) : '—'}</td>
-                      <td>{typeof t.FG3_PCT === 'number' ? t.FG3_PCT.toFixed(3) : '—'}</td>
-                      <td>{typeof t.NET_RATING === 'number' ? t.NET_RATING.toFixed(1) : '—'}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <TeamStatsTable title="Conference Est" rows={east} onSelectTeam={onSelectTeam} />
+            <TeamStatsTable title="Conference Ovest" rows={west} onSelectTeam={onSelectTeam} />
+            {!!other.length && (
+              <TeamStatsTable title="Altre" rows={other} onSelectTeam={onSelectTeam} />
+            )}
+          </>
         )}
       </div>
     </>
+  );
+}
+
+function TeamStatsTable({ title, rows, onSelectTeam }: { title: string; rows: any[]; onSelectTeam: (id: number) => void }) {
+  if (!rows.length) return null;
+  const sorted = [...rows].sort((a, b) => (b.W_PCT ?? 0) - (a.W_PCT ?? 0));
+  return (
+    <div className="teams-conference-block" style={{ marginBottom: 24 }}>
+      <h3>{title}</h3>
+      <div className="stats-table-wrapper">
+        <table className="stats-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th colSpan={2}>Squadra</th>
+              <th>V</th>
+              <th>S</th>
+              <th>PTS</th>
+              <th>REB</th>
+              <th>AST</th>
+              <th>FG%</th>
+              <th>3P%</th>
+              <th>Net Rt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((t, i) => (
+              <tr key={t.TEAM_ID} onClick={() => onSelectTeam(t.TEAM_ID)} style={{ cursor: 'pointer' }}>
+                <td>{i + 1}</td>
+                <td style={{ width: 28 }}>
+                  <img
+                    src={teamLogoUrl(t.TEAM_ID)}
+                    alt={t.TEAM_NAME}
+                    style={{ width: 22, height: 22, objectFit: 'contain' }}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </td>
+                <td className="highlight">{t.TEAM_NAME}</td>
+                <td>{t.W}</td>
+                <td>{t.L}</td>
+                <td>{typeof t.PTS === 'number' ? t.PTS.toFixed(1) : '—'}</td>
+                <td>{typeof t.REB === 'number' ? t.REB.toFixed(1) : '—'}</td>
+                <td>{typeof t.AST === 'number' ? t.AST.toFixed(1) : '—'}</td>
+                <td>{typeof t.FG_PCT === 'number' ? t.FG_PCT.toFixed(3) : '—'}</td>
+                <td>{typeof t.FG3_PCT === 'number' ? t.FG3_PCT.toFixed(3) : '—'}</td>
+                <td>{typeof t.NET_RATING === 'number' ? t.NET_RATING.toFixed(1) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

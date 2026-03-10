@@ -161,7 +161,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
             </div>
           ) : (
             <div className="headline-stats">
-              <div style={{ fontSize: 12, color: '#6b7280', padding: '12px 16px' }}>Nessuna stat<br/>per {season}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-subtle)', padding: '12px 16px' }}>Nessuna stat<br/>per {season}</div>
             </div>
           )}
         </div>
@@ -185,11 +185,11 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
         {/* Season selector */}
         {(tab === 'gamelog' || tab === 'shotchart') && (
           <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, color: '#6b7280' }}>Stagione:</span>
+            <span style={{ fontSize: 13, color: 'var(--text-subtle)' }}>Stagione:</span>
             <select
               value={season}
               onChange={e => setSeason(e.target.value)}
-              style={{ background: '#111827', border: '1px solid #1f2937', color: '#f9fafb', padding: '6px 10px', borderRadius: 6, fontSize: 13, outline: 'none' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 13, outline: 'none' }}
             >
               {['2025-26', '2024-25', '2023-24', '2022-23', '2021-22', '2020-21', '2019-20', '2018-19'].map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -235,15 +235,15 @@ function OverviewTab({ seasonStats, season }: { seasonStats: any; season: string
   ];
   return (
     <div>
-      <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 16 }}>Media per partita · {season}</p>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Media per partita · {season}</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: 12 }}>
         {stats.map(st => (
           <div key={st.label} style={{
-            background: '#111827', border: '1px solid #1f2937',
+            background: 'var(--surface)', border: '1px solid var(--border)',
             borderRadius: 10, padding: '18px 12px', textAlign: 'center'
           }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#f9fafb' }}>{st.value ?? '—'}</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{st.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text)' }}>{st.value ?? '—'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 4 }}>{st.label}</div>
           </div>
         ))}
       </div>
@@ -306,8 +306,8 @@ function GameLogTab({ gamelog }: { gamelog: any }) {
             <tr key={i}>
               {cols.map(c => {
                 let color: string | undefined;
-                if (c === 'WL') color = row[c] === 'W' ? '#22c55e' : '#ef4444';
-                if (c === 'PLUS_MINUS') color = row[c] > 0 ? '#22c55e' : row[c] < 0 ? '#ef4444' : undefined;
+                if (c === 'WL') color = row[c] === 'W' ? 'var(--badge-green-text)' : 'var(--danger-text)';
+                if (c === 'PLUS_MINUS') color = row[c] > 0 ? 'var(--badge-green-text)' : row[c] < 0 ? 'var(--danger-text)' : undefined;
                 return (
                   <td key={c}
                     className={['PTS', 'REB', 'AST'].includes(c) ? 'highlight' : ''}

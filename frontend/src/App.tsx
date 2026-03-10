@@ -24,7 +24,17 @@ const NAV = [
 
 const SEASONS = ['2025-26', '2024-25', '2023-24', '2022-23', '2021-22', '2020-21', '2019-20', '2018-19'];
 
-function Sidebar({ season, setSeason }: { season: string; setSeason: (s: string) => void }) {
+function Sidebar({
+  season,
+  setSeason,
+  theme,
+  onToggleTheme
+}: {
+  season: string;
+  setSeason: (s: string) => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+}) {
   const location = useLocation();
   const base = '/' + location.pathname.split('/')[1];
 
@@ -53,24 +63,24 @@ function Sidebar({ season, setSeason }: { season: string; setSeason: (s: string)
           </div>
         ))}
       </nav>
-      <div style={{ padding: '12px 20px', borderTop: '1px solid #1f2937' }}>
-        <div style={{ marginBottom: 10 }}>
-          <p style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Stagione</p>
+      <div className="sidebar-footer">
+        <div>
+          <p className="season-label">Stagione</p>
           <select
+            className="season-select"
             value={season}
             onChange={e => setSeason(e.target.value)}
-            style={{
-              width: '100%', background: '#111827', border: '1px solid #374151',
-              color: '#f9fafb', padding: '7px 10px', borderRadius: 6,
-              fontSize: 13, fontWeight: 600, outline: 'none', cursor: 'pointer'
-            }}
           >
             {SEASONS.map(s => (
               <option key={s} value={s}>{s}{s === '2025-26' ? ' ★' : ''}</option>
             ))}
           </select>
         </div>
-        <p style={{ fontSize: 12, color: '#4b5563' }}>Server: localhost:5000</p>
+        <button className="theme-toggle" type="button" onClick={onToggleTheme}>
+          <span>Tema: {theme === 'light' ? 'Chiaro' : 'Scuro'}</span>
+          <span aria-hidden="true">{theme === 'light' ? '🌞' : '🌙'}</span>
+        </button>
+        <p className="server-label">Server: localhost:5000</p>
       </div>
     </aside>
   );
@@ -119,11 +129,17 @@ function GameDetailRoute() {
 /* ── app root ─────────────────────────────────────────────────────── */
 function App() {
   const [season, setSeason] = useState('2025-26');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const navigate = useNavigate();
 
   return (
-    <div className="app">
-      <Sidebar season={season} setSeason={setSeason} />
+    <div className="app" data-theme={theme}>
+      <Sidebar
+        season={season}
+        setSeason={setSeason}
+        theme={theme}
+        onToggleTheme={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}
+      />
       <main className="main">
         <Routes>
           <Route path="/" element={
