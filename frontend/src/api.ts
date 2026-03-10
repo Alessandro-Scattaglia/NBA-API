@@ -32,7 +32,7 @@ export const api = {
   getStandings: (season = '2025-26') =>
     apiFetch(`${BASE_URL}/league/standings?season=${season}`),
   getLeaders: (stat = 'PTS', season = '2025-26') =>
-    apiFetch(`${BASE_URL}/league/leaders?stat=${stat}&season=${season}`),  
+    apiFetch(`${BASE_URL}/league/leaders?stat=${stat}&season=${season}`),
   getTeamStats: (season = '2025-26') =>
     apiFetch(`${BASE_URL}/league/teamstats?season=${season}`),
 
