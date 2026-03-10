@@ -60,7 +60,7 @@ from nba_api.stats.static import players, teams
 app = Flask(__name__)
 CORS(app)
 
-CURRENT_SEASON = "2024-25"
+CURRENT_SEASON = "2025-26"
 
 
 def safe_call(fn):
@@ -119,15 +119,17 @@ def get_all_teams():
 
 @app.route("/api/teams/<int:team_id>")
 def get_team_info(team_id):
+    season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: teaminfocommon.TeamInfoCommon(team_id=team_id, season=CURRENT_SEASON)
+        lambda: teaminfocommon.TeamInfoCommon(team_id=team_id, season_nullable=season)
     )
 
 
 @app.route("/api/teams/<int:team_id>/roster")
 def get_team_roster(team_id):
+    season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: commonteamroster.CommonTeamRoster(team_id=team_id, season=CURRENT_SEASON)
+        lambda: commonteamroster.CommonTeamRoster(team_id=team_id, season=season)
     )
 
 

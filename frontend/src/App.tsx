@@ -1,202 +1,160 @@
 import React, { useState } from 'react';
+import { Routes, Route, useNavigate, useLocation, useParams, Navigate, Link } from 'react-router-dom';
+import './App.css';
+import PlayersView from './components/PlayersView';
+import PlayerDetail from './components/PlayerDetail';
+import TeamsView from './components/TeamsView';
+import TeamDetail from './components/TeamDetail';
+import StandingsView from './components/StandingsView';
+import LeadersView from './components/LeadersView';
+import ScoreboardView from './components/ScoreboardView';
+import HomeView from './components/HomeView';
+import TeamStatsView from './components/TeamStatsView';
+import GameDetailView from './components/GameDetailView';
 
-const API = 'http://localhost:5000/api';
-
-interface Endpoint {
-  label: string;
-  description: string;
-  category: string;
-  buildUrl: (params: Record<string, string>) => string;
-  params: { name: string; placeholder: string; defaultValue: string }[];
-}
-
-const ENDPOINTS: Endpoint[] = [
-  // Players
-  {
-    category: 'Players', label: 'All Players',
-    description: 'List of all current NBA players',
-    buildUrl: () => `${API}/players`,
-    params: [],
-  },
-  {
-    category: 'Players', label: 'Player Info',
-    description: 'General info about a player',
-    buildUrl: (p) => `${API}/players/${p.player_id}`,
-    params: [{ name: 'player_id', placeholder: 'Player ID', defaultValue: '2544' }],
-  },
-  {
-    category: 'Players', label: 'Player Career Stats',
-    description: 'Career stats of a player',
-    buildUrl: (p) => `${API}/players/${p.player_id}/career`,
-    params: [{ name: 'player_id', placeholder: 'Player ID', defaultValue: '2544' }],
-  },
-  {
-    category: 'Players', label: 'Player Game Log',
-    description: 'Game log for a player in a season',
-    buildUrl: (p) => `${API}/players/${p.player_id}/gamelog?season=${p.season}`,
-    params: [
-      { name: 'player_id', placeholder: 'Player ID', defaultValue: '2544' },
-      { name: 'season', placeholder: 'Season (es. 2024-25)', defaultValue: '2024-25' },
-    ],
-  },
-  {
-    category: 'Players', label: 'Player Shot Chart',
-    description: 'Shot chart for a player in a season',
-    buildUrl: (p) => `${API}/players/${p.player_id}/shotchart?season=${p.season}`,
-    params: [
-      { name: 'player_id', placeholder: 'Player ID', defaultValue: '2544' },
-      { name: 'season', placeholder: 'Season', defaultValue: '2024-25' },
-    ],
-  },
-  // Teams
-  {
-    category: 'Teams', label: 'All Teams',
-    description: 'List of all NBA teams',
-    buildUrl: () => `${API}/teams`,
-    params: [],
-  },
-  {
-    category: 'Teams', label: 'Team Info',
-    description: 'General info about a team',
-    buildUrl: (p) => `${API}/teams/${p.team_id}`,
-    params: [{ name: 'team_id', placeholder: 'Team ID', defaultValue: '1610612747' }],
-  },
-  {
-    category: 'Teams', label: 'Team Roster',
-    description: 'Current roster of a team',
-    buildUrl: (p) => `${API}/teams/${p.team_id}/roster`,
-    params: [{ name: 'team_id', placeholder: 'Team ID', defaultValue: '1610612747' }],
-  },
-  {
-    category: 'Teams', label: 'Team Game Log',
-    description: 'Game log for a team in a season',
-    buildUrl: (p) => `${API}/teams/${p.team_id}/gamelog?season=${p.season}`,
-    params: [
-      { name: 'team_id', placeholder: 'Team ID', defaultValue: '1610612747' },
-      { name: 'season', placeholder: 'Season', defaultValue: '2024-25' },
-    ],
-  },
-  {
-    category: 'Teams', label: 'Team History',
-    description: 'Year-by-year stats for a team',
-    buildUrl: (p) => `${API}/teams/${p.team_id}/history`,
-    params: [{ name: 'team_id', placeholder: 'Team ID', defaultValue: '1610612747' }],
-  },
-  // League
-  {
-    category: 'League', label: 'Standings',
-    description: 'Current standings in the league',
-    buildUrl: (p) => `${API}/league/standings?season=${p.season}`,
-    params: [{ name: 'season', placeholder: 'Season', defaultValue: '2024-25' }],
-  },
-  {
-    category: 'League', label: 'League Leaders',
-    description: 'Statistical leaders in the league',
-    buildUrl: (p) => `${API}/league/leaders?season=${p.season}&stat=${p.stat}`,
-    params: [
-      { name: 'season', placeholder: 'Season', defaultValue: '2024-25' },
-      { name: 'stat', placeholder: 'Stat (PTS, AST, REB...)', defaultValue: 'PTS' },
-    ],
-  },
-  {
-    category: 'League', label: 'Player Stats Dashboard',
-    description: 'All player stats for a season',
-    buildUrl: (p) => `${API}/league/playerstats?season=${p.season}`,
-    params: [{ name: 'season', placeholder: 'Season', defaultValue: '2024-25' }],
-  },
-  {
-    category: 'League', label: 'Team Stats Dashboard',
-    description: 'All team stats for a season',
-    buildUrl: (p) => `${API}/league/teamstats?season=${p.season}`,
-    params: [{ name: 'season', placeholder: 'Season', defaultValue: '2024-25' }],
-  },
-  // Games
-  {
-    category: 'Games', label: 'Scoreboard',
-    description: 'Scores for a specific date',
-    buildUrl: (p) => `${API}/games/scoreboard?date=${p.date}`,
-    params: [{ name: 'date', placeholder: 'Date (YYYY-MM-DD)', defaultValue: '2025-03-09' }],
-  },
-  {
-    category: 'Games', label: 'Box Score Summary',
-    description: 'Summary of a game box score',
-    buildUrl: (p) => `${API}/games/${p.game_id}/summary`,
-    params: [{ name: 'game_id', placeholder: 'Game ID', defaultValue: '0022401000' }],
-  },
-  {
-    category: 'Games', label: 'Box Score Traditional',
-    description: 'Traditional box score for a game',
-    buildUrl: (p) => `${API}/games/${p.game_id}/boxscore`,
-    params: [{ name: 'game_id', placeholder: 'Game ID', defaultValue: '0022401000' }],
-  },
+const NAV = [
+  { path: '/',           label: 'Home',               icon: '🏠', section: 'Esplora' },
+  { path: '/players',    label: 'Giocatori',     icon: '👤', section: 'Esplora' },
+  { path: '/teams',      label: 'Squadre',       icon: '🏀', section: 'Esplora' },
+  { path: '/standings',  label: 'Classifica',    icon: '📊', section: 'Lega' },
+  { path: '/leaders',    label: 'Leader Statistiche', icon: '🏆', section: 'Lega' },
+  { path: '/teamstats',  label: 'Statistiche Squadre', icon: '📈', section: 'Lega' },
+  { path: '/scoreboard', label: 'Calendario',    icon: '📅', section: 'Partite' },
 ];
 
-const categories = Array.from(new Set(ENDPOINTS.map(e => e.category)));
+const SEASONS = ['2025-26', '2024-25', '2023-24', '2022-23', '2021-22', '2020-21', '2019-20', '2018-19'];
 
-function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
-  const defaultParams = Object.fromEntries(endpoint.params.map(p => [p.name, p.defaultValue]));
-  const [params, setParams] = useState<Record<string, string>>(defaultParams);
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    setData(null);
-    try {
-      const url = endpoint.buildUrl(params);
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      setData(json);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+function Sidebar({ season, setSeason }: { season: string; setSeason: (s: string) => void }) {
+  const location = useLocation();
+  const base = '/' + location.pathname.split('/')[1];
 
   return (
-    <div style={{ border: '1px solid #ccc', margin: '8px 0', padding: '12px' }}>
-      <strong>{endpoint.label}</strong> — <span>{endpoint.description}</span>
-      <div style={{ marginTop: 8 }}>
-        {endpoint.params.map(p => (
-          <input
-            key={p.name}
-            style={{ marginRight: 8 }}
-            placeholder={p.placeholder}
-            value={params[p.name]}
-            onChange={e => setParams(prev => ({ ...prev, [p.name]: e.target.value }))}
-          />
-        ))}
-        <button onClick={fetchData} disabled={loading}>
-          {loading ? 'Loading...' : 'Fetch'}
-        </button>
+    <aside className="sidebar">
+      <div className="sidebar-logo">
+        <Link to="/" style={{ textDecoration: 'none' }}>
+          <h1>NBA<span>.</span>Statistiche</h1>
+        </Link>
       </div>
-      {error && <pre style={{ color: 'red' }}>Error: {error}</pre>}
-      {data && (
-        <pre style={{ background: '#f4f4f4', padding: 8, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      )}
-    </div>
+      <nav className="sidebar-nav">
+        {['Esplora', 'Lega', 'Partite'].map(section => (
+          <div key={section} className="nav-section">
+            <div className="nav-section-label">{section}</div>
+            {NAV.filter(i => i.section === section).map(item => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${base === item.path ? 'active' : ''}`}
+                style={{ textDecoration: 'none' }}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div style={{ padding: '12px 20px', borderTop: '1px solid #1f2937' }}>
+        <div style={{ marginBottom: 10 }}>
+          <p style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Stagione</p>
+          <select
+            value={season}
+            onChange={e => setSeason(e.target.value)}
+            style={{
+              width: '100%', background: '#111827', border: '1px solid #374151',
+              color: '#f9fafb', padding: '7px 10px', borderRadius: 6,
+              fontSize: 13, fontWeight: 600, outline: 'none', cursor: 'pointer'
+            }}
+          >
+            {SEASONS.map(s => (
+              <option key={s} value={s}>{s}{s === '2025-26' ? ' ★' : ''}</option>
+            ))}
+          </select>
+        </div>
+        <p style={{ fontSize: 12, color: '#4b5563' }}>Server: localhost:5000</p>
+      </div>
+    </aside>
   );
 }
 
-function App() {
+/* ── wrapper routes per estrarre useParams ────────────────────────── */
+function PlayerDetailRoute({ season }: { season: string }) {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   return (
-    <div style={{ padding: 20 }}>
-      <h1>NBA API Explorer</h1>
-      <p>Backend: <code>http://localhost:5000</code> — avvia <code>python backend/app.py</code> prima di fare fetch.</p>
-      {categories.map(cat => (
-        <div key={cat}>
-          <h2>{cat}</h2>
-          {ENDPOINTS.filter(e => e.category === cat).map(ep => (
-            <EndpointCard key={ep.label} endpoint={ep} />
-          ))}
-        </div>
-      ))}
+    <PlayerDetail
+      playerId={Number(id)}
+      onBack={() => navigate('/players')}
+      season={season}
+      onSelectPlayer={pid => navigate(`/players/${pid}`)}
+    />
+  );
+}
+
+function TeamDetailRoute({ season }: { season: string }) {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  return (
+    <TeamDetail
+      teamId={Number(id)}
+      onBack={() => navigate('/teams')}
+      season={season}
+      onSelectPlayer={pid => navigate(`/players/${pid}`)}
+    />
+  );
+}
+
+function GameDetailRoute() {
+  const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
+  if (!gameId) return <Navigate to="/scoreboard" replace />;
+  return (
+    <GameDetailView
+      gameId={gameId}
+      onBack={() => navigate('/scoreboard')}
+      onSelectPlayer={pid => navigate(`/players/${pid}`)}
+    />
+  );
+}
+
+/* ── app root ─────────────────────────────────────────────────────── */
+function App() {
+  const [season, setSeason] = useState('2025-26');
+  const navigate = useNavigate();
+
+  return (
+    <div className="app">
+      <Sidebar season={season} setSeason={setSeason} />
+      <main className="main">
+        <Routes>
+          <Route path="/" element={
+            <HomeView
+              season={season}
+              onOpenScoreboard={() => navigate('/scoreboard')}
+              onOpenLeaders={() => navigate('/leaders')}
+              onOpenStandings={() => navigate('/standings')}
+              onOpenTeamStats={() => navigate('/teamstats')}
+              onOpenGame={gameId => navigate(`/scoreboard/${gameId}`)}
+            />
+          } />
+          <Route path="/players" element={
+            <PlayersView onSelectPlayer={id => navigate(`/players/${id}`)} />
+          } />
+          <Route path="/players/:id" element={<PlayerDetailRoute season={season} />} />
+          <Route path="/teams" element={
+            <TeamsView onSelectTeam={id => navigate(`/teams/${id}`)} />
+          } />
+          <Route path="/teams/:id" element={<TeamDetailRoute season={season} />} />
+          <Route path="/standings" element={<StandingsView season={season} />} />
+          <Route path="/leaders" element={
+            <LeadersView season={season} onSelectPlayer={id => navigate(`/players/${id}`)} />
+          } />
+          <Route path="/teamstats" element={
+            <TeamStatsView season={season} onSelectTeam={id => navigate(`/teams/${id}`)} />
+          } />
+          <Route path="/scoreboard" element={<ScoreboardView onSelectGame={gameId => navigate(`/scoreboard/${gameId}`)} />} />
+          <Route path="/scoreboard/:gameId" element={<GameDetailRoute />} />
+        </Routes>
+      </main>
     </div>
   );
 }
