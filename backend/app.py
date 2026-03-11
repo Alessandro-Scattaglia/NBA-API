@@ -21,7 +21,9 @@ from zoneinfo import ZoneInfo
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# Inject a no-verify session directly into nba_api's HTTP class
+# Patch nba_api per usare una sessione con verify=False e headers corretti.
+# La classe NBAHTTP usa requests.get() direttamente nel metodo send_api_request,
+# quindi sovrascriviamo quel metodo per usare la nostra sessione persistente.
 from nba_api.library.http import NBAHTTP
 
 _session = requests.Session()
@@ -41,20 +43,48 @@ _session.headers.update({
 _adapter = HTTPAdapter(
     max_retries=Retry(
         total=2,
-        backoff_factor=0.5,
-        status_forcelist=[429, 500, 502, 503, 504],
+        read=1,
+        connect=1,
+        backoff_factor=0.3,
+        status_forcelist=[408, 429, 500, 502, 503, 504],
         allowed_methods=["GET"],
+        raise_on_status=False,
     )
 )
 _session.mount("https://", _adapter)
 _session.mount("http://", _adapter)
-if hasattr(NBAHTTP, "set_session"):
-    NBAHTTP.set_session(_session)
-else:
-    NBAHTTP._session = _session
+
+# Monkey-patch del metodo send_api_request per usare _session invece di requests.get()
+_original_send = NBAHTTP.send_api_request
+
+def _patched_send(self, endpoint, parameters, referer=None, proxy=None, headers=None, timeout=None, raise_exception_on_error=False):
+    import random
+    from urllib.parse import quote_plus
+
+    base_url = self.base_url.format(endpoint=endpoint)
+    request_headers = dict(headers if headers is not None else self.headers)
+    if referer:
+        request_headers["Referer"] = referer
+
+    parameters = sorted(parameters.items(), key=lambda kv: kv[0])
+
+    response = _session.get(
+        url=base_url,
+        params=parameters,
+        headers=request_headers,
+        timeout=timeout,
+    )
+    contents = self.clean_contents(response.text)
+    data = self.nba_response(response=contents, status_code=response.status_code, url=response.url)
+    if raise_exception_on_error and not data.valid_json():
+        raise Exception("InvalidResponse: Response is not in a valid JSON format.")
+    return data
+
+NBAHTTP.send_api_request = _patched_send
 
 # Per-request timeout for every nba_api endpoint call (seconds)
-NBA_API_TIMEOUT = 30
+NBA_API_TIMEOUT = 20
+PLAYER_API_TIMEOUT = 25
 
 from nba_api.stats.endpoints import (
     commonallplayers,
@@ -80,7 +110,8 @@ app = Flask(__name__)
 CORS(app)
 
 cache = Cache(app, config={
-    "CACHE_TYPE": "SimpleCache",
+    "CACHE_TYPE": "FileSystemCache",
+    "CACHE_DIR": os.path.join(os.path.dirname(__file__), ".cache"),
     "CACHE_DEFAULT_TIMEOUT": 300,  # 5 minutes default
 })
 
@@ -108,7 +139,7 @@ def safe_call(fn):
 @cache.cached(timeout=3600)
 def get_all_players():
     return safe_call(
-        lambda: commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=NBA_API_TIMEOUT)
+        lambda: commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=PLAYER_API_TIMEOUT)
     )
 
 
@@ -116,7 +147,7 @@ def get_all_players():
 @cache.cached(timeout=1800)
 def get_player_info(player_id):
     return safe_call(
-        lambda: commonplayerinfo.CommonPlayerInfo(player_id=player_id, timeout=NBA_API_TIMEOUT)
+        lambda: commonplayerinfo.CommonPlayerInfo(player_id=player_id, timeout=PLAYER_API_TIMEOUT)
     )
 
 
@@ -124,7 +155,7 @@ def get_player_info(player_id):
 @cache.cached(timeout=1800)
 def get_player_career(player_id):
     return safe_call(
-        lambda: playercareerstats.PlayerCareerStats(player_id=player_id, timeout=NBA_API_TIMEOUT)
+        lambda: playercareerstats.PlayerCareerStats(player_id=player_id, timeout=PLAYER_API_TIMEOUT)
     )
 
 
@@ -133,7 +164,7 @@ def get_player_career(player_id):
 def get_player_gamelog(player_id):
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: playergamelog.PlayerGameLog(player_id=player_id, season=season, timeout=NBA_API_TIMEOUT)
+        lambda: playergamelog.PlayerGameLog(player_id=player_id, season=season, timeout=PLAYER_API_TIMEOUT)
     )
 
 
@@ -141,7 +172,7 @@ def get_player_gamelog(player_id):
 @cache.cached(timeout=1800)
 def get_player_profile(player_id):
     return safe_call(
-        lambda: playerprofilev2.PlayerProfileV2(player_id=player_id, timeout=NBA_API_TIMEOUT)
+        lambda: playerprofilev2.PlayerProfileV2(player_id=player_id, timeout=PLAYER_API_TIMEOUT)
     )
 
 
@@ -260,13 +291,41 @@ def get_team_stats():
 
 # ── Games ─────────────────────────────────────────────────────────────────────
 
+def _fetch_scoreboard(date: str, timeout: int):
+    return scoreboardv2.ScoreboardV2(game_date=date, timeout=timeout).get_normalized_dict()
+
+
 @app.route("/api/games/scoreboard")
-@cache.cached(timeout=60, query_string=True)
 def get_scoreboard():
     date = request.args.get("date", datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d"))
-    return safe_call(
-        lambda: scoreboardv2.ScoreboardV2(game_date=date, timeout=NBA_API_TIMEOUT)
-    )
+    try:
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "Formato data non valido. Usa YYYY-MM-DD."}), 400
+
+    today = datetime.now(ZoneInfo("America/New_York")).date()
+    days_diff = (today - date_obj).days
+
+    timeout = NBA_API_TIMEOUT
+    cache_ttl = 60
+    if days_diff >= 3:
+        timeout = max(NBA_API_TIMEOUT, 60)
+        cache_ttl = 3600
+    elif days_diff >= 1:
+        cache_ttl = 600
+
+    cache_key = f"scoreboard:{date}"
+    cached = cache.get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    try:
+        data = _fetch_scoreboard(date, timeout)
+        cache.set(cache_key, data, timeout=cache_ttl)
+        return jsonify(data)
+    except Exception as e:
+        logger.error("NBA API call failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/games/<game_id>/summary")
@@ -302,5 +361,35 @@ def get_shot_chart(player_id):
     )
 
 
+def _warm_cache():
+    """Pre-popola le route più visitate subito dopo il boot."""
+    import time
+    import threading
+
+    def _run():
+        time.sleep(2)  # aspetta che Flask sia pronto
+        logger.info("[warm-up] Avvio pre-riscaldamento cache...")
+        with app.test_client() as c:
+            routes = [
+                "/api/league/standings",
+                "/api/league/leaders",
+                "/api/league/playerstats",
+                "/api/league/teamstats",
+                "/api/players",
+                f"/api/games/scoreboard",
+            ]
+            for route in routes:
+                try:
+                    logger.info("[warm-up] %s", route)
+                    c.get(route)
+                except Exception as e:
+                    logger.warning("[warm-up] Errore su %s: %s", route, e)
+        logger.info("[warm-up] Cache pre-riscaldata.")
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 if __name__ == "__main__":
+    _warm_cache()
     app.run(debug=True, port=5000, use_reloader=False)
