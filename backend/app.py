@@ -1,10 +1,15 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_caching import Cache
 import os
 import ssl
 import urllib3
+import logging
 
 os.environ["FLASK_SKIP_DOTENV"] = "1"
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # Disable SSL verification (corporate proxy/firewall)
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -33,13 +38,23 @@ _session.headers.update({
     "Origin": "https://www.nba.com",
     "Connection": "keep-alive",
 })
-_adapter = HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1))
+_adapter = HTTPAdapter(
+    max_retries=Retry(
+        total=2,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+    )
+)
 _session.mount("https://", _adapter)
 _session.mount("http://", _adapter)
 if hasattr(NBAHTTP, "set_session"):
     NBAHTTP.set_session(_session)
 else:
     NBAHTTP._session = _session
+
+# Per-request timeout for every nba_api endpoint call (seconds)
+NBA_API_TIMEOUT = 30
 
 from nba_api.stats.endpoints import (
     commonallplayers,
@@ -64,6 +79,11 @@ from nba_api.stats.endpoints import (
 app = Flask(__name__)
 CORS(app)
 
+cache = Cache(app, config={
+    "CACHE_TYPE": "SimpleCache",
+    "CACHE_DEFAULT_TIMEOUT": 300,  # 5 minutes default
+})
+
 def current_season(now: datetime | None = None) -> str:
     today = now or datetime.now(ZoneInfo("America/New_York"))
     start_year = today.year if today.month >= 10 else today.year - 1
@@ -78,44 +98,50 @@ def safe_call(fn):
         result = fn()
         return jsonify(result.get_normalized_dict())
     except Exception as e:
+        logger.error("NBA API call failed: %s", e, exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
 # ── Players ──────────────────────────────────────────────────────────────────
 
 @app.route("/api/players")
+@cache.cached(timeout=3600)
 def get_all_players():
     return safe_call(
-        lambda: commonallplayers.CommonAllPlayers(is_only_current_season=1)
+        lambda: commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/players/<int:player_id>")
+@cache.cached(timeout=1800)
 def get_player_info(player_id):
     return safe_call(
-        lambda: commonplayerinfo.CommonPlayerInfo(player_id=player_id)
+        lambda: commonplayerinfo.CommonPlayerInfo(player_id=player_id, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/players/<int:player_id>/career")
+@cache.cached(timeout=1800)
 def get_player_career(player_id):
     return safe_call(
-        lambda: playercareerstats.PlayerCareerStats(player_id=player_id)
+        lambda: playercareerstats.PlayerCareerStats(player_id=player_id, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/players/<int:player_id>/gamelog")
+@cache.cached(timeout=300, query_string=True)
 def get_player_gamelog(player_id):
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: playergamelog.PlayerGameLog(player_id=player_id, season=season)
+        lambda: playergamelog.PlayerGameLog(player_id=player_id, season=season, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/players/<int:player_id>/profile")
+@cache.cached(timeout=1800)
 def get_player_profile(player_id):
     return safe_call(
-        lambda: playerprofilev2.PlayerProfileV2(player_id=player_id)
+        lambda: playerprofilev2.PlayerProfileV2(player_id=player_id, timeout=NBA_API_TIMEOUT)
     )
 
 
@@ -161,96 +187,108 @@ def get_all_teams():
 
 
 @app.route("/api/teams/<int:team_id>")
+@cache.cached(timeout=1800)
 def get_team_info(team_id):
     return safe_call(
-        lambda: teaminfocommon.TeamInfoCommon(team_id=team_id, season=CURRENT_SEASON)
+        lambda: teaminfocommon.TeamInfoCommon(team_id=team_id, season=CURRENT_SEASON, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/teams/<int:team_id>/roster")
+@cache.cached(timeout=1800)
 def get_team_roster(team_id):
     return safe_call(
-        lambda: commonteamroster.CommonTeamRoster(team_id=team_id, season=CURRENT_SEASON)
+        lambda: commonteamroster.CommonTeamRoster(team_id=team_id, season=CURRENT_SEASON, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/teams/<int:team_id>/gamelog")
+@cache.cached(timeout=300, query_string=True)
 def get_team_gamelog(team_id):
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: teamgamelog.TeamGameLog(team_id=team_id, season=season)
+        lambda: teamgamelog.TeamGameLog(team_id=team_id, season=season, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/teams/<int:team_id>/history")
+@cache.cached(timeout=3600)
 def get_team_history(team_id):
     return safe_call(
-        lambda: teamyearbyyearstats.TeamYearByYearStats(team_id=team_id)
+        lambda: teamyearbyyearstats.TeamYearByYearStats(team_id=team_id, timeout=NBA_API_TIMEOUT)
     )
 
 
 # ── League ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/league/standings")
+@cache.cached(timeout=300, query_string=True)
 def get_standings():
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: leaguestandings.LeagueStandings(season=season)
+        lambda: leaguestandings.LeagueStandings(season=season, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/league/leaders")
+@cache.cached(timeout=300, query_string=True)
 def get_leaders():
     season = request.args.get("season", CURRENT_SEASON)
     stat = request.args.get("stat", "PTS")
     return safe_call(
-        lambda: leagueleaders.LeagueLeaders(season=season, stat_category_abbreviation=stat)
+        lambda: leagueleaders.LeagueLeaders(season=season, stat_category_abbreviation=stat, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/league/playerstats")
+@cache.cached(timeout=300, query_string=True)
 def get_player_stats():
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: leaguedashplayerstats.LeagueDashPlayerStats(season=season)
+        lambda: leaguedashplayerstats.LeagueDashPlayerStats(season=season, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/league/teamstats")
+@cache.cached(timeout=300, query_string=True)
 def get_team_stats():
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
-        lambda: leaguedashteamstats.LeagueDashTeamStats(season=season)
+        lambda: leaguedashteamstats.LeagueDashTeamStats(season=season, timeout=NBA_API_TIMEOUT)
     )
 
 
 # ── Games ─────────────────────────────────────────────────────────────────────
 
 @app.route("/api/games/scoreboard")
+@cache.cached(timeout=60, query_string=True)
 def get_scoreboard():
     date = request.args.get("date", datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d"))
     return safe_call(
-        lambda: scoreboardv2.ScoreboardV2(game_date=date)
+        lambda: scoreboardv2.ScoreboardV2(game_date=date, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/games/<game_id>/summary")
+@cache.cached(timeout=60)
 def get_game_summary(game_id):
     return safe_call(
-        lambda: boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id)
+        lambda: boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
     )
 
 
 @app.route("/api/games/<game_id>/boxscore")
+@cache.cached(timeout=60)
 def get_game_boxscore(game_id):
     return safe_call(
-        lambda: boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
+        lambda: boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
     )
 
 
 # ── Shot Chart ────────────────────────────────────────────────────────────────
 
 @app.route("/api/players/<int:player_id>/shotchart")
+@cache.cached(timeout=300, query_string=True)
 def get_shot_chart(player_id):
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
@@ -259,6 +297,7 @@ def get_shot_chart(player_id):
             team_id=0,
             season_nullable=season,
             context_measure_simple="FGA",
+            timeout=NBA_API_TIMEOUT,
         )
     )
 
