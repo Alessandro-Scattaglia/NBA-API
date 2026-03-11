@@ -2,7 +2,7 @@ import { getCurrentSeason } from './season';
 
 export const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
 export const DEFAULT_SEASON = getCurrentSeason();
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 45000;
 
 export const playerImageUrl = (playerId: number | string): string =>
   `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png`;
