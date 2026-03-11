@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, playerImageUrl, teamLogoUrl } from '../../api';
+import { NBA_TIMEZONE, todayInTimeZone } from '../../timezone';
 import './HomeView.css';
 
 interface Props {
@@ -9,15 +10,6 @@ interface Props {
   onOpenStandings: () => void;
   onOpenTeamStats: () => void;
   onOpenGame: (gameId: string) => void;
-}
-
-function todayStr() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Rome',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 }
 
 export default function HomeView({
@@ -33,13 +25,13 @@ export default function HomeView({
   const [scoreboard, setScoreboard] = useState<any>(null);
   const [leaders, setLeaders] = useState<any>(null);
   const [standings, setStandings] = useState<any>(null);
-  const today = todayStr();
+  const nbaToday = todayInTimeZone(NBA_TIMEZONE);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     Promise.allSettled([
-      api.getScoreboard(today),
+      api.getScoreboard(nbaToday),
       api.getLeaders('PTS', season),
       api.getStandings(season),
     ])
@@ -57,7 +49,7 @@ export default function HomeView({
         }
       })
       .finally(() => setLoading(false));
-  }, [season, today]);
+  }, [season, nbaToday]);
 
   const games = scoreboard?.GameHeader || [];
   const lines = scoreboard?.LineScore || [];
@@ -93,7 +85,7 @@ export default function HomeView({
               <div className="home-card">
                 <div className="home-card-label">Partite oggi</div>
                 <div className="home-card-value">{games.length}</div>
-                <div className="home-card-sub">{today}</div>
+                <div className="home-card-sub">{nbaToday} (ET)</div>
               </div>
 
               <div className="home-card">

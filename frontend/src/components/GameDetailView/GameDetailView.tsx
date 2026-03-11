@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, teamLogoUrl } from '../../api';
+import { LOCAL_TIMEZONE } from '../../timezone';
 import './GameDetailView.css';
 
 interface Props {
@@ -16,7 +17,7 @@ function formatDateIt(value?: string): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-    timeZone: 'Europe/Rome',
+    timeZone: LOCAL_TIMEZONE,
   });
 }
 
@@ -65,12 +66,12 @@ function formatStatusInItalian(status?: string, gameDateEst?: string): string {
     if (ampm === 'PM' && hour < 12) hour += 12;
     if (ampm === 'AM' && hour === 12) hour = 0;
     const nyDate = dateInTimeZone(dateIso, hour, minute, 'America/New_York');
-    const oraItalia = nyDate.toLocaleTimeString('it-IT', {
-      timeZone: 'Europe/Rome',
+    const oraLocale = nyDate.toLocaleTimeString('it-IT', {
+      timeZone: LOCAL_TIMEZONE,
       hour: '2-digit',
       minute: '2-digit',
     });
-    return `${oraItalia} (ora di Roma)`;
+    return `${oraLocale} (ora locale)`;
   }
 
   return clean

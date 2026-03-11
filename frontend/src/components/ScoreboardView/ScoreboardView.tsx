@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { api, teamLogoUrl } from '../../api';
+import { LOCAL_TIMEZONE, NBA_TIMEZONE, todayInTimeZone } from '../../timezone';
 import './ScoreboardView.css';
 
 interface Props {
   onSelectGame?: (gameId: string) => void;
-}
-
-function todayStr() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Rome',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 }
 
 function timezoneOffsetMs(date: Date, timeZone: string): number {
@@ -59,12 +51,12 @@ function formatStatusInItalian(status: string, dateIso: string): string {
     if (ampm === 'PM' && hour < 12) hour += 12;
     if (ampm === 'AM' && hour === 12) hour = 0;
     const nyDate = dateInTimeZone(dateIso, hour, minute, 'America/New_York');
-    const oraItalia = nyDate.toLocaleTimeString('it-IT', {
-      timeZone: 'Europe/Rome',
+    const oraLocale = nyDate.toLocaleTimeString('it-IT', {
+      timeZone: LOCAL_TIMEZONE,
       hour: '2-digit',
       minute: '2-digit',
     });
-    return `${oraItalia} (ora italiana)`;
+    return `${oraLocale} (ora locale)`;
   }
 
   return clean
@@ -80,7 +72,7 @@ function formatStatusInItalian(status: string, dateIso: string): string {
 }
 
 export default function ScoreboardView({ onSelectGame }: Props) {
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(todayInTimeZone(NBA_TIMEZONE));
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +99,7 @@ export default function ScoreboardView({ onSelectGame }: Props) {
     <>
       <div className="main-header">
         <h2>Calendario Partite</h2>
-        <p>Partite NBA per data (ora italiana)</p>
+        <p>Partite NBA per data (ET) · orari convertiti in locale</p>
       </div>
       <div className="main-content">
         <div className="scoreboard-date">
@@ -117,6 +109,7 @@ export default function ScoreboardView({ onSelectGame }: Props) {
             value={date}
             onChange={e => setDate(e.target.value)}
           />
+          <span style={{ fontSize: 12, color: 'var(--text-subtle)' }}>Data NBA (ET)</span>
           {!loading && games.length > 0 && (
             <span style={{ fontSize: 13, color: 'var(--text-subtle)' }}>{games.length} partite</span>
           )}

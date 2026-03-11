@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { api, playerImageUrl } from '../../api';
+import { api, DEFAULT_SEASON, playerImageUrl } from '../../api';
+import { buildSeasons } from '../../season';
 import ShotChart from '../ShotChart/ShotChart';
+import { LOCAL_TIMEZONE } from '../../timezone';
 import './PlayerDetail.css';
 
 interface Props {
@@ -11,6 +13,7 @@ interface Props {
 }
 
 type Tab = 'overview' | 'career' | 'gamelog' | 'shotchart';
+const SEASONS = buildSeasons(DEFAULT_SEASON, 8);
 
 function feetInchesToCm(height?: string): string {
   if (!height) return '—';
@@ -33,7 +36,7 @@ function formatDateIt(value?: string): string {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('it-IT', { timeZone: 'Europe/Rome' });
+  return parsed.toLocaleDateString('it-IT', { timeZone: LOCAL_TIMEZONE });
 }
 
 export default function PlayerDetail({ playerId, onBack, season: globalSeason }: Props) {
@@ -192,7 +195,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
               onChange={e => setSeason(e.target.value)}
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 13, outline: 'none' }}
             >
-              {['2025-26', '2024-25', '2023-24', '2022-23', '2021-22', '2020-21', '2019-20', '2018-19'].map(s => (
+              {SEASONS.map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>

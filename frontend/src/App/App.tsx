@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate, Link } from 'react-router-dom';
 import './App.css';
 import '../components/Shared/Shared.css';
+import { buildSeasons } from '../season';
+import { DEFAULT_SEASON } from '../api';
 import PlayersView from '../components/PlayersView/PlayersView';
 import PlayerDetail from '../components/PlayerDetail/PlayerDetail';
 import TeamsView from '../components/TeamsView/TeamsView';
@@ -23,7 +25,7 @@ const NAV = [
   { path: '/scoreboard', label: 'Calendario', icon: '📅', section: 'Partite' },
 ];
 
-const SEASONS = ['2025-26', '2024-25', '2023-24', '2022-23', '2021-22', '2020-21', '2019-20', '2018-19'];
+const SEASONS = buildSeasons(DEFAULT_SEASON, 8);
 
 function Sidebar({
   season,
@@ -73,7 +75,7 @@ function Sidebar({
             onChange={e => setSeason(e.target.value)}
           >
             {SEASONS.map(s => (
-              <option key={s} value={s}>{s}{s === '2025-26' ? ' ★' : ''}</option>
+              <option key={s} value={s}>{s}{s === DEFAULT_SEASON ? ' ★' : ''}</option>
             ))}
           </select>
         </div>
@@ -128,7 +130,7 @@ function GameDetailRoute() {
 
 
 function App() {
-  const [season, setSeason] = useState('2025-26');
+  const [season, setSeason] = useState(DEFAULT_SEASON);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const navigate = useNavigate();
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api, teamLogoUrl, playerImageUrl } from '../../api';
+import { LOCAL_TIMEZONE } from '../../timezone';
 import './TeamDetail.css';
 
 interface Props {
@@ -32,7 +33,7 @@ function formatDateIt(value?: string): string {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('it-IT', { timeZone: 'Europe/Rome' });
+  return parsed.toLocaleDateString('it-IT', { timeZone: LOCAL_TIMEZONE });
 }
 
 export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: Props) {
