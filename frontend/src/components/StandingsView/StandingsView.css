@@ -24,6 +24,33 @@
   border-radius: 2px;
 }
 
+.playoffs-info {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+.playoffs-info h3 {
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.playoffs-info .muted {
+  color: var(--text-subtle);
+  font-size: 13px;
+  margin: 0 0 8px 0;
+}
+.playoffs-info ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+}
+.playoffs-info ul li {
+  margin-bottom: 6px;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
   .standings-grid {

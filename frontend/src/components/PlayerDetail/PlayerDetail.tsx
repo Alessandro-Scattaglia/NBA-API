@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api, DEFAULT_SEASON, playerImageUrl } from '../../api';
-import { buildSeasons } from '../../season';
+import { api, playerImageUrl } from '../../api';
 import ShotChart from '../ShotChart/ShotChart';
 import { formatDateIt, formatPositionIt } from '../../formatting';
 import './PlayerDetail.css';
@@ -13,7 +12,6 @@ interface Props {
 }
 
 type Tab = 'overview' | 'career' | 'gamelog' | 'shotchart' | 'profile';
-const SEASONS = buildSeasons(DEFAULT_SEASON, 8);
 
 function feetInchesToCm(height?: string): string {
   if (!height) return '—';
@@ -95,6 +93,12 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
 
   // Totali della stagione selezionata → calcoliamo le medie per partita
   const allSeasons: any[] = career?.SeasonTotalsRegularSeason || [];
+  const availableSeasons = allSeasons
+    .map(row => String(row.SEASON_ID))
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index)
+    .reverse();
+  const seasonOptions = availableSeasons.length ? availableSeasons : [season];
   const seasonTotals = allSeasons.find(s => s.SEASON_ID === season) ?? null;
   const gp = seasonTotals?.GP || 1;
   const seasonStats = seasonTotals ? {
@@ -194,7 +198,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
               onChange={e => setSeason(e.target.value)}
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 13, outline: 'none' }}
             >
-              {SEASONS.map(s => (
+              {seasonOptions.map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>

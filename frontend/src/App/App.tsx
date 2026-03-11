@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate, Link } from 'react-router-dom';
 import './App.css';
 import '../components/Shared/Shared.css';
-import { buildSeasons } from '../season';
-import { DEFAULT_SEASON } from '../api';
+import { api, DEFAULT_SEASON } from '../api';
 import PlayersView from '../components/PlayersView/PlayersView';
 import PlayerDetail from '../components/PlayerDetail/PlayerDetail';
 import TeamsView from '../components/TeamsView/TeamsView';
@@ -27,15 +26,15 @@ const NAV = [
   { path: '/scoreboard', label: 'Calendario', icon: '📅', section: 'Partite' },
 ];
 
-const SEASONS = buildSeasons(DEFAULT_SEASON, 8);
-
 function Sidebar({
   season,
+  seasons,
   setSeason,
   theme,
   onToggleTheme
 }: {
   season: string;
+  seasons: string[];
   setSeason: (s: string) => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
@@ -76,7 +75,7 @@ function Sidebar({
             value={season}
             onChange={e => setSeason(e.target.value)}
           >
-            {SEASONS.map(s => (
+            {seasons.map(s => (
               <option key={s} value={s}>{s}{s === DEFAULT_SEASON ? ' ★' : ''}</option>
             ))}
           </select>
@@ -133,13 +132,30 @@ function GameDetailRoute() {
 
 function App() {
   const [season, setSeason] = useState(DEFAULT_SEASON);
+  const [seasons, setSeasons] = useState<string[]>([DEFAULT_SEASON]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let alive = true;
+    api.getAvailableSeasons()
+      .then((data: any) => {
+        if (!alive) return;
+        const apiSeasons = Array.isArray(data?.seasons) && data.seasons.length ? data.seasons : [DEFAULT_SEASON];
+        setSeasons(apiSeasons);
+        setSeason(current => (apiSeasons.includes(current) ? current : (data?.current || apiSeasons[0] || DEFAULT_SEASON)));
+      })
+      .catch(() => {
+        if (alive) setSeasons([DEFAULT_SEASON]);
+      });
+    return () => { alive = false; };
+  }, []);
 
   return (
     <div className="app" data-theme={theme}>
       <Sidebar
         season={season}
+        seasons={seasons}
         setSeason={setSeason}
         theme={theme}
         onToggleTheme={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}

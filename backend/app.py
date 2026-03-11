@@ -96,6 +96,7 @@ PLAYER_API_TIMEOUT = 25
 from nba_api.stats.endpoints import (
     commonallplayers,
     commonplayerinfo,
+    commonteamyears,
     playercareerstats,
     playergamelog,
     playerprofilev2,
@@ -103,11 +104,18 @@ from nba_api.stats.endpoints import (
     teamgamelog,
     teaminfocommon,
     teamyearbyyearstats,
+    franchisehistory,
     leaguestandings,
     leagueleaders,
+    leaguedashlineups,
     leaguedashplayerstats,
     leaguedashteamstats,
     scoreboardv2,
+    boxscoreadvancedv2,
+    boxscorefourfactorsv2,
+    boxscorehustlev2,
+    boxscoremiscv2,
+    boxscorescoringv2,
     boxscoresummaryv2,
     boxscoretraditionalv2,
     playbyplayv2,
@@ -178,6 +186,257 @@ def _compute_pct(made: Any, att: Any) -> float | None:
     if m is None or a in (None, 0):
         return None
     return m / a
+
+
+def _safe_div(num: Any, den: Any) -> float | None:
+    n = _safe_float(num)
+    d = _safe_float(den)
+    if n is None or d in (None, 0):
+        return None
+    return n / d
+
+
+def _build_season_id(start_year: int) -> str:
+    return f"{start_year}-{str(start_year + 1)[2:]}"
+
+
+def _generate_season_ids(min_year: int, max_year: int) -> list[str]:
+    if min_year > max_year:
+        return []
+    return [_build_season_id(year) for year in range(max_year, min_year - 1, -1)]
+
+
+def _dataset_or_empty(payload: dict, *keys: str) -> list[dict]:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, list):
+            return value
+    return []
+
+
+def _safe_normalized_call(label: str, fn) -> dict:
+    try:
+        return fn().get_normalized_dict()
+    except Exception as e:
+        logger.warning("%s failed: %s", label, e)
+        return {"_error": str(e)}
+
+
+def _fill_team_pct_fields(team: dict) -> dict:
+    if not isinstance(team, dict):
+        return team
+    if team.get("FG_PCT") is None:
+        team["FG_PCT"] = _compute_pct(team.get("FGM"), team.get("FGA"))
+    if team.get("FG3_PCT") is None:
+        team["FG3_PCT"] = _compute_pct(team.get("FG3M"), team.get("FG3A"))
+    if team.get("FT_PCT") is None:
+        team["FT_PCT"] = _compute_pct(team.get("FTM"), team.get("FTA"))
+    return team
+
+
+def _derive_team_insight(team: dict, opponent: dict | None = None) -> dict:
+    team = dict(team or {})
+    opp = opponent or {}
+    fgm = _safe_float(team.get("FGM"))
+    fga = _safe_float(team.get("FGA"))
+    fg3m = _safe_float(team.get("FG3M"))
+    fg3a = _safe_float(team.get("FG3A"))
+    ftm = _safe_float(team.get("FTM"))
+    fta = _safe_float(team.get("FTA"))
+    oreb = _safe_float(team.get("OREB"))
+    dreb = _safe_float(team.get("DREB"))
+    reb = _safe_float(team.get("REB"))
+    ast = _safe_float(team.get("AST"))
+    tov = _safe_float(team.get("TO"))
+    pts = _safe_float(team.get("PTS"))
+    stl = _safe_float(team.get("STL"))
+    blk = _safe_float(team.get("BLK"))
+    pf = _safe_float(team.get("PF"))
+    opp_dreb = _safe_float(opp.get("DREB"))
+    opp_oreb = _safe_float(opp.get("OREB"))
+    opp_poss = None
+
+    poss = None
+    if fga is not None and oreb is not None and tov is not None and fta is not None:
+        poss = fga - oreb + tov + (0.44 * fta)
+
+    if opponent:
+        opp_fga = _safe_float(opp.get("FGA"))
+        opp_fta = _safe_float(opp.get("FTA"))
+        opp_tov = _safe_float(opp.get("TO"))
+        if opp_fga is not None and opp_oreb is not None and opp_tov is not None and opp_fta is not None:
+            opp_poss = opp_fga - opp_oreb + opp_tov + (0.44 * opp_fta)
+
+    return {
+        "TEAM_ID": team.get("TEAM_ID"),
+        "TEAM_NAME": team.get("TEAM_NAME"),
+        "TEAM_ABBREVIATION": team.get("TEAM_ABBREVIATION"),
+        "PTS": pts,
+        "REB": reb,
+        "AST": ast,
+        "OREB": oreb,
+        "DREB": dreb,
+        "STL": stl,
+        "BLK": blk,
+        "TO": tov,
+        "PF": pf,
+        "PLUS_MINUS": _safe_float(team.get("PLUS_MINUS")),
+        "FG_PCT": team.get("FG_PCT"),
+        "FG3_PCT": team.get("FG3_PCT"),
+        "FT_PCT": team.get("FT_PCT"),
+        "EFG_PCT": _safe_div((fgm or 0) + 0.5 * (fg3m or 0), fga),
+        "TS_PCT": _safe_div(pts, 2 * ((fga or 0) + 0.44 * (fta or 0))) if pts is not None and (fga is not None or fta is not None) else None,
+        "FG3_RATE": _safe_div(fg3a, fga),
+        "FTA_RATE": _safe_div(fta, fga),
+        "AST_TOV": _safe_div(ast, tov),
+        "OREB_PCT": _safe_div(oreb, (oreb or 0) + (opp_dreb or 0)),
+        "DREB_PCT": _safe_div(dreb, (dreb or 0) + (opp_oreb or 0)),
+        "POSS_EST": poss,
+        "OFF_RATING_EST": _safe_div((pts or 0) * 100, poss) if poss is not None and pts is not None else None,
+        "DEF_RATING_EST": _safe_div((_safe_float(opp.get("PTS")) or 0) * 100, opp_poss) if opp_poss is not None and opponent else None,
+        "PACE_EST": ((poss or 0) + (opp_poss or 0)) / 2 if poss is not None and opp_poss is not None else None,
+    }
+
+
+def _team_stats_have_pct(team_stats: list[dict]) -> bool:
+    if not team_stats:
+        return False
+    for team in team_stats:
+        if any(team.get(field) is not None for field in ("FG_PCT", "FG3_PCT", "FT_PCT")):
+            return True
+    return False
+
+
+def _merge_team_stats(base_stats: list[dict], extra_stats: list[dict]) -> list[dict]:
+    if not base_stats:
+        return [_fill_team_pct_fields(dict(team)) for team in extra_stats]
+
+    merged = []
+    extra_by_team_id = {team.get("TEAM_ID"): team for team in extra_stats if isinstance(team, dict)}
+    extra_by_abbr = {
+        str(team.get("TEAM_ABBREVIATION")).upper(): team
+        for team in extra_stats
+        if isinstance(team, dict) and team.get("TEAM_ABBREVIATION")
+    }
+
+    for team in base_stats:
+        merged_team = dict(team)
+        extra = extra_by_team_id.get(team.get("TEAM_ID"))
+        if extra is None and team.get("TEAM_ABBREVIATION"):
+            extra = extra_by_abbr.get(str(team.get("TEAM_ABBREVIATION")).upper())
+        if extra:
+            for field in ("FG_PCT", "FG3_PCT", "FT_PCT", "FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA", "OREB", "DREB", "STL", "BLK", "TO", "PF", "PLUS_MINUS"):
+                if merged_team.get(field) is None and extra.get(field) is not None:
+                    merged_team[field] = extra.get(field)
+        merged.append(_fill_team_pct_fields(merged_team))
+
+    return merged
+
+
+def _enrich_boxscore_with_traditional(game_id: str, normalized: dict) -> dict:
+    team_stats = normalized.get("TeamStats") or []
+    traditional = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=NBA_API_TIMEOUT).get_normalized_dict()
+    traditional_team_stats = traditional.get("TeamStats") or []
+    normalized["TeamStats"] = _merge_team_stats(team_stats, traditional_team_stats)
+    if not normalized.get("PlayerStats") and traditional.get("PlayerStats"):
+        normalized["PlayerStats"] = traditional.get("PlayerStats")
+    return normalized
+
+
+def _get_game_boxscore_payload(game_id: str) -> dict:
+    cdn_url = f"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
+    espn_url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={game_id}"
+
+    try:
+        data = _fetch_public_json(cdn_url, timeout=12)
+        normalized = _normalize_cdn_boxscore(data)
+        if normalized.get("TeamStats") or normalized.get("PlayerStats"):
+            try:
+                normalized = _enrich_boxscore_with_traditional(game_id, normalized)
+            except Exception as enrich_error:
+                logger.warning("Traditional enrich failed for CDN boxscore %s: %s", game_id, enrich_error)
+            return normalized
+        raise Exception("Empty CDN boxscore")
+    except Exception as e:
+        logger.warning("CDN boxscore failed for %s: %s", game_id, e)
+
+    try:
+        data = _fetch_public_json(espn_url, timeout=12)
+        normalized = _normalize_espn_boxscore(data)
+        if normalized.get("TeamStats") or normalized.get("PlayerStats"):
+            try:
+                normalized = _enrich_boxscore_with_traditional(game_id, normalized)
+            except Exception as enrich_error:
+                logger.warning("Traditional enrich failed for ESPN boxscore %s: %s", game_id, enrich_error)
+            return normalized
+        raise Exception("Empty ESPN boxscore")
+    except Exception as e:
+        logger.warning("ESPN boxscore failed for %s: %s", game_id, e)
+
+    return boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=NBA_API_TIMEOUT).get_normalized_dict()
+
+
+def _game_insights_payload(game_id: str) -> dict:
+    boxscore = _get_game_boxscore_payload(game_id)
+    team_stats = [_fill_team_pct_fields(dict(team)) for team in (boxscore.get("TeamStats") or [])]
+    derived_team_stats = []
+    if len(team_stats) >= 2:
+        derived_team_stats = [
+            _derive_team_insight(team_stats[0], team_stats[1]),
+            _derive_team_insight(team_stats[1], team_stats[0]),
+        ]
+    elif len(team_stats) == 1:
+        derived_team_stats = [_derive_team_insight(team_stats[0])]
+
+    advanced = _safe_normalized_call(
+        f"BoxScoreAdvancedV2 {game_id}",
+        lambda: boxscoreadvancedv2.BoxScoreAdvancedV2(game_id=game_id, timeout=NBA_API_TIMEOUT),
+    )
+    four_factors = _safe_normalized_call(
+        f"BoxScoreFourFactorsV2 {game_id}",
+        lambda: boxscorefourfactorsv2.BoxScoreFourFactorsV2(game_id=game_id, timeout=NBA_API_TIMEOUT),
+    )
+    misc = _safe_normalized_call(
+        f"BoxScoreMiscV2 {game_id}",
+        lambda: boxscoremiscv2.BoxScoreMiscV2(game_id=game_id, timeout=NBA_API_TIMEOUT),
+    )
+    scoring = _safe_normalized_call(
+        f"BoxScoreScoringV2 {game_id}",
+        lambda: boxscorescoringv2.BoxScoreScoringV2(game_id=game_id, timeout=NBA_API_TIMEOUT),
+    )
+    hustle = _safe_normalized_call(
+        f"BoxScoreHustleV2 {game_id}",
+        lambda: boxscorehustlev2.BoxScoreHustleV2(game_id=game_id, timeout=NBA_API_TIMEOUT),
+    )
+
+    payload = {
+        "BaseTeamStats": team_stats,
+        "DerivedTeamStats": derived_team_stats,
+        "AdvancedTeamStats": _dataset_or_empty(advanced, "TeamStats"),
+        "AdvancedPlayerStats": _dataset_or_empty(advanced, "PlayerStats"),
+        "FourFactorsTeamStats": _dataset_or_empty(four_factors, "sqlTeamsFourFactors", "TeamStats"),
+        "FourFactorsPlayerStats": _dataset_or_empty(four_factors, "sqlPlayersFourFactors", "PlayerStats"),
+        "MiscTeamStats": _dataset_or_empty(misc, "sqlTeamsMisc", "TeamStats"),
+        "MiscPlayerStats": _dataset_or_empty(misc, "sqlPlayersMisc", "PlayerStats"),
+        "ScoringTeamStats": _dataset_or_empty(scoring, "sqlTeamsScoring", "TeamStats"),
+        "ScoringPlayerStats": _dataset_or_empty(scoring, "sqlPlayersScoring", "PlayerStats"),
+        "HustleTeamStats": _dataset_or_empty(hustle, "TeamStats"),
+        "HustlePlayerStats": _dataset_or_empty(hustle, "PlayerStats"),
+    }
+    errors = {
+        "advanced": advanced.get("_error"),
+        "fourFactors": four_factors.get("_error"),
+        "misc": misc.get("_error"),
+        "scoring": scoring.get("_error"),
+        "hustle": hustle.get("_error"),
+    }
+    payload["Errors"] = {key: value for key, value in errors.items() if value}
+    payload["HasAnyData"] = bool(derived_team_stats) or any(
+        isinstance(value, list) and len(value) > 0
+        for key, value in payload.items()
+        if key not in {"Errors", "HasAnyData"}
+    )
+    return payload
 
 
 def _format_iso_minutes(value: Any) -> Any:
@@ -263,8 +522,20 @@ def _normalize_cdn_boxscore(payload: dict) -> dict:
                 "TEAM_NAME": team.get("teamName"),
                 "TEAM_ABBREVIATION": team.get("teamTricode") or team.get("triCode"),
                 "PTS": team.get("score") or stats.get("points"),
+                "FGM": _safe_float(stats.get("fgm")),
+                "FGA": _safe_float(stats.get("fga")),
+                "FG3M": _safe_float(stats.get("fg3m")),
+                "FG3A": _safe_float(stats.get("fg3a")),
+                "FTM": _safe_float(stats.get("ftm")),
+                "FTA": _safe_float(stats.get("fta")),
+                "OREB": _safe_float(stats.get("reboundsOffensive") or stats.get("offReb")),
+                "DREB": _safe_float(stats.get("reboundsDefensive") or stats.get("defReb")),
                 "REB": stats.get("reboundsTotal") or stats.get("rebounds"),
                 "AST": stats.get("assists"),
+                "STL": _safe_float(stats.get("steals")),
+                "BLK": _safe_float(stats.get("blocks")),
+                "TO": _safe_float(stats.get("turnovers")),
+                "PF": _safe_float(stats.get("foulsPersonal") or stats.get("fouls")),
                 "FG_PCT": fg_pct,
                 "FG3_PCT": fg3_pct,
                 "FT_PCT": ft_pct,
@@ -302,8 +573,20 @@ def _normalize_espn_boxscore(payload: dict) -> dict:
             "TEAM_NAME": team.get("displayName") or team.get("name"),
             "TEAM_ABBREVIATION": abbr,
             "PTS": _safe_float(stats.get("points") or stats.get("pts")),
+            "FGM": _safe_float(stats.get("fieldGoalsMade") or stats.get("fgm")),
+            "FGA": _safe_float(stats.get("fieldGoalsAttempted") or stats.get("fga")),
+            "FG3M": _safe_float(stats.get("threePointFieldGoalsMade") or stats.get("fg3m")),
+            "FG3A": _safe_float(stats.get("threePointFieldGoalsAttempted") or stats.get("fg3a")),
+            "FTM": _safe_float(stats.get("freeThrowsMade") or stats.get("ftm")),
+            "FTA": _safe_float(stats.get("freeThrowsAttempted") or stats.get("fta")),
+            "OREB": _safe_float(stats.get("offensiveRebounds") or stats.get("oreb")),
+            "DREB": _safe_float(stats.get("defensiveRebounds") or stats.get("dreb")),
             "REB": _safe_float(stats.get("rebounds") or stats.get("reboundsTotal") or stats.get("totReb")),
             "AST": _safe_float(stats.get("assists")),
+            "STL": _safe_float(stats.get("steals")),
+            "BLK": _safe_float(stats.get("blocks")),
+            "TO": _safe_float(stats.get("turnovers")),
+            "PF": _safe_float(stats.get("fouls") or stats.get("personalFouls")),
             "FG_PCT": _normalize_pct(stats.get("fieldGoalPct") or stats.get("fgPct") or stats.get("fgPercent")),
             "FG3_PCT": _normalize_pct(stats.get("threePointPct") or stats.get("fg3Pct") or stats.get("threePointFieldGoalPct")),
             "FT_PCT": _normalize_pct(stats.get("freeThrowPct") or stats.get("ftPct") or stats.get("freeThrowPercent")),
@@ -449,6 +732,40 @@ def get_team_history(team_id):
     )
 
 
+@app.route("/api/meta/seasons")
+@cache.cached(timeout=3600)
+def get_available_seasons():
+    try:
+        payload = commonteamyears.CommonTeamYears(timeout=NBA_API_TIMEOUT).get_normalized_dict()
+        rows = payload.get("TeamYears") or []
+        min_years = [_safe_int(row.get("MIN_YEAR")) for row in rows]
+        max_years = [_safe_int(row.get("MAX_YEAR")) for row in rows]
+        min_year = min((year for year in min_years if year is not None), default=None)
+        max_year = max((year for year in max_years if year is not None), default=None)
+
+        if min_year is None or max_year is None:
+            raise ValueError("CommonTeamYears returned no season range")
+
+        return jsonify({
+            "current": _build_season_id(max_year),
+            "seasons": _generate_season_ids(min_year, max_year),
+        })
+    except Exception as e:
+        logger.warning("Season metadata failed: %s", e)
+        return jsonify({
+            "current": CURRENT_SEASON,
+            "seasons": [CURRENT_SEASON],
+        })
+
+
+@app.route("/api/league/franchises/history")
+@cache.cached(timeout=3600)
+def get_franchise_history():
+    return safe_call(
+        lambda: franchisehistory.FranchiseHistory(timeout=NBA_API_TIMEOUT)
+    )
+
+
 @app.route("/api/league/standings")
 @cache.cached(timeout=300, query_string=True)
 def get_standings():
@@ -483,6 +800,28 @@ def get_team_stats():
     season = request.args.get("season", CURRENT_SEASON)
     return safe_call(
         lambda: leaguedashteamstats.LeagueDashTeamStats(season=season, timeout=NBA_API_TIMEOUT)
+    )
+
+
+@app.route("/api/league/lineups")
+@cache.cached(timeout=300, query_string=True)
+def get_lineups():
+    season = request.args.get("season", CURRENT_SEASON)
+    team_id = request.args.get("teamId", "")
+    group_quantity = request.args.get("groupQuantity", "5")
+    per_mode = request.args.get("perMode", "Totals")
+    season_type = request.args.get("seasonType", "Regular Season")
+    measure_type = request.args.get("measureType", "Base")
+    return safe_call(
+        lambda: leaguedashlineups.LeagueDashLineups(
+            season=season,
+            team_id_nullable=team_id,
+            group_quantity=group_quantity,
+            per_mode_detailed=per_mode,
+            season_type_all_star=season_type,
+            measure_type_detailed_defense=measure_type,
+            timeout=NBA_API_TIMEOUT,
+        )
     )
 
 def _fetch_scoreboard(date: str, timeout: int):
@@ -533,30 +872,11 @@ def get_game_summary(game_id):
 @app.route("/api/games/<game_id>/boxscore")
 @cache.cached(timeout=60)
 def get_game_boxscore(game_id):
-    cdn_url = f"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
-    espn_url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={game_id}"
-
     try:
-        data = _fetch_public_json(cdn_url, timeout=12)
-        normalized = _normalize_cdn_boxscore(data)
-        if normalized.get("TeamStats") or normalized.get("PlayerStats"):
-            return jsonify(normalized)
-        raise Exception("Empty CDN boxscore")
+        return jsonify(_get_game_boxscore_payload(game_id))
     except Exception as e:
-        logger.warning("CDN boxscore failed for %s: %s", game_id, e)
-
-    try:
-        data = _fetch_public_json(espn_url, timeout=12)
-        normalized = _normalize_espn_boxscore(data)
-        if normalized.get("TeamStats") or normalized.get("PlayerStats"):
-            return jsonify(normalized)
-        raise Exception("Empty ESPN boxscore")
-    except Exception as e:
-        logger.warning("ESPN boxscore failed for %s: %s", game_id, e)
-
-    return safe_call(
-        lambda: boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
-    )
+        logger.error("Boxscore payload failed for %s: %s", game_id, e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/games/<game_id>/playbyplay")
@@ -569,6 +889,56 @@ def get_game_playbyplay(game_id):
        return jsonify({"PlayByPlay": []})
     except Exception as e:
         logger.error("NBA API call failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/games/<game_id>/advanced")
+@cache.cached(timeout=60)
+def get_game_advanced(game_id):
+    return safe_call(
+        lambda: boxscoreadvancedv2.BoxScoreAdvancedV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
+    )
+
+
+@app.route("/api/games/<game_id>/fourfactors")
+@cache.cached(timeout=60)
+def get_game_four_factors(game_id):
+    return safe_call(
+        lambda: boxscorefourfactorsv2.BoxScoreFourFactorsV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
+    )
+
+
+@app.route("/api/games/<game_id>/misc")
+@cache.cached(timeout=60)
+def get_game_misc(game_id):
+    return safe_call(
+        lambda: boxscoremiscv2.BoxScoreMiscV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
+    )
+
+
+@app.route("/api/games/<game_id>/scoring")
+@cache.cached(timeout=60)
+def get_game_scoring(game_id):
+    return safe_call(
+        lambda: boxscorescoringv2.BoxScoreScoringV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
+    )
+
+
+@app.route("/api/games/<game_id>/hustle")
+@cache.cached(timeout=60)
+def get_game_hustle(game_id):
+    return safe_call(
+        lambda: boxscorehustlev2.BoxScoreHustleV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
+    )
+
+
+@app.route("/api/games/<game_id>/insights")
+@cache.cached(timeout=60)
+def get_game_insights(game_id):
+    try:
+        return jsonify(_game_insights_payload(game_id))
+    except Exception as e:
+        logger.error("Game insights failed for %s: %s", game_id, e, exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/players/<int:player_id>/shotchart")

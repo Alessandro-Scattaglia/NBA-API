@@ -41,12 +41,37 @@ export default function StandingsView({ season }: { season: string }) {
         <p>Stagione NBA {season}</p>
       </div>
       <div className="main-content">
+        <PlayoffsInfo season={season} east={east} west={west} />
         <div className="standings-grid">
           <ConferenceStandings label="Conference Est" teams={east} />
           <ConferenceStandings label="Conference Ovest" teams={west} />
         </div>
       </div>
     </>
+  );
+}
+
+function PlayoffsInfo({ season, east, west }: { season: string; east: any[]; west: any[] }) {
+  // Deriva l'anno di fine stagione: se season è "2023-24" prendiamo il primo anno e +1
+  const firstYear = Number(String(season).split('-')[0]);
+  const endYear = Number.isFinite(firstYear) ? firstYear + 1 : season;
+
+  const eastHasPlayIn = east.some(t => Number(t.PlayoffRank) >= 9);
+  const westHasPlayIn = west.some(t => Number(t.PlayoffRank) >= 9);
+  const eastCut = eastHasPlayIn ? 6 : 8;
+  const westCut = westHasPlayIn ? 6 : 8;
+
+  return (
+    <div className="playoffs-info">
+      <h3>Informazioni Playoff</h3>
+      <p className="muted">Inizio previsto: metà aprile {endYear} (indicativo). La regular season termina normalmente a inizio/aprile; il Play-In e i Playoff seguono subito dopo.</p>
+      <ul>
+        <li>Formato: 8 squadre per conference qualificate ai Playoff via regular season.</li>
+        <li>Se è attivo il Play-In: le posizioni 7-10 si contendono gli ultimi posti (vincitori accedono ai Playoff).</li>
+        <li>Cut attuale: Est — prime {eastCut} qualificano direttamente{eastHasPlayIn ? ', posizioni 7-10 Play-In' : ''}; Ovest — prime {westCut} qualificano direttamente{westHasPlayIn ? ', posizioni 7-10 Play-In' : ''}.</li>
+      </ul>
+      <p className="muted" style={{ marginTop: 8 }}>Nota: date e formato possono variare di stagione in stagione. Questa è un'indicazione generica basata sulla stagione selezionata.</p>
+    </div>
   );
 }
 

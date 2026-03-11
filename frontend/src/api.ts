@@ -41,6 +41,8 @@ async function apiFetch<T = any>(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): P
 }
 
 export const api = {
+  getAvailableSeasons: () => apiFetch(`${BASE_URL}/meta/seasons`),
+
   getAllPlayers: () => apiFetch(`${BASE_URL}/players`),
   getPlayer: (id: number | string) => apiFetch(`${BASE_URL}/players/${id}`),
   getPlayerCareer: (id: number | string) => apiFetch(`${BASE_URL}/players/${id}/career`),
@@ -65,6 +67,10 @@ export const api = {
     apiFetch(`${BASE_URL}/league/playerstats?season=${season}`),
   getTeamStats: (season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/league/teamstats?season=${season}`),
+  getLineups: (season = DEFAULT_SEASON, teamId?: number | string) =>
+    apiFetch(`${BASE_URL}/league/lineups?season=${season}${teamId ? `&teamId=${teamId}` : ''}`),
+  getFranchiseHistory: () =>
+    apiFetch(`${BASE_URL}/league/franchises/history`),
 
   getScoreboard: (date: string) =>
     apiFetch(`${BASE_URL}/games/scoreboard?date=${date}`),
@@ -72,6 +78,18 @@ export const api = {
     apiFetch(`${BASE_URL}/games/${gameId}/summary`),
   getBoxScore: (gameId: string) =>
     apiFetch(`${BASE_URL}/games/${gameId}/boxscore`),
+  getGameAdvanced: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/advanced`),
+  getGameFourFactors: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/fourfactors`),
+  getGameMisc: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/misc`),
+  getGameScoring: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/scoring`),
+  getGameHustle: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/hustle`),
+  getGameInsights: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/insights`),
   getPlayByPlay: (gameId: string) =>
     apiFetch(`${BASE_URL}/games/${gameId}/playbyplay`),
 };
