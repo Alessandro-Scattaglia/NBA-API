@@ -1,16 +1,32 @@
 /* ===== Standings ===== */
-.standings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.conference-block h3 {
-  font-size: 16px; font-weight: 700; color: var(--text);
-  margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+.standings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
 }
+
+.conference-block h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .conference-block h3::before {
-  content: ''; display: inline-block;
-  width: 4px; height: 16px;
-  background: var(--accent); border-radius: 2px;
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
-  .standings-grid { grid-template-columns: 1fr; }
+  .standings-grid {
+    grid-template-columns: 1fr;
+  }
 }

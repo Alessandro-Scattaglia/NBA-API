@@ -1,27 +1,130 @@
 /* ===== Home ===== */
-.home-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
 .home-action-btn {
-  background: var(--surface); border: 1px solid var(--border); color: var(--text);
-  border-radius: 8px; padding: 9px 12px; font-size: 14px; cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  cursor: pointer;
 }
-.home-action-btn:hover { border-color: var(--border-strong); }
-.home-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 20px; }
-.home-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-.home-card-label { color: var(--text-subtle); font-size: 12px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
-.home-card-value { color: var(--text); font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
-.home-card-sub { color: var(--text-muted); font-size: 13px; }
-.home-standings-mini { display: flex; flex-direction: column; gap: 8px; }
-.home-mini-row { display: flex; align-items: center; gap: 10px; }
-.home-mini-img { width: 28px; height: 28px; object-fit: cover; border-radius: 50%; background: var(--surface-3); }
-.home-mini-title { color: var(--text); font-size: 14px; font-weight: 600; }
-.home-section-header { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 10px; }
-.home-section-header h3 { font-size: 16px; color: var(--text); }
-.home-link-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; }
-.home-link-btn:hover { color: var(--text); }
-.home-games-list { display: flex; flex-direction: column; gap: 8px; }
+
+.home-action-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.home-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.home-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.home-card-label {
+  color: var(--text-subtle);
+  font-size: 12px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.home-card-value {
+  color: var(--text);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.home-card-sub {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.home-standings-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-mini-img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+
+.home-mini-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 0 10px;
+}
+
+.home-section-header h3 {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.home-link-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.home-link-btn:hover {
+  color: var(--text);
+}
+
+.home-games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .home-game-row {
-  display: flex; justify-content: space-between; align-items: center;
-  width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text);
-  border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
 }
-.home-game-row:hover { border-color: var(--border-strong); }
+
+.home-game-row:hover {
+  border-color: var(--border-strong);
+}

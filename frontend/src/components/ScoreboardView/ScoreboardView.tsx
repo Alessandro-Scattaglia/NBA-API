@@ -1,74 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api, teamLogoUrl } from '../../api';
-import { LOCAL_TIMEZONE, NBA_TIMEZONE, todayInTimeZone } from '../../timezone';
+import { NBA_TIMEZONE, todayInTimeZone } from '../../timezone';
+import { formatGameStatusIt, formatIsoDateIt } from '../../formatting';
 import './ScoreboardView.css';
 
 interface Props {
   onSelectGame?: (gameId: string) => void;
-}
-
-function timezoneOffsetMs(date: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  const asUtc = Date.UTC(
-    Number(map.year),
-    Number(map.month) - 1,
-    Number(map.day),
-    Number(map.hour),
-    Number(map.minute),
-    Number(map.second),
-  );
-  return asUtc - date.getTime();
-}
-
-function dateInTimeZone(dateIso: string, hour: number, minute: number, timeZone: string): Date {
-  let utc = Date.UTC(Number(dateIso.slice(0, 4)), Number(dateIso.slice(5, 7)) - 1, Number(dateIso.slice(8, 10)), hour, minute, 0);
-  const first = new Date(utc);
-  utc -= timezoneOffsetMs(first, timeZone);
-  const second = new Date(utc);
-  utc -= timezoneOffsetMs(second, timeZone);
-  return new Date(utc);
-}
-
-function formatStatusInItalian(status: string, dateIso: string): string {
-  const clean = String(status || '').trim();
-  if (!clean) return 'Stato non disponibile';
-
-  const scheduled = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)\s*ET$/i);
-  if (scheduled) {
-    let hour = Number(scheduled[1]);
-    const minute = Number(scheduled[2]);
-    const ampm = scheduled[3].toUpperCase();
-    if (ampm === 'PM' && hour < 12) hour += 12;
-    if (ampm === 'AM' && hour === 12) hour = 0;
-    const nyDate = dateInTimeZone(dateIso, hour, minute, 'America/New_York');
-    const oraLocale = nyDate.toLocaleTimeString('it-IT', {
-      timeZone: LOCAL_TIMEZONE,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${oraLocale} (ora locale)`;
-  }
-
-  return clean
-    .replace(/^Final$/i, 'Finale')
-    .replace(/^Final OT$/i, 'Finale OT')
-    .replace(/^Halftime$/i, 'Intervallo')
-    .replace(/\bQ1\b/i, '1º quarto')
-    .replace(/\bQ2\b/i, '2º quarto')
-    .replace(/\bQ3\b/i, '3º quarto')
-    .replace(/\bQ4\b/i, '4º quarto')
-    .replace(/\bOT\b/i, 'Tempi supplementari')
-    .replace(/\bET\b/i, 'ora costa est USA');
 }
 
 export default function ScoreboardView({ onSelectGame }: Props) {
@@ -76,6 +13,46 @@ export default function ScoreboardView({ onSelectGame }: Props) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const today = todayInTimeZone(NBA_TIMEZONE);
+
+  function addDaysIso(dateIso: string, delta: number): string {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const utc = Date.UTC(y, m - 1, d + delta);
+    return new Date(utc).toISOString().slice(0, 10);
+  }
+
+  function addMonthsIso(dateIso: string, delta: number): string {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const year = y + Math.floor((m - 1 + delta) / 12);
+    const monthIndex = (m - 1 + delta) % 12;
+    const month = monthIndex < 0 ? monthIndex + 12 : monthIndex;
+    const nextYear = monthIndex < 0 ? year - 1 : year;
+    const targetYear = monthIndex < 0 ? nextYear : year;
+    const daysInTargetMonth = new Date(Date.UTC(targetYear, month + 1, 0)).getUTCDate();
+    const safeDay = Math.min(d, daysInTargetMonth);
+    return new Date(Date.UTC(targetYear, month, safeDay)).toISOString().slice(0, 10);
+  }
+
+  function formatDayLabel(dateIso: string): string {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const utc = new Date(Date.UTC(y, m - 1, d));
+    return utc.toLocaleDateString('it-IT', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      timeZone: 'UTC',
+    });
+  }
+
+  function formatMonthLabel(dateIso: string): string {
+    const [y, m, d] = dateIso.split('-').map(Number);
+    const utc = new Date(Date.UTC(y, m - 1, d));
+    return utc.toLocaleDateString('it-IT', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -99,20 +76,83 @@ export default function ScoreboardView({ onSelectGame }: Props) {
     <>
       <div className="main-header">
         <h2>Calendario Partite</h2>
-        <p>Partite NBA per data (ET) · orari convertiti in locale</p>
+        <p>Partite NBA per data (ora di New York) · orari convertiti in locale</p>
       </div>
       <div className="main-content">
         <div className="scoreboard-date">
-          <input
-            type="date"
-            className="date-input"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-          />
-          <span style={{ fontSize: 12, color: 'var(--text-subtle)' }}>Data NBA (ET)</span>
-          {!loading && games.length > 0 && (
-            <span style={{ fontSize: 13, color: 'var(--text-subtle)' }}>{games.length} partite</span>
-          )}
+          <div className="date-bar">
+            <button
+              className="date-shift-btn month"
+              onClick={() => setDate(addMonthsIso(date, -1))}
+              aria-label="Mese precedente"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 5.5L12.5 12 19 18.5" />
+                <path d="M11 5.5L4.5 12 11 18.5" />
+              </svg>
+            </button>
+            <button
+              className="date-shift-btn"
+              onClick={() => setDate(addDaysIso(date, -1))}
+              aria-label="Giorno precedente"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 5.5L9 12l6.5 6.5" />
+              </svg>
+            </button>
+            <div className="date-strip">
+              {[-2, -1, 0, 1, 2].map(delta => {
+                const d = addDaysIso(date, delta);
+                const isActive = d === date;
+                return (
+                  <button
+                    key={d}
+                    className={`date-pill ${isActive ? 'active' : ''}`}
+                    onClick={() => setDate(d)}
+                    aria-current={isActive ? 'date' : undefined}
+                  >
+                    {formatDayLabel(d)}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              className="date-shift-btn"
+              onClick={() => setDate(addDaysIso(date, 1))}
+              aria-label="Giorno successivo"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8.5 5.5L15 12l-6.5 6.5" />
+              </svg>
+            </button>
+            <button
+              className="date-shift-btn month"
+              onClick={() => setDate(addMonthsIso(date, 1))}
+              aria-label="Mese successivo"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 5.5L11.5 12 5 18.5" />
+                <path d="M13 5.5L19.5 12 13 18.5" />
+              </svg>
+            </button>
+          </div>
+          <div className="date-meta">
+            <div className="date-sub">
+              {formatIsoDateIt(date)} · {formatMonthLabel(date)} · data NBA (ora di New York)
+            </div>
+            <div className="date-actions">
+              <button
+                className="date-today-btn"
+                onClick={() => setDate(today)}
+                disabled={date === today}
+              >
+                Oggi
+              </button>
+              {!loading && (
+                <span className="date-games-count">{games.length} partite</span>
+              )}
+            </div>
+          </div>
         </div>
 
         {loading && <div className="loading"><div className="spinner" /> Caricamento partite...</div>}
@@ -137,7 +177,7 @@ function GameCard({ game, date, onSelectGame }: { game: any; date: string; onSel
 
   const s1 = t1.PTS;
   const s2 = t2.PTS;
-  const statusText = formatStatusInItalian(game.GAME_STATUS_TEXT, date);
+  const statusText = formatGameStatusIt(game.GAME_STATUS_TEXT, date);
   const isLive = /quarto|intervallo|supplementari/i.test(statusText);
   const statusColor = isLive ? 'var(--danger-text)' : 'var(--text-muted)';
 

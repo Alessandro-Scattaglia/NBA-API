@@ -1,12 +1,56 @@
-/* ===== Game Detail ===== */
 .game-detail-hero {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-  padding: 18px; margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
 }
-.game-detail-teams { display: flex; align-items: center; justify-content: center; gap: 20px; }
-.game-detail-team { display: flex; flex-direction: column; align-items: center; min-width: 120px; gap: 4px; }
-.game-detail-team-logo { width: 48px; height: 48px; object-fit: contain; }
-.game-detail-team-score { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
-.game-detail-vs { color: var(--text-subtle); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
-.game-detail-meta { margin-top: 12px; display: flex; gap: 16px; justify-content: center; color: var(--text-muted); font-size: 13px; }
-.game-detail-grid { display: grid; gap: 14px; }
+
+.game-detail-teams {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.game-detail-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 120px;
+  gap: 4px;
+}
+
+.game-detail-team-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.game-detail-team-score {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.game-detail-vs {
+  color: var(--text-subtle);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-detail-meta {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.game-detail-grid {
+  display: grid;
+  gap: 14px;
+}

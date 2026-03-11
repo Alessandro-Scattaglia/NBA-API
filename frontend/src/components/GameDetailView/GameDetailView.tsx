@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, teamLogoUrl } from '../../api';
-import { LOCAL_TIMEZONE } from '../../timezone';
+import { formatDateIt, formatGameStatusIt } from '../../formatting';
+import { NBA_TIMEZONE, todayInTimeZone } from '../../timezone';
 import './GameDetailView.css';
 
 interface Props {
@@ -9,87 +10,15 @@ interface Props {
   onSelectPlayer?: (id: number) => void;
 }
 
-function formatDateIt(value?: string): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    timeZone: LOCAL_TIMEZONE,
-  });
-}
-
-function timezoneOffsetMs(date: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  const asUtc = Date.UTC(
-    Number(map.year),
-    Number(map.month) - 1,
-    Number(map.day),
-    Number(map.hour),
-    Number(map.minute),
-    Number(map.second),
-  );
-  return asUtc - date.getTime();
-}
-
-function dateInTimeZone(dateIso: string, hour: number, minute: number, timeZone: string): Date {
-  let utc = Date.UTC(Number(dateIso.slice(0, 4)), Number(dateIso.slice(5, 7)) - 1, Number(dateIso.slice(8, 10)), hour, minute, 0);
-  const first = new Date(utc);
-  utc -= timezoneOffsetMs(first, timeZone);
-  const second = new Date(utc);
-  utc -= timezoneOffsetMs(second, timeZone);
-  return new Date(utc);
-}
-
-function formatStatusInItalian(status?: string, gameDateEst?: string): string {
-  const clean = String(status || '').trim();
-  if (!clean) return 'Stato non disponibile';
-  const dateIso = gameDateEst ? gameDateEst.slice(0, 10) : '';
-
-  const scheduled = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)\s*ET$/i);
-  if (scheduled && dateIso) {
-    let hour = Number(scheduled[1]);
-    const minute = Number(scheduled[2]);
-    const ampm = scheduled[3].toUpperCase();
-    if (ampm === 'PM' && hour < 12) hour += 12;
-    if (ampm === 'AM' && hour === 12) hour = 0;
-    const nyDate = dateInTimeZone(dateIso, hour, minute, 'America/New_York');
-    const oraLocale = nyDate.toLocaleTimeString('it-IT', {
-      timeZone: LOCAL_TIMEZONE,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${oraLocale} (ora locale)`;
-  }
-
-  return clean
-    .replace(/^Final$/i, 'Finale')
-    .replace(/^Final OT$/i, 'Finale OT')
-    .replace(/^Halftime$/i, 'Intervallo')
-    .replace(/\bQ1\b/i, '1º quarto')
-    .replace(/\bQ2\b/i, '2º quarto')
-    .replace(/\bQ3\b/i, '3º quarto')
-    .replace(/\bQ4\b/i, '4º quarto')
-    .replace(/\bOT\b/i, 'Tempi supplementari');
-}
+type Tab = 'boxscore' | 'playbyplay';
 
 export default function GameDetailView({ gameId, onBack, onSelectPlayer }: Props) {
   const [summary, setSummary] = useState<any>(null);
   const [boxscore, setBoxscore] = useState<any>(null);
+  const [playbyplay, setPlaybyplay] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('boxscore');
 
   useEffect(() => {
     setLoading(true);
@@ -109,16 +38,48 @@ export default function GameDetailView({ gameId, onBack, onSelectPlayer }: Props
       .finally(() => setLoading(false));
   }, [gameId]);
 
+  useEffect(() => {
+    if (tab !== 'playbyplay') return;
+    let alive = true;
+    let timer: any = null;
+
+    const load = () => {
+      api.getPlayByPlay(gameId)
+        .then(res => { if (alive) setPlaybyplay(res); })
+        .catch(() => { /* silenzia */ });
+    };
+
+    load();
+    timer = setInterval(load, 12000);
+    return () => { alive = false; if (timer) clearInterval(timer); };
+  }, [tab, gameId]);
+
   const lineScore: any[] = summary?.LineScore || [];
   const teamStats: any[] = boxscore?.TeamStats || [];
   const players: any[] = boxscore?.PlayerStats || [];
   const gameSummary = summary?.GameSummary?.[0];
-  const statusText = formatStatusInItalian(gameSummary?.GAME_STATUS_TEXT, gameSummary?.GAME_DATE_EST);
+  const statusText = formatGameStatusIt(gameSummary?.GAME_STATUS_TEXT, gameSummary?.GAME_DATE_EST);
+  const statusId = Number(gameSummary?.GAME_STATUS_ID);
+  const gameDateIso = gameSummary?.GAME_DATE_EST?.slice(0, 10);
+  const nbaToday = todayInTimeZone(NBA_TIMEZONE);
+  const isPastDate = gameDateIso ? gameDateIso < nbaToday : false;
+  const noBoxscoreMessage = (() => {
+    if (statusId === 1) {
+      if (isPastDate) {
+        return 'Partita indicata come non iniziata nonostante la data passata: possibile rinvio o dati NBA non aggiornati.';
+      }
+      return 'Partita non iniziata: il tabellino sarà disponibile all’inizio del match.';
+    }
+    if (statusId === 2) return 'Partita in corso: il tabellino completo potrebbe non essere ancora disponibile.';
+    if (statusId === 3) return 'Partita conclusa ma tabellino non ancora disponibile: dati NBA non aggiornati.';
+    return 'Tabellino non disponibile: endpoint NBA temporaneamente non raggiungibile.';
+  })();
 
-  const teams = lineScore.length >= 2
-    ? [lineScore[0], lineScore[1]]
-    : teamStats.length >= 2
-      ? [teamStats[0], teamStats[1]]
+  // Prefer teamStats for scores as they contain the final pts, fallback to lineScore
+  const teams = teamStats.length >= 2
+    ? [teamStats[0], teamStats[1]]
+    : lineScore.length >= 2
+      ? [lineScore[0], lineScore[1]]
       : [];
 
   const [teamA, teamB] = teams;
@@ -152,43 +113,54 @@ export default function GameDetailView({ gameId, onBack, onSelectPlayer }: Props
 
             {!teamStats.length && (
               <div className="info-msg">
-                Tabellino non disponibile: partita non iniziata oppure endpoint NBA temporaneamente non raggiungibile.
+                {noBoxscoreMessage}
               </div>
             )}
 
-            <div className="game-detail-grid">
-              <div className="stats-table-wrapper">
-                <table className="stats-table">
-                  <thead>
-                    <tr>
-                      <th>Squadra</th>
-                      <th>PTS</th>
-                      <th>REB</th>
-                      <th>AST</th>
-                      <th>FG%</th>
-                      <th>3P%</th>
-                      <th>FT%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamStats.map((t: any) => (
-                      <tr key={t.TEAM_ID}>
-                        <td className="highlight">{t.TEAM_ABBREVIATION || t.TEAM_NAME}</td>
-                        <td>{t.PTS}</td>
-                        <td>{t.REB}</td>
-                        <td>{t.AST}</td>
-                        <td>{typeof t.FG_PCT === 'number' ? t.FG_PCT.toFixed(3) : '—'}</td>
-                        <td>{typeof t.FG3_PCT === 'number' ? t.FG3_PCT.toFixed(3) : '—'}</td>
-                        <td>{typeof t.FT_PCT === 'number' ? t.FT_PCT.toFixed(3) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <PlayersBox title={teamA?.TEAM_ABBREVIATION || 'Squadra A'} players={playersA} onSelectPlayer={onSelectPlayer} />
-              <PlayersBox title={teamB?.TEAM_ABBREVIATION || 'Squadra B'} players={playersB} onSelectPlayer={onSelectPlayer} />
+            <div className="tabs">
+              <button className={`tab-btn ${tab === 'boxscore' ? 'active' : ''}`} onClick={() => setTab('boxscore')}>Tabellino</button>
+              <button className={`tab-btn ${tab === 'playbyplay' ? 'active' : ''}`} onClick={() => setTab('playbyplay')}>Cronaca</button>
             </div>
+
+            {tab === 'boxscore' && (
+              <div className="game-detail-grid">
+                <div className="stats-table-wrapper">
+                  <table className="stats-table">
+                    <thead>
+                      <tr>
+                        <th>Squadra</th>
+                        <th>Punti</th>
+                        <th>Rimbalzi</th>
+                        <th>Assist</th>
+                        <th>FG%</th>
+                        <th>3PT%</th>
+                        <th>TL%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamStats.map((t: any) => (
+                        <tr key={t.TEAM_ID}>
+                          <td className="highlight">{t.TEAM_ABBREVIATION || t.TEAM_NAME}</td>
+                          <td>{t.PTS}</td>
+                          <td>{t.REB}</td>
+                          <td>{t.AST}</td>
+                          <td>{typeof t.FG_PCT === 'number' ? t.FG_PCT.toFixed(3) : '—'}</td>
+                          <td>{typeof t.FG3_PCT === 'number' ? t.FG3_PCT.toFixed(3) : '—'}</td>
+                          <td>{typeof t.FT_PCT === 'number' ? t.FT_PCT.toFixed(3) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <PlayersBox title={teamA?.TEAM_ABBREVIATION || 'Squadra A'} players={playersA} onSelectPlayer={onSelectPlayer} />
+                <PlayersBox title={teamB?.TEAM_ABBREVIATION || 'Squadra B'} players={playersB} onSelectPlayer={onSelectPlayer} />
+              </div>
+            )}
+
+            {tab === 'playbyplay' && (
+              <PlayByPlayTable data={playbyplay} />
+            )}
           </>
         )}
       </div>
@@ -221,10 +193,10 @@ function PlayersBox({ title, players, onSelectPlayer }: { title: string; players
           </tr>
           <tr>
             <th>Giocatore</th>
-            <th>MIN</th>
-            <th>PTS</th>
-            <th>REB</th>
-            <th>AST</th>
+            <th>Min</th>
+            <th>Punti</th>
+            <th>Rimbalzi</th>
+            <th>Assist</th>
           </tr>
         </thead>
         <tbody>
@@ -235,7 +207,7 @@ function PlayersBox({ title, players, onSelectPlayer }: { title: string; players
               style={{ cursor: onSelectPlayer ? 'pointer' : 'default' }}
             >
               <td className="highlight">{p.PLAYER_NAME}</td>
-              <td>{p.MIN}</td>
+              <td>{p.MIN ? p.MIN.split(':')[0] : '0'} min</td>
               <td>{p.PTS}</td>
               <td>{p.REB}</td>
               <td>{p.AST}</td>
@@ -246,6 +218,37 @@ function PlayersBox({ title, players, onSelectPlayer }: { title: string; players
               <td colSpan={5} style={{ color: 'var(--text-subtle)' }}>Statistiche giocatori non disponibili</td>
             </tr>
           )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PlayByPlayTable({ data }: { data: any }) {
+  if (!data) return <div className="loading"><div className="spinner" />Caricamento cronaca...</div>;
+  const rows: any[] = data?.PlayByPlay || [];
+  if (!rows.length) return <div className="empty-state">Nessun evento disponibile</div>;
+
+  return (
+    <div className="stats-table-wrapper">
+      <table className="stats-table">
+        <thead>
+          <tr>
+            <th>Periodo</th>
+            <th>Tempo</th>
+            <th>Descrizione</th>
+            <th>Punteggio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...rows].reverse().map((r: any, i: number) => (
+            <tr key={i}>
+              <td>{r.PERIOD ?? '—'}</td>
+              <td>{r.PCTIMESTRING ?? '—'}</td>
+              <td className="highlight">{r.HOMEDESCRIPTION || r.VISITORDESCRIPTION || r.NEUTRALDESCRIPTION || '—'}</td>
+              <td>{r.SCORE ?? '—'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

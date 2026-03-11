@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api, DEFAULT_SEASON, playerImageUrl } from '../../api';
 import { buildSeasons } from '../../season';
 import ShotChart from '../ShotChart/ShotChart';
-import { LOCAL_TIMEZONE } from '../../timezone';
+import { formatDateIt, formatPositionIt } from '../../formatting';
 import './PlayerDetail.css';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   onSelectPlayer?: (id: number) => void;
 }
 
-type Tab = 'overview' | 'career' | 'gamelog' | 'shotchart';
+type Tab = 'overview' | 'career' | 'gamelog' | 'shotchart' | 'profile';
 const SEASONS = buildSeasons(DEFAULT_SEASON, 8);
 
 function feetInchesToCm(height?: string): string {
@@ -32,18 +32,12 @@ function poundsToKg(weight?: string | number): string {
   return `${kg} kg`;
 }
 
-function formatDateIt(value?: string): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('it-IT', { timeZone: LOCAL_TIMEZONE });
-}
-
 export default function PlayerDetail({ playerId, onBack, season: globalSeason }: Props) {
   const [info, setInfo] = useState<any>(null);
   const [career, setCareer] = useState<any>(null);
   const [gamelog, setGamelog] = useState<any>(null);
   const [shotchart, setShotchart] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
@@ -82,6 +76,10 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
       setShotchart(null);
       api.getShotChart(playerId, season).then(setShotchart).catch(console.error);
     }
+    if (tab === 'profile') {
+      setProfile(null);
+      api.getPlayerProfile(playerId).then(setProfile).catch(console.error);
+    }
   }, [tab, playerId, season]); // eslint-disable-line
 
   if (loading) return <div className="loading"><div className="spinner" /> Caricamento giocatore...</div>;
@@ -116,7 +114,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
       <div className="main-header">
         <button className="back-btn" onClick={onBack}>← Giocatori</button>
         <h2>{pi.DISPLAY_FIRST_LAST}</h2>
-        <p>{pi.TEAM_CITY} {pi.TEAM_NAME} · #{pi.JERSEY} · {pi.POSITION}</p>
+        <p>{pi.TEAM_CITY} {pi.TEAM_NAME} · #{pi.JERSEY} · {formatPositionIt(pi.POSITION)}</p>
       </div>
       <div className="main-content">
 
@@ -138,7 +136,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
             <div className="player-full-name">{pi.DISPLAY_FIRST_LAST}</div>
             <div className="player-team-name">{pi.TEAM_CITY} {pi.TEAM_NAME}</div>
             <div className="player-bio-grid">
-              {pi.POSITION  && <BioItem label="Ruolo"     value={pi.POSITION} />}
+              {pi.POSITION  && <BioItem label="Ruolo"     value={formatPositionIt(pi.POSITION)} />}
               {pi.HEIGHT    && <BioItem label="Altezza"   value={feetInchesToCm(pi.HEIGHT)} />}
               {pi.WEIGHT    && <BioItem label="Peso"      value={poundsToKg(pi.WEIGHT)} />}
               {pi.COUNTRY   && <BioItem label="Paese"     value={pi.COUNTRY} />}
@@ -172,7 +170,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
 
         {/* Tabs */}
         <div className="tabs">
-          {(['overview', 'career', 'gamelog', 'shotchart'] as Tab[]).map(t => (
+          {(['overview', 'career', 'gamelog', 'shotchart', 'profile'] as Tab[]).map(t => (
             <button
               key={t}
               className={`tab-btn ${tab === t ? 'active' : ''}`}
@@ -181,7 +179,8 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
               {t === 'overview' ? 'Panoramica'
                 : t === 'career' ? 'Carriera'
                 : t === 'gamelog' ? 'Registro Partite'
-                : 'Mappa Tiri'}
+                : t === 'shotchart' ? 'Mappa Tiri'
+                : 'Profilo'}
             </button>
           ))}
         </div>
@@ -206,6 +205,7 @@ export default function PlayerDetail({ playerId, onBack, season: globalSeason }:
         {tab === 'career'    && <CareerTab career={career} />}
         {tab === 'gamelog'   && <GameLogTab gamelog={gamelog} />}
         {tab === 'shotchart' && <ShotChartTab shotchart={shotchart} />}
+        {tab === 'profile'  && <ProfileTab profile={profile} />}
       </div>
     </>
   );
@@ -337,4 +337,88 @@ function ShotChartTab({ shotchart }: { shotchart: any }) {
   const shots = shotchart?.Shot_Chart_Detail || [];
   if (!shots.length) return <div className="empty-state">Nessun dato tiri per questa stagione</div>;
   return <ShotChart shots={shots} />;
+}
+
+function ProfileTab({ profile }: { profile: any }) {
+  if (!profile) return <div className="loading"><div className="spinner" />Caricamento profilo...</div>;
+
+  const ranking = profile?.SeasonRankingsRegularSeason?.[0];
+  const career = profile?.CareerTotalsRegularSeason?.[0];
+
+  const rankItems = ranking ? [
+    ['Punti', ranking.PTS_PG ?? ranking.PTS],
+    ['Rimbalzi', ranking.REB_PG ?? ranking.REB],
+    ['Assist', ranking.AST_PG ?? ranking.AST],
+    ['Rubate', ranking.STL_PG ?? ranking.STL],
+    ['Stoppate', ranking.BLK_PG ?? ranking.BLK],
+    ['FG%', ranking.FG_PCT],
+    ['3P%', ranking.FG3_PCT],
+    ['FT%', ranking.FT_PCT],
+    ['Rank PTS', ranking.RANK_PTS],
+    ['Rank REB', ranking.RANK_REB],
+    ['Rank AST', ranking.RANK_AST],
+    ['Rank STL', ranking.RANK_STL],
+    ['Rank BLK', ranking.RANK_BLK],
+  ].filter(([, v]) => v !== undefined && v !== null) : [];
+
+  const careerItems = career ? [
+    ['GP', career.GP],
+    ['MIN', career.MIN],
+    ['PTS', career.PTS],
+    ['REB', career.REB],
+    ['AST', career.AST],
+    ['STL', career.STL],
+    ['BLK', career.BLK],
+    ['FG%', career.FG_PCT],
+    ['3P%', career.FG3_PCT],
+    ['FT%', career.FT_PCT],
+  ].filter(([, v]) => v !== undefined && v !== null) : [];
+
+  if (!rankItems.length && !careerItems.length) {
+    return <div className="empty-state">Nessun dato profilo disponibile</div>;
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      {!!rankItems.length && (
+        <div className="stats-table-wrapper">
+          <table className="stats-table">
+            <thead>
+              <tr>
+                <th colSpan={2}>Ranking stagione (regular season)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankItems.map(([label, value]) => (
+                <tr key={label}>
+                  <td className="highlight">{label}</td>
+                  <td>{typeof value === 'number' && value % 1 !== 0 ? value.toFixed(3) : String(value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!!careerItems.length && (
+        <div className="stats-table-wrapper">
+          <table className="stats-table">
+            <thead>
+              <tr>
+                <th colSpan={2}>Totali carriera (regular season)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {careerItems.map(([label, value]) => (
+                <tr key={label}>
+                  <td className="highlight">{label}</td>
+                  <td>{typeof value === 'number' && value % 1 !== 0 ? value.toFixed(3) : String(value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }

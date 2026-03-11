@@ -11,7 +11,7 @@ os.environ["FLASK_SKIP_DOTENV"] = "1"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Disable SSL verification (corporate proxy/firewall)
+
 ssl._create_default_https_context = ssl._create_unverified_context
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -20,10 +20,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from typing import Any
 
-# Patch nba_api per usare una sessione con verify=False e headers corretti.
-# La classe NBAHTTP usa requests.get() direttamente nel metodo send_api_request,
-# quindi sovrascriviamo quel metodo per usare la nostra sessione persistente.
 from nba_api.library.http import NBAHTTP
 
 _session = requests.Session()
@@ -32,7 +30,7 @@ _session.headers.update({
     "Host": "stats.nba.com",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Language": "it-IT,it;q=0.9,en;q=0.4",
     "Accept-Encoding": "gzip, deflate, br",
     "x-nba-stats-origin": "stats",
     "x-nba-stats-token": "true",
@@ -54,7 +52,16 @@ _adapter = HTTPAdapter(
 _session.mount("https://", _adapter)
 _session.mount("http://", _adapter)
 
-# Monkey-patch del metodo send_api_request per usare _session invece di requests.get()
+_public_session = requests.Session()
+_public_session.verify = False
+_public_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "it-IT,it;q=0.9,en;q=0.4",
+})
+_public_session.mount("https://", _adapter)
+_public_session.mount("http://", _adapter)
+
 _original_send = NBAHTTP.send_api_request
 
 def _patched_send(self, endpoint, parameters, referer=None, proxy=None, headers=None, timeout=None, raise_exception_on_error=False):
@@ -82,7 +89,7 @@ def _patched_send(self, endpoint, parameters, referer=None, proxy=None, headers=
 
 NBAHTTP.send_api_request = _patched_send
 
-# Per-request timeout for every nba_api endpoint call (seconds)
+
 NBA_API_TIMEOUT = 20
 PLAYER_API_TIMEOUT = 25
 
@@ -103,6 +110,7 @@ from nba_api.stats.endpoints import (
     scoreboardv2,
     boxscoresummaryv2,
     boxscoretraditionalv2,
+    playbyplayv2,
     shotchartdetail,
 )
 
@@ -112,7 +120,7 @@ CORS(app)
 cache = Cache(app, config={
     "CACHE_TYPE": "FileSystemCache",
     "CACHE_DIR": os.path.join(os.path.dirname(__file__), ".cache"),
-    "CACHE_DEFAULT_TIMEOUT": 300,  # 5 minutes default
+    "CACHE_DEFAULT_TIMEOUT": 300,
 })
 
 def current_season(now: datetime | None = None) -> str:
@@ -133,7 +141,201 @@ def safe_call(fn):
         return jsonify({"error": str(e)}), 500
 
 
-# ── Players ──────────────────────────────────────────────────────────────────
+def _fetch_public_json(url: str, timeout: int) -> Any:
+    res = _public_session.get(url, timeout=timeout)
+    res.raise_for_status()
+    return res.json()
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except Exception:
+        return None
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+
+def _normalize_pct(value: Any) -> float | None:
+    num = _safe_float(value)
+    if num is None:
+        return None
+    return num / 100 if num > 1.5 else num
+
+
+def _compute_pct(made: Any, att: Any) -> float | None:
+    m = _safe_float(made)
+    a = _safe_float(att)
+    if m is None or a in (None, 0):
+        return None
+    return m / a
+
+
+def _format_iso_minutes(value: Any) -> Any:
+    if not value or not isinstance(value, str):
+        return value
+    if value.startswith("PT") and ("M" in value or "S" in value):
+        try:
+            minutes = 0
+            seconds = 0
+            chunk = value[2:]
+            if "M" in chunk:
+                m_part, rest = chunk.split("M", 1)
+                minutes = int(float(m_part)) if m_part else 0
+            else:
+                rest = chunk
+            if "S" in rest:
+                s_part = rest.split("S", 1)[0]
+                seconds = int(float(s_part)) if s_part else 0
+            return f"{minutes}:{seconds:02d}"
+        except Exception:
+            return value
+    return value
+
+
+NBA_TEAM_TRICODE_TO_ID = {
+    "ATL": 1610612737,
+    "BOS": 1610612738,
+    "BKN": 1610612751,
+    "CHA": 1610612766,
+    "CHI": 1610612741,
+    "CLE": 1610612739,
+    "DAL": 1610612742,
+    "DEN": 1610612743,
+    "DET": 1610612765,
+    "GSW": 1610612744,
+    "HOU": 1610612745,
+    "IND": 1610612754,
+    "LAC": 1610612746,
+    "LAL": 1610612747,
+    "MEM": 1610612763,
+    "MIA": 1610612748,
+    "MIL": 1610612749,
+    "MIN": 1610612750,
+    "NOP": 1610612740,
+    "NYK": 1610612752,
+    "OKC": 1610612760,
+    "ORL": 1610612753,
+    "PHI": 1610612755,
+    "PHX": 1610612756,
+    "POR": 1610612757,
+    "SAC": 1610612758,
+    "SAS": 1610612759,
+    "TOR": 1610612761,
+    "UTA": 1610612762,
+    "WAS": 1610612764,
+}
+
+
+def _team_id_from_abbr(abbr: Any) -> int | None:
+    if not abbr:
+        return None
+    return NBA_TEAM_TRICODE_TO_ID.get(str(abbr).upper())
+
+
+def _normalize_cdn_boxscore(payload: dict) -> dict:
+    game = payload.get("game") or {}
+    team_stats = []
+    player_stats = []
+
+    for side in ("homeTeam", "awayTeam"):
+        team = game.get(side) or {}
+        team_id = _safe_int(team.get("teamId") or team.get("teamID"))
+        if team_id is None:
+            team_id = _team_id_from_abbr(team.get("teamTricode") or team.get("triCode"))
+        stats = team.get("statistics") or {}
+        fg_pct = _normalize_pct(stats.get("fgPct")) or _compute_pct(stats.get("fgm"), stats.get("fga"))
+        fg3_pct = _normalize_pct(stats.get("fg3Pct")) or _compute_pct(stats.get("fg3m"), stats.get("fg3a"))
+        ft_pct = _normalize_pct(stats.get("ftPct")) or _compute_pct(stats.get("ftm"), stats.get("fta"))
+
+        if team_id is not None:
+            team_stats.append({
+                "TEAM_ID": team_id,
+                "TEAM_NAME": team.get("teamName"),
+                "TEAM_ABBREVIATION": team.get("teamTricode") or team.get("triCode"),
+                "PTS": team.get("score") or stats.get("points"),
+                "REB": stats.get("reboundsTotal") or stats.get("rebounds"),
+                "AST": stats.get("assists"),
+                "FG_PCT": fg_pct,
+                "FG3_PCT": fg3_pct,
+                "FT_PCT": ft_pct,
+            })
+
+        for p in team.get("players", []) or []:
+            p_stats = p.get("statistics") or {}
+            player_stats.append({
+                "PLAYER_ID": _safe_int(p.get("personId") or p.get("playerId")),
+                "PLAYER_NAME": p.get("name") or p.get("displayName"),
+                "TEAM_ID": team_id,
+                "MIN": _format_iso_minutes(p_stats.get("minutes") or p_stats.get("min")),
+                "PTS": p_stats.get("points"),
+                "REB": p_stats.get("reboundsTotal") or p_stats.get("rebounds"),
+                "AST": p_stats.get("assists"),
+            })
+
+    return {"TeamStats": team_stats, "PlayerStats": player_stats}
+
+
+def _normalize_espn_boxscore(payload: dict) -> dict:
+    box = payload.get("boxscore") or {}
+    team_stats = []
+    player_stats = []
+
+    for t in box.get("teams", []) or []:
+        team = t.get("team") or {}
+        abbr = team.get("abbreviation")
+        mapped_team_id = _team_id_from_abbr(abbr)
+        stats_list = t.get("statistics") or []
+        stats = {s.get("name"): s.get("displayValue") for s in stats_list if isinstance(s, dict)}
+
+        team_stats.append({
+            "TEAM_ID": mapped_team_id or _safe_int(team.get("id")),
+            "TEAM_NAME": team.get("displayName") or team.get("name"),
+            "TEAM_ABBREVIATION": abbr,
+            "PTS": _safe_float(stats.get("points") or stats.get("pts")),
+            "REB": _safe_float(stats.get("rebounds") or stats.get("reboundsTotal") or stats.get("totReb")),
+            "AST": _safe_float(stats.get("assists")),
+            "FG_PCT": _normalize_pct(stats.get("fieldGoalPct") or stats.get("fgPct") or stats.get("fgPercent")),
+            "FG3_PCT": _normalize_pct(stats.get("threePointPct") or stats.get("fg3Pct") or stats.get("threePointFieldGoalPct")),
+            "FT_PCT": _normalize_pct(stats.get("freeThrowPct") or stats.get("ftPct") or stats.get("freeThrowPercent")),
+        })
+
+    for group in box.get("players", []) or []:
+        team = group.get("team") or {}
+        abbr = team.get("abbreviation")
+        team_id = _team_id_from_abbr(abbr) or _safe_int(team.get("id"))
+        for stat_group in group.get("statistics", []) or []:
+            labels = stat_group.get("labels") or []
+            label_index = {label: i for i, label in enumerate(labels)}
+            for athlete_entry in stat_group.get("athletes", []) or []:
+                athlete = athlete_entry.get("athlete") or {}
+                stats = athlete_entry.get("stats") or []
+
+                def pick(label: str):
+                    idx = label_index.get(label)
+                    return stats[idx] if idx is not None and idx < len(stats) else None
+
+                player_stats.append({
+                    "PLAYER_ID": _safe_int(athlete.get("id")),
+                    "PLAYER_NAME": athlete.get("displayName") or athlete.get("fullName"),
+                    "TEAM_ID": team_id,
+                    "MIN": pick("MIN") or pick("MP"),
+                    "PTS": _safe_float(pick("PTS")),
+                    "REB": _safe_float(pick("REB") or pick("TRB")),
+                    "AST": _safe_float(pick("AST")),
+                })
+
+    return {"TeamStats": team_stats, "PlayerStats": player_stats}
+
 
 @app.route("/api/players")
 @cache.cached(timeout=3600)
@@ -174,9 +376,6 @@ def get_player_profile(player_id):
     return safe_call(
         lambda: playerprofilev2.PlayerProfileV2(player_id=player_id, timeout=PLAYER_API_TIMEOUT)
     )
-
-
-# ── Teams ─────────────────────────────────────────────────────────────────────
 
 TEAMS = [
     {"id": 1610612737, "full_name": "Atlanta Hawks", "abbreviation": "ATL", "nickname": "Hawks", "city": "Atlanta", "state": "Georgia", "year_founded": 1949, "conference": "East", "division": "Southeast"},
@@ -250,8 +449,6 @@ def get_team_history(team_id):
     )
 
 
-# ── League ────────────────────────────────────────────────────────────────────
-
 @app.route("/api/league/standings")
 @cache.cached(timeout=300, query_string=True)
 def get_standings():
@@ -287,9 +484,6 @@ def get_team_stats():
     return safe_call(
         lambda: leaguedashteamstats.LeagueDashTeamStats(season=season, timeout=NBA_API_TIMEOUT)
     )
-
-
-# ── Games ─────────────────────────────────────────────────────────────────────
 
 def _fetch_scoreboard(date: str, timeout: int):
     return scoreboardv2.ScoreboardV2(game_date=date, timeout=timeout).get_normalized_dict()
@@ -339,12 +533,43 @@ def get_game_summary(game_id):
 @app.route("/api/games/<game_id>/boxscore")
 @cache.cached(timeout=60)
 def get_game_boxscore(game_id):
+    cdn_url = f"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
+    espn_url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={game_id}"
+
+    try:
+        data = _fetch_public_json(cdn_url, timeout=12)
+        normalized = _normalize_cdn_boxscore(data)
+        if normalized.get("TeamStats") or normalized.get("PlayerStats"):
+            return jsonify(normalized)
+        raise Exception("Empty CDN boxscore")
+    except Exception as e:
+        logger.warning("CDN boxscore failed for %s: %s", game_id, e)
+
+    try:
+        data = _fetch_public_json(espn_url, timeout=12)
+        normalized = _normalize_espn_boxscore(data)
+        if normalized.get("TeamStats") or normalized.get("PlayerStats"):
+            return jsonify(normalized)
+        raise Exception("Empty ESPN boxscore")
+    except Exception as e:
+        logger.warning("ESPN boxscore failed for %s: %s", game_id, e)
+
     return safe_call(
         lambda: boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
     )
 
 
-# ── Shot Chart ────────────────────────────────────────────────────────────────
+@app.route("/api/games/<game_id>/playbyplay")
+@cache.cached(timeout=15)
+def get_game_playbyplay(game_id):
+    try:
+        data = playbyplayv2.PlayByPlayV2(game_id=game_id, timeout=NBA_API_TIMEOUT)
+        return jsonify(data.get_normalized_dict())
+    except KeyError:
+       return jsonify({"PlayByPlay": []})
+    except Exception as e:
+        logger.error("NBA API call failed: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/players/<int:player_id>/shotchart")
 @cache.cached(timeout=300, query_string=True)
@@ -367,7 +592,7 @@ def _warm_cache():
     import threading
 
     def _run():
-        time.sleep(2)  # aspetta che Flask sia pronto
+        time.sleep(2) 
         logger.info("[warm-up] Avvio pre-riscaldamento cache...")
         with app.test_client() as c:
             routes = [

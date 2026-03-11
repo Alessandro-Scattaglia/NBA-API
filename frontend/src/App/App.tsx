@@ -13,6 +13,7 @@ import LeadersView from '../components/LeadersView/LeadersView';
 import ScoreboardView from '../components/ScoreboardView/ScoreboardView';
 import HomeView from '../components/HomeView/HomeView';
 import TeamStatsView from '../components/TeamStatsView/TeamStatsView';
+import PlayerStatsView from '../components/PlayerStatsView/PlayerStatsView';
 import GameDetailView from '../components/GameDetailView/GameDetailView';
 
 const NAV = [
@@ -21,6 +22,7 @@ const NAV = [
   { path: '/teams', label: 'Squadre', icon: '🏀', section: 'Esplora' },
   { path: '/standings', label: 'Classifica', icon: '📊', section: 'Lega' },
   { path: '/leaders', label: 'Leader Statistiche', icon: '🏆', section: 'Lega' },
+  { path: '/playerstats', label: 'Statistiche Giocatori', icon: '📈', section: 'Lega' },
   { path: '/teamstats', label: 'Statistiche Squadre', icon: '📈', section: 'Lega' },
   { path: '/scoreboard', label: 'Calendario', icon: '📅', section: 'Partite' },
 ];
@@ -165,6 +167,9 @@ function App() {
           <Route path="/standings" element={<StandingsView season={season} />} />
           <Route path="/leaders" element={
             <LeadersView season={season} onSelectPlayer={id => navigate(`/players/${id}`)} />
+          } />
+          <Route path="/playerstats" element={
+            <PlayerStatsView season={season} onSelectPlayer={id => navigate(`/players/${id}`)} />
           } />
           <Route path="/teamstats" element={
             <TeamStatsView season={season} onSelectTeam={id => navigate(`/teams/${id}`)} />

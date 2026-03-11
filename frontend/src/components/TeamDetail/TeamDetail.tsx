@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api, teamLogoUrl, playerImageUrl } from '../../api';
-import { LOCAL_TIMEZONE } from '../../timezone';
+import { formatDateIt, formatPositionIt } from '../../formatting';
 import './TeamDetail.css';
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
   onSelectPlayer?: (id: number) => void;
 }
 
-type Tab = 'roster' | 'gamelog';
+type Tab = 'roster' | 'gamelog' | 'history';
 
 function feetInchesToCm(height?: string): string {
   if (!height) return '—';
@@ -29,17 +29,11 @@ function poundsToKg(weight?: string | number): string {
   return `${kg} kg`;
 }
 
-function formatDateIt(value?: string): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString('it-IT', { timeZone: LOCAL_TIMEZONE });
-}
-
 export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: Props) {
   const [teamInfo, setTeamInfo] = useState<any>(null);
   const [roster, setRoster] = useState<any>(null);
   const [gamelog, setGamelog] = useState<any>(null);
+  const [history, setHistory] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('roster');
@@ -103,6 +97,10 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
       setGamelog(null);
       api.getTeamGameLog(teamId, season).then(setGamelog).catch(console.error);
     }
+    if (tab === 'history') {
+      setHistory(null);
+      api.getTeamHistory(teamId).then(setHistory).catch(console.error);
+    }
   }, [tab, teamId, season]); // eslint-disable-line
 
   if (loading) return <div className="loading"><div className="spinner" /> Caricamento squadra...</div>;
@@ -161,6 +159,7 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
         <div className="tabs">
           <button className={`tab-btn ${tab === 'roster' ? 'active' : ''}`} onClick={() => setTab('roster')}>Rosa</button>
           <button className={`tab-btn ${tab === 'gamelog' ? 'active' : ''}`} onClick={() => setTab('gamelog')}>Registro Partite</button>
+          <button className={`tab-btn ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>Storico</button>
         </div>
 
         {tab === 'roster' && (
@@ -196,7 +195,7 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
                       </div>
                     </td>
                     <td className="highlight">{p.PLAYER}</td>
-                    <td>{p.POSITION}</td>
+                    <td>{formatPositionIt(p.POSITION)}</td>
                     <td>{feetInchesToCm(p.HEIGHT)}</td>
                     <td>{poundsToKg(p.WEIGHT)}</td>
                     <td>{p.AGE}</td>
@@ -243,7 +242,55 @@ export default function TeamDetail({ teamId, onBack, season, onSelectPlayer }: P
               </div>
             )
         )}
+
+        {tab === 'history' && (
+          !history
+            ? <div className="loading"><div className="spinner" />Caricamento storico...</div>
+            : (
+              <TeamHistoryTable history={history} />
+            )
+        )}
       </div>
     </>
+  );
+}
+
+function TeamHistoryTable({ history }: { history: any }) {
+  const rows: any[] = history?.TeamYearByYearStats || [];
+  if (!rows.length) return <div className="empty-state">Nessun dato storico disponibile</div>;
+  const sorted = [...rows].sort((a, b) => String(b.YEAR).localeCompare(String(a.YEAR)));
+  return (
+    <div className="stats-table-wrapper">
+      <table className="stats-table">
+        <thead>
+          <tr>
+            <th>Stagione</th>
+            <th>GP</th>
+            <th>V</th>
+            <th>S</th>
+            <th>WIN%</th>
+            <th>Rank Conf</th>
+            <th>Rank Div</th>
+            <th>PO V</th>
+            <th>PO S</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r: any, i: number) => (
+            <tr key={`${r.YEAR}-${i}`}>
+              <td className="highlight">{r.YEAR ?? r.SEASON_ID ?? '—'}</td>
+              <td>{r.GP ?? '—'}</td>
+              <td>{r.WINS ?? r.W ?? '—'}</td>
+              <td>{r.LOSSES ?? r.L ?? '—'}</td>
+              <td>{typeof r.WIN_PCT === 'number' ? r.WIN_PCT.toFixed(3) : (r.W_PCT ?? '—')}</td>
+              <td>{r.CONF_RANK ?? '—'}</td>
+              <td>{r.DIV_RANK ?? '—'}</td>
+              <td>{r.PO_WINS ?? '—'}</td>
+              <td>{r.PO_LOSSES ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

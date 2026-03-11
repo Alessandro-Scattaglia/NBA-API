@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, playerImageUrl, teamLogoUrl } from '../../api';
 import { NBA_TIMEZONE, todayInTimeZone } from '../../timezone';
+import { formatGameStatusIt, formatIsoDateIt } from '../../formatting';
 import './HomeView.css';
 
 interface Props {
@@ -85,7 +86,7 @@ export default function HomeView({
               <div className="home-card">
                 <div className="home-card-label">Partite oggi</div>
                 <div className="home-card-value">{games.length}</div>
-                <div className="home-card-sub">{nbaToday} (ET)</div>
+                <div className="home-card-sub">{formatIsoDateIt(nbaToday)} (ora di New York)</div>
               </div>
 
               <div className="home-card">
@@ -132,7 +133,7 @@ export default function HomeView({
                 return (
                   <button key={g.GAME_ID} className="home-game-row" onClick={() => onOpenGame(g.GAME_ID)}>
                     <span>{t1?.TEAM_ABBREVIATION || '—'} vs {t2?.TEAM_ABBREVIATION || '—'}</span>
-                    <span>{g.GAME_STATUS_TEXT}</span>
+                    <span>{formatGameStatusIt(g.GAME_STATUS_TEXT, nbaToday)}</span>
                   </button>
                 );
               })}

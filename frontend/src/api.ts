@@ -46,6 +46,7 @@ export const api = {
   getPlayerCareer: (id: number | string) => apiFetch(`${BASE_URL}/players/${id}/career`),
   getPlayerGameLog: (id: number | string, season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/players/${id}/gamelog?season=${season}`),
+  getPlayerProfile: (id: number | string) => apiFetch(`${BASE_URL}/players/${id}/profile`),
   getShotChart: (id: number | string, season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/players/${id}/shotchart?season=${season}`),
 
@@ -54,11 +55,14 @@ export const api = {
   getTeamRoster: (id: number | string, season = DEFAULT_SEASON) => apiFetch(`${BASE_URL}/teams/${id}/roster?season=${season}`),
   getTeamGameLog: (id: number | string, season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/teams/${id}/gamelog?season=${season}`),
+  getTeamHistory: (id: number | string) => apiFetch(`${BASE_URL}/teams/${id}/history`),
 
   getStandings: (season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/league/standings?season=${season}`),
   getLeaders: (stat = 'PTS', season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/league/leaders?stat=${stat}&season=${season}`),
+  getLeaguePlayerStats: (season = DEFAULT_SEASON) =>
+    apiFetch(`${BASE_URL}/league/playerstats?season=${season}`),
   getTeamStats: (season = DEFAULT_SEASON) =>
     apiFetch(`${BASE_URL}/league/teamstats?season=${season}`),
 
@@ -68,4 +72,6 @@ export const api = {
     apiFetch(`${BASE_URL}/games/${gameId}/summary`),
   getBoxScore: (gameId: string) =>
     apiFetch(`${BASE_URL}/games/${gameId}/boxscore`),
+  getPlayByPlay: (gameId: string) =>
+    apiFetch(`${BASE_URL}/games/${gameId}/playbyplay`),
 };
