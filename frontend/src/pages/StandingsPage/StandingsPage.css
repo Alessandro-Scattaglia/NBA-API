@@ -1,0 +1,36 @@
+.standings-page-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.conference-stack {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.conference-pane {
+  min-width: 0;
+}
+
+.standings-conference-stack {
+  gap: 10px;
+}
+
+.standings-conference-stack .surface-card {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+@media (min-width: 1381px) {
+  .standings-page-layout {
+    margin-inline: -10px;
+  }
+}
+
+@media (max-width: 1380px) {
+  .conference-stack {
+    grid-template-columns: 1fr;
+  }
+}

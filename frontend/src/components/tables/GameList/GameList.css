@@ -1,0 +1,4 @@
+.game-list {
+  display: grid;
+  gap: 12px;
+}

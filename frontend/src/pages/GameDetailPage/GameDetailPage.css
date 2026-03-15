@@ -1,0 +1,7 @@
+/* GameDetailPage relies on shared UI styles from /styles/ui.css. */
+
+.game-data-note {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}

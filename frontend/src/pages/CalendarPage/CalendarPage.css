@@ -1,0 +1,219 @@
+.calendar-toolbar {
+  display: grid;
+  gap: 14px;
+}
+
+.calendar-rail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.calendar-date-strip {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.calendar-date-pill {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  border-radius: 14px;
+  padding: 10px 14px;
+  min-width: 88px;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.calendar-date-pill span {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.calendar-date-pill small {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.calendar-date-pill-active {
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-2-rgb), 0.08));
+  border-color: rgba(var(--accent-rgb), 0.2);
+  color: var(--ink);
+}
+
+.calendar-nav-button {
+  min-width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.calendar-nav-button:hover {
+  border-color: rgba(var(--accent-rgb), 0.2);
+  background: var(--accent-soft);
+}
+
+.calendar-filter-row {
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.calendar-selected-day {
+  display: grid;
+  gap: 4px;
+}
+
+.calendar-selected-day strong {
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+
+.calendar-filters {
+  gap: 8px;
+}
+
+.calendar-day-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.calendar-game-row {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr) 162px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  min-height: 96px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.calendar-game-row:hover {
+  border-color: rgba(var(--accent-rgb), 0.24);
+  box-shadow: var(--shadow-soft);
+}
+
+.calendar-game-time {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+}
+
+.calendar-game-hour {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.calendar-game-matchup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.calendar-team-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.calendar-team-inline-home {
+  margin-left: auto;
+}
+
+.calendar-team-score {
+  min-width: 24px;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.calendar-game-separator {
+  color: var(--ink-faint);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.calendar-game-info {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: right;
+}
+
+.calendar-game-info strong {
+  font-size: 0.82rem;
+}
+
+.calendar-game-info span {
+  color: var(--ink-soft);
+  font-size: 0.73rem;
+}
+
+@media (max-width: 1240px) {
+  .calendar-day-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1080px) {
+  .calendar-game-row {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .calendar-game-info {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .calendar-game-matchup {
+    width: 100%;
+  }
+
+  .calendar-rail {
+    justify-content: flex-start;
+  }
+
+  .calendar-date-strip {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .calendar-date-pill {
+    min-width: 74px;
+    padding: 9px 11px;
+  }
+
+  .calendar-game-time {
+    gap: 8px;
+  }
+
+  .calendar-game-info strong {
+    font-size: 0.78rem;
+  }
+}
