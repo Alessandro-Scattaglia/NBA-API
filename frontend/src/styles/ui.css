@@ -22,6 +22,7 @@
   border-radius: 999px;
   background: var(--accent-soft);
   border: 1px solid rgba(var(--accent-rgb), 0.12);
+  box-shadow: var(--shadow-xs);
   font-weight: 600;
   font-size: 0.85rem;
 }
@@ -41,6 +42,7 @@
   border-radius: 20px;
   background: var(--surface-strong);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
@@ -131,6 +133,7 @@
   border-radius: 16px;
   background: var(--surface-tint);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-xs);
 }
 
 .stat-box span {
@@ -163,6 +166,7 @@
   border: 1px solid var(--line-strong);
   background: #ffffff;
   color: var(--ink);
+  box-shadow: var(--shadow-xs);
 }
 
 .filters-bar input:focus,
@@ -234,6 +238,9 @@
 
 .table-wrap {
   overflow-x: auto;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-xs);
 }
 
 .detail-table {

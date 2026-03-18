@@ -24,6 +24,7 @@
   gap: 14px;
   backdrop-filter: blur(16px);
   overflow: hidden;
+  box-shadow: 14px 0 28px rgba(38, 26, 15, 0.05);
   transition:
     width 240ms cubic-bezier(0.22, 1, 0.36, 1),
     padding 240ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -106,9 +107,11 @@
   color: var(--ink-soft);
   font-size: 0.9rem;
   font-weight: 600;
+  background: rgba(255, 255, 255, 0.68);
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
   border: 1px solid transparent;
   overflow: hidden;
+  box-shadow: var(--shadow-xs);
 }
 
 .nav-link-icon {
@@ -164,7 +167,7 @@
   background: rgba(255, 255, 255, 0.96);
   color: var(--ink-soft);
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: var(--shadow-xs);
   transition:
     transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
     background-color 140ms ease,
@@ -279,6 +282,7 @@
   border-radius: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-xs);
   color: var(--ink-soft);
   font-size: 0.8rem;
   overflow: hidden;
@@ -446,7 +450,7 @@
 
   .mobile-brand {
     font-weight: 700;
-    font-size: 0.96rem;
+    font-size: 0.20rem;
     padding: 10px 14px;
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.94);

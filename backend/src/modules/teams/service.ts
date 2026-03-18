@@ -4,53 +4,103 @@ import { TTL } from "../../config/season.js";
 import { cache } from "../../cache/memoryCache.js";
 import { getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
-import { loadStandings, loadTeamStats, splitByConference } from "../shared/datasets.js";
+import { loadScheduleSnapshotGames, loadStandings, loadTeamStats, splitByConference } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
 
 type StatsRow = Record<string, unknown>;
 
-function mapRecentGames(teamId: number, rows: StatsRow[]): GameSummary[] {
+function getNullableNumber(row: StatsRow, key: string) {
+  const value = row[key];
+
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getRecentGameScores(row: StatsRow) {
+  const teamScore = getNullableNumber(row, "PTS");
+  const plusMinus = getNullableNumber(row, "PLUS_MINUS");
+  const opponentScore = teamScore !== null && plusMinus !== null ? Math.round(teamScore - plusMinus) : null;
+
+  return {
+    teamScore,
+    opponentScore
+  };
+}
+
+function buildFallbackRecentGame(teamId: number, row: StatsRow): GameSummary {
   const team = getTeamIdentity(teamId);
+  const matchup = String(row.MATCHUP ?? "");
+  const opponentCode = matchup.split(" ").pop() ?? "";
+  const opponent = getTeamIdentityByCode(opponentCode);
+  const isHome = matchup.includes("vs.");
+  const { teamScore, opponentScore } = getRecentGameScores(row);
 
+  return {
+    gameId: String(row.Game_ID ?? row.GAME_ID ?? ""),
+    gameCode: null,
+    dateTimeUtc: new Date(String(row.GAME_DATE ?? new Date().toISOString())).toISOString(),
+    dateLabel: new Date(String(row.GAME_DATE ?? new Date().toISOString())).toLocaleString("it-IT", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }),
+    status: "final",
+    statusText: String(row.WL ?? ""),
+    phase: "regular-season",
+    arena: null,
+    nationalTv: [],
+    clock: null,
+    period: null,
+    homeTeam: {
+      teamId: isHome ? teamId : opponent?.teamId ?? 0,
+      name: isHome ? team?.name ?? "Home Team" : opponent?.name ?? opponentCode,
+      code: isHome ? team?.code ?? "" : opponent?.code ?? opponentCode,
+      logo: isHome ? team?.logo ?? "" : opponent?.logo ?? "",
+      score: isHome ? teamScore : opponentScore,
+      record: null
+    },
+    awayTeam: {
+      teamId: isHome ? opponent?.teamId ?? 0 : teamId,
+      name: isHome ? opponent?.name ?? opponentCode : team?.name ?? "Away Team",
+      code: isHome ? opponent?.code ?? opponentCode : team?.code ?? "",
+      logo: isHome ? opponent?.logo ?? "" : team?.logo ?? "",
+      score: isHome ? opponentScore : teamScore,
+      record: null
+    }
+  };
+}
+
+function mergeRecentGame(
+  fallbackGame: GameSummary,
+  row: StatsRow,
+  scheduledGame: GameSummary | undefined
+) {
+  if (!scheduledGame) {
+    return fallbackGame;
+  }
+
+  return {
+    ...scheduledGame,
+    statusText: String(row.WL ?? "") || scheduledGame.statusText,
+    homeTeam: {
+      ...scheduledGame.homeTeam,
+      score: scheduledGame.homeTeam.score ?? fallbackGame.homeTeam.score
+    },
+    awayTeam: {
+      ...scheduledGame.awayTeam,
+      score: scheduledGame.awayTeam.score ?? fallbackGame.awayTeam.score
+    }
+  } satisfies GameSummary;
+}
+
+function mapRecentGames(teamId: number, rows: StatsRow[], scheduleByGameId: Map<string, GameSummary>): GameSummary[] {
   return rows.slice(0, 5).map((row) => {
-    const matchup = String(row.MATCHUP ?? "");
-    const opponentCode = matchup.split(" ").pop() ?? "";
-    const opponent = getTeamIdentityByCode(opponentCode);
-    const isHome = matchup.includes("vs.");
-
-    return {
-      gameId: String(row.Game_ID ?? row.GAME_ID ?? ""),
-      gameCode: null,
-      dateTimeUtc: new Date(String(row.GAME_DATE ?? new Date().toISOString())).toISOString(),
-      dateLabel: new Date(String(row.GAME_DATE ?? new Date().toISOString())).toLocaleString("it-IT", {
-        dateStyle: "medium",
-        timeStyle: "short"
-      }),
-      status: "final",
-      statusText: String(row.WL ?? ""),
-      phase: "regular-season",
-      arena: null,
-      nationalTv: [],
-      clock: null,
-      period: null,
-      homeTeam: {
-        teamId: isHome ? teamId : opponent?.teamId ?? 0,
-        name: isHome ? team?.name ?? "Home Team" : opponent?.name ?? opponentCode,
-        code: isHome ? team?.code ?? "" : opponent?.code ?? opponentCode,
-        logo: isHome ? team?.logo ?? "" : opponent?.logo ?? "",
-        score: null,
-        record: null
-      },
-      awayTeam: {
-        teamId: isHome ? opponent?.teamId ?? 0 : teamId,
-        name: isHome ? opponent?.name ?? opponentCode : team?.name ?? "Away Team",
-        code: isHome ? opponent?.code ?? opponentCode : team?.code ?? "",
-        logo: isHome ? opponent?.logo ?? "" : team?.logo ?? "",
-        score: null,
-        record: null
-      }
-    };
+    const fallbackGame = buildFallbackRecentGame(teamId, row);
+    return mergeRecentGame(fallbackGame, row, scheduleByGameId.get(fallbackGame.gameId));
   });
 }
 
@@ -74,10 +124,11 @@ export function createTeamsService(deps: ServiceDeps) {
 
     async getTeamDetail(teamId: number): Promise<ApiEnvelope<TeamDetail>> {
       const state = await (deps.cache ?? cache).getOrLoad(`team-detail:${teamId}`, TTL.profile, async () => {
-        const [standingsState, teamStatsState, teamInfoResponse, rosterResponse, teamGameLogResponse] =
+        const [standingsState, teamStatsState, scheduleState, teamInfoResponse, rosterResponse, teamGameLogResponse] =
           await Promise.all([
             loadStandings(deps),
             loadTeamStats(deps),
+            loadScheduleSnapshotGames(deps),
             deps.client.getTeamInfoCommon(teamId),
             deps.client.getCommonTeamRoster(teamId),
             deps.client.getTeamGameLog(teamId)
@@ -108,7 +159,8 @@ export function createTeamsService(deps: ServiceDeps) {
             headshot: buildPlayerHeadshotUrl(playerId)
           };
         });
-        const recentGames = mapRecentGames(teamId, mapStatsRows<StatsRow>(teamGameLogResponse));
+        const scheduleByGameId = new Map(scheduleState.value.map((game) => [game.gameId, game]));
+        const recentGames = mapRecentGames(teamId, mapStatsRows<StatsRow>(teamGameLogResponse), scheduleByGameId);
 
         return {
           ...base,
@@ -123,6 +175,7 @@ export function createTeamsService(deps: ServiceDeps) {
 
       return toEnvelope(state.value, state.updatedAt, state.stale, [
         "stats.nba.com/leaguestandings",
+        "cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json",
         "stats.nba.com/teaminfocommon",
         "stats.nba.com/commonteamroster",
         "stats.nba.com/teamgamelog",

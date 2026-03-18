@@ -1,16 +1,17 @@
 .standings-table-wrap {
-  overflow-x: clip;
+  overflow-x: hidden;
 }
 
 .standings-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  table-layout: fixed;
+  font-size: 0.82rem;
 }
 
 .standings-table th,
 .standings-table td {
-  padding: 10px 8px;
+  padding: 10px 6px;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
@@ -26,17 +27,55 @@
 .standings-table-rich td,
 .standings-table-rich th {
   vertical-align: middle;
-  white-space: nowrap;
 }
 
 .standings-table-rich th {
   padding-top: 9px;
   padding-bottom: 9px;
+  white-space: nowrap;
 }
 
 .standings-table-rich td {
   padding-top: 10px;
   padding-bottom: 10px;
+}
+
+.standings-table-rich td:not(.standings-team-cell) {
+  white-space: nowrap;
+}
+
+.standings-table-rich th:nth-child(1),
+.standings-table-rich td:nth-child(1) {
+  width: 42px;
+  text-align: center;
+}
+
+.standings-table-rich th:nth-child(3),
+.standings-table-rich td:nth-child(3),
+.standings-table-rich th:nth-child(4),
+.standings-table-rich td:nth-child(4) {
+  width: 40px;
+  text-align: center;
+}
+
+.standings-table-rich th:nth-child(5),
+.standings-table-rich td:nth-child(5) {
+  width: 48px;
+  text-align: center;
+}
+
+.standings-table-rich th:nth-child(6),
+.standings-table-rich td:nth-child(6),
+.standings-table-rich th:nth-child(7),
+.standings-table-rich td:nth-child(7) {
+  width: 68px;
+  text-align: center;
+}
+
+.standings-table-rich th:nth-child(8),
+.standings-table-rich td:nth-child(8) {
+  width: 108px;
+  text-align: center;
 }
 
 .standings-row:hover td {
@@ -53,7 +92,9 @@
 .standings-team-cell strong {
   display: inline-block;
   font-size: 0.88rem;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .seed-pill {
@@ -97,12 +138,33 @@
 }
 
 .standings-table-rich .entity-link {
-  white-space: nowrap;
+  display: inline-flex;
+  min-width: 0;
+  white-space: normal;
   font-weight: 600;
 }
 
 .standings-table-rich .mini-logo {
   flex: 0 0 auto;
+}
+
+.standings-table-rich .badge {
+  padding: 4px 8px;
+  font-size: 0.68rem;
+}
+
+.standings-table-rich .mini-record,
+.standings-table-rich .result-pill {
+  font-size: 0.74rem;
+}
+
+.standings-table-rich .mini-record {
+  padding: 4px 7px;
+}
+
+.standings-table-rich .result-pill {
+  min-width: 0;
+  padding: 4px 8px;
 }
 
 @media (max-width: 1460px) {
@@ -114,6 +176,11 @@
   .standings-table-rich td {
     padding-left: 7px;
     padding-right: 7px;
+  }
+
+  .standings-table-rich th:nth-child(8),
+  .standings-table-rich td:nth-child(8) {
+    width: 98px;
   }
 }
 

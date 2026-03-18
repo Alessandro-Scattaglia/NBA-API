@@ -7,7 +7,7 @@ export const PLAYOFF_PICTURE_SEASON_ID = `2${SEASON_START_YEAR}`;
 export const REGULAR_SEASON_LABEL = "Regular Season";
 
 export const TTL = {
-  live: 60_000,
+  live: 30_000,
   standings: 5 * 60_000,
   stats: 15 * 60_000,
   profile: 12 * 60 * 60_000,

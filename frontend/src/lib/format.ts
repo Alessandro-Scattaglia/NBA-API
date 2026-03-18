@@ -97,6 +97,31 @@ export function formatTime(value: string) {
   });
 }
 
+export function formatGameMinutes(value: string | null | undefined) {
+  if (!value) {
+    return "--";
+  }
+
+  const trimmed = value.trim();
+  const simpleMatch = trimmed.match(/^(\d+):(\d{2})$/);
+
+  if (simpleMatch) {
+    return `${simpleMatch[1]} min`;
+  }
+
+  const isoMatch = trimmed.match(/^PT(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/i);
+  if (!isoMatch) {
+    return trimmed;
+  }
+
+  const minutes = Number(isoMatch[1] ?? 0);
+  const seconds = Number(isoMatch[2] ?? 0);
+  const totalSeconds = minutes * 60 + Math.round(seconds);
+  const normalizedMinutes = Math.floor(totalSeconds / 60);
+
+  return `${normalizedMinutes} min`;
+}
+
 export function formatPercentage(value: number) {
   return `${value.toFixed(3).replace(/^0/, "")}`;
 }

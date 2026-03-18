@@ -85,6 +85,7 @@ export interface PlayerAverageLine {
   assists: number;
   steals: number;
   blocks: number;
+  threesMade: number;
   fgPct: number;
   threePct: number;
   ftPct: number;
@@ -189,6 +190,8 @@ export interface GameDetail {
   awayPlayers: GamePlayerLine[];
 }
 
+export type LeaderCategoryKey = "points" | "rebounds" | "assists" | "steals" | "blocks" | "threesMade";
+
 export interface LeaderRow {
   playerId: number;
   fullName: string;
@@ -199,7 +202,7 @@ export interface LeaderRow {
 }
 
 export interface LeaderCategory {
-  key: "points" | "rebounds" | "assists";
+  key: LeaderCategoryKey;
   label: string;
   leaders: LeaderRow[];
 }

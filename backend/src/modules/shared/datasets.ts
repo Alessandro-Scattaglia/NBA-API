@@ -251,6 +251,7 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
           assists: round(getNumber(row, ["AST"])),
           steals: round(getNumber(row, ["STL"])),
           blocks: round(getNumber(row, ["BLK"])),
+          threesMade: round(getNumber(row, ["FG3M"])),
           fgPct: round(getNumber(row, ["FG_PCT"]) * 100, 1),
           threePct: round(getNumber(row, ["FG3_PCT"]) * 100, 1),
           ftPct: round(getNumber(row, ["FT_PCT"]) * 100, 1)

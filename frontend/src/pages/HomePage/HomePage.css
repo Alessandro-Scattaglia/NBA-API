@@ -47,6 +47,7 @@
   border-radius: 999px;
   background: var(--accent-soft);
   border: 1px solid rgba(var(--accent-rgb), 0.12);
+  box-shadow: var(--shadow-xs);
   font-weight: 600;
   font-size: 0.85rem;
 }

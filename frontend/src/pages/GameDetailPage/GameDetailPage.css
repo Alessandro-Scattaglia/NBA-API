@@ -5,3 +5,420 @@
   color: var(--ink-soft);
   line-height: 1.6;
 }
+
+.game-hero {
+  display: grid;
+  gap: 20px;
+}
+
+.game-hero-top,
+.game-hero-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.game-hero-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.game-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.16);
+  background: var(--surface-tint);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.game-hero-chip-muted {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink-soft);
+  border-color: var(--line);
+}
+
+.game-hero-matchup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.game-team-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.game-team-panel-away {
+  background: var(--surface-strong);
+}
+
+.game-team-panel-home {
+  background: var(--surface-strong);
+}
+
+.game-team-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.game-team-side {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.game-team-record {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.game-team-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.game-team-brand-home {
+  justify-content: space-between;
+}
+
+.game-team-brand-home > div {
+  text-align: right;
+}
+
+.game-team-brand strong {
+  display: block;
+  font-size: 1.18rem;
+  line-height: 1.15;
+}
+
+.game-team-code {
+  display: inline-block;
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-score-center {
+  display: grid;
+  gap: 10px;
+  align-content: center;
+  justify-items: center;
+  min-width: 180px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.game-score-versus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.1rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.05);
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.game-score-value {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.game-score-value small {
+  color: var(--ink-faint);
+  font-size: 0.56em;
+}
+
+.game-score-status {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.game-hero-footer {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.game-leader-card {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.game-leader-card-away {
+  background: var(--surface-strong);
+}
+
+.game-leader-card-home {
+  background: var(--surface-strong);
+}
+
+.game-leader-rank {
+  width: 2.15rem;
+  height: 2.15rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(var(--accent-rgb), 0.14);
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.game-leader-headshot {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+}
+
+.game-leader-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.game-leader-copy strong {
+  font-size: 1rem;
+}
+
+.game-leader-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game-leader-pill,
+.detail-stat-pill,
+.detail-minutes-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.game-leader-pill strong {
+  font-size: 0.92rem;
+}
+
+.game-leader-pill small {
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.game-leader-pill-points,
+.detail-stat-pill-points {
+  color: var(--accent);
+}
+
+.game-leader-pill-rebounds,
+.detail-stat-pill-rebounds {
+  color: var(--success);
+}
+
+.game-leader-pill-assists,
+.detail-stat-pill-assists {
+  color: var(--ink);
+}
+
+.game-table-wrap {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+.detail-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.82rem;
+}
+
+.detail-table th,
+.detail-table td {
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-table th {
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.detail-table th:first-child,
+.detail-table td:first-child {
+  text-align: left;
+  width: 40%;
+}
+
+.detail-table th:not(:first-child),
+.detail-table td:not(:first-child) {
+  width: 12%;
+  text-align: center;
+}
+
+.detail-table-away th {
+  background: var(--surface-tint);
+}
+
+.detail-table-home th {
+  background: var(--surface-tint);
+}
+
+.detail-table tbody td {
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.detail-table tbody tr:nth-child(even) td {
+  background: rgba(255, 252, 246, 0.96);
+}
+
+.detail-table tbody tr:hover td {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.detail-row-starter td:first-child {
+  box-shadow: inset 4px 0 0 rgba(var(--accent-rgb), 0.5);
+}
+
+.detail-player-copy strong {
+  display: block;
+  font-size: 0.94rem;
+}
+
+.detail-minutes-pill {
+  min-width: 3.8rem;
+  color: var(--ink-soft);
+}
+
+.detail-stat-pill {
+  min-width: 2.8rem;
+}
+
+@media (max-width: 1080px) {
+  .game-hero-matchup {
+    grid-template-columns: 1fr;
+  }
+
+  .game-score-center {
+    order: -1;
+    padding: 2px 0 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .game-table-wrap {
+    overflow-x: visible;
+  }
+
+  .detail-table {
+    font-size: 0.78rem;
+  }
+
+  .detail-table th,
+  .detail-table td {
+    padding: 9px 4px;
+  }
+
+  .detail-table th:nth-child(6),
+  .detail-table td:nth-child(6) {
+    display: none;
+  }
+
+  .detail-table th:first-child,
+  .detail-table td:first-child {
+    width: 48%;
+  }
+
+  .game-hero {
+    gap: 16px;
+  }
+
+  .game-team-panel {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .game-team-brand strong {
+    font-size: 1.02rem;
+  }
+
+  .game-score-value {
+    font-size: 2.2rem;
+  }
+
+  .game-leader-card {
+    grid-template-columns: 1fr;
+  }
+
+  .game-leader-rank {
+    width: 1.95rem;
+    height: 1.95rem;
+  }
+
+  .game-leader-headshot {
+    width: 48px;
+    height: 48px;
+  }
+
+  .detail-player-copy strong {
+    font-size: 0.86rem;
+    line-height: 1.2;
+  }
+
+  .detail-minutes-pill,
+  .detail-stat-pill {
+    min-width: 0;
+    font-size: 0.68rem;
+  }
+}

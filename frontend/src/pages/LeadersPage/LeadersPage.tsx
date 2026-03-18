@@ -9,7 +9,7 @@ import "./LeadersPage.css";
 export function LeadersPage() {
   const query = useQuery({
     queryKey: ["leaders"],
-    queryFn: () => apiGet<LeadersResponse>("/api/leaders?limit=15")
+    queryFn: () => apiGet<LeadersResponse>("/api/leaders?limit=10")
   });
 
   if (query.isLoading) {
@@ -28,7 +28,7 @@ export function LeadersPage() {
     <>
       <PageHeader
         title="Leader statistici"
-        description="Migliori marcatori, rimbalzisti e assistman della stagione corrente."
+        description="Top 10 stagionale per punti, rimbalzi, assist, rubate, stoppate e triple."
       />
       <DataStamp updatedAt={query.data.meta.updatedAt} stale={query.data.meta.stale} />
       <div className="grid-3">
