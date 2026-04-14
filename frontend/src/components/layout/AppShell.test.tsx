@@ -17,6 +17,7 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Squadre")).toBeInTheDocument();
     expect(screen.getByText("Giocatori")).toBeInTheDocument();
+    expect(screen.getByText("Playoff")).toBeInTheDocument();
     expect(screen.getByText("Contenuto giocatori")).toBeInTheDocument();
   });
 });

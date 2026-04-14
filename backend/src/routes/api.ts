@@ -93,6 +93,14 @@ export function createApiRouter(services: AppServices) {
     }
   });
 
+  router.get("/playoffs", async (_request, response, next) => {
+    try {
+      response.json(await services.playoffs.getPlayoffs());
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/calendar", async (request, response, next) => {
     try {
       const filters = parseWithSchema(calendarQuerySchema, request.query);

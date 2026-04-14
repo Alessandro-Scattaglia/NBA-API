@@ -8,6 +8,7 @@ import { LeadersPage } from "../pages/LeadersPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { PlayerDetailPage } from "../pages/PlayerDetailPage";
 import { PlayersPage } from "../pages/PlayersPage";
+import { PlayoffsPage } from "../pages/PlayoffsPage";
 import { StandingsPage } from "../pages/StandingsPage";
 import { TeamDetailPage } from "../pages/TeamDetailPage";
 import { TeamsPage } from "../pages/TeamsPage";
@@ -33,6 +34,7 @@ export function App() {
             <Route path="/players" element={<PlayersPage />} />
             <Route path="/players/:playerId" element={<PlayerDetailPage />} />
             <Route path="/standings" element={<StandingsPage />} />
+            <Route path="/playoffs" element={<PlayoffsPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/games/:gameId" element={<GameDetailPage />} />
             <Route path="/leaders" element={<LeadersPage />} />

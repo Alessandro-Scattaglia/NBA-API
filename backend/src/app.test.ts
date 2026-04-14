@@ -17,6 +17,9 @@ function createServicesStub(): AppServices {
     standings: {
       getStandings: async () => ({ data: {} as never, meta: { updatedAt: "", stale: false, source: ["test"] } })
     },
+    playoffs: {
+      getPlayoffs: async () => ({ data: {} as never, meta: { updatedAt: "", stale: false, source: ["test"] } })
+    },
     calendar: {
       getCalendar: async () => ({ data: {} as never, meta: { updatedAt: "", stale: false, source: ["test"] } })
     },
@@ -52,6 +55,7 @@ describe("app and router setup", () => {
       "/leaders",
       "/players",
       "/players/:playerId",
+      "/playoffs",
       "/standings",
       "/teams",
       "/teams/:teamId"

@@ -1,0 +1,222 @@
+.playoffs-page-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.playoffs-overview-grid,
+.playoffs-conference-columns {
+  align-items: start;
+}
+
+.playoffs-timeline {
+  display: grid;
+  gap: 12px;
+}
+
+.playoffs-timeline-card,
+.playoffs-series-card,
+.playoffs-game-group,
+.playoffs-finals-row {
+  padding: 14px 15px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 226, 0.9));
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-xs);
+}
+
+.playoffs-timeline-card strong,
+.playoffs-finals-row strong,
+.playoffs-game-row strong,
+.playoffs-series-card strong,
+.playoffs-seed-card strong {
+  display: block;
+}
+
+.playoffs-timeline-card p,
+.playoffs-finals-row p,
+.playoffs-series-card p,
+.playoffs-seed-card p,
+.playoffs-game-row p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+
+.playoffs-conference-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.playoffs-conference-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.playoffs-block {
+  display: grid;
+  gap: 12px;
+}
+
+.playoffs-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playoffs-block-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.playoffs-seed-list,
+.playoffs-series-list,
+.playoffs-game-list,
+.playoffs-sources,
+.playoffs-finals-list {
+  display: grid;
+  gap: 10px;
+}
+
+.playoffs-seed-card,
+.playoffs-game-row,
+.playoffs-source-link,
+.playoffs-series-game-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-xs);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.playoffs-seed-card:hover,
+.playoffs-game-row:hover,
+.playoffs-source-link:hover,
+.playoffs-series-game-link:hover {
+  border-color: rgba(var(--accent-rgb), 0.24);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.playoffs-seed-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.playoffs-seed-rank {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.16);
+}
+
+.playoffs-series-topline,
+.playoffs-game-row-top,
+.playoffs-finals-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playoffs-series-games {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.playoffs-series-game-link {
+  align-items: flex-start;
+  padding: 10px 12px;
+}
+
+.playoffs-series-game-link small {
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.playoffs-series-waiting {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.playoffs-game-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.playoffs-game-row {
+  display: grid;
+  align-items: stretch;
+}
+
+.playoffs-game-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.playoffs-game-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.playoffs-source-link {
+  justify-content: flex-start;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.playoffs-finals-row {
+  align-items: center;
+}
+
+@media (max-width: 1100px) {
+  .playoffs-overview-grid,
+  .playoffs-conference-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .playoffs-seed-card,
+  .playoffs-source-link,
+  .playoffs-series-game-link {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .playoffs-series-topline,
+  .playoffs-game-row-top,
+  .playoffs-finals-row,
+  .playoffs-block-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .playoffs-game-badges {
+    justify-content: flex-start;
+  }
+}

@@ -7,6 +7,7 @@ export interface ApiEnvelope<T> {
   };
 }
 
+export type Conference = "East" | "West";
 export type PlayoffStatus = "playoff" | "play-in" | "eliminated" | "in-the-hunt";
 export type GameStatus = "scheduled" | "live" | "final";
 export type GamePhase = "preseason" | "regular-season" | "play-in" | "playoffs" | "other";
@@ -26,7 +27,7 @@ export interface TeamSummary {
   nickname: string;
   code: string;
   slug: string;
-  conference: "East" | "West";
+  conference: Conference;
   division: string;
   logo: string;
   wins: number;
@@ -75,6 +76,12 @@ export interface TeamDetail extends TeamSummary {
   stats: TeamSeasonStats | null;
   roster: TeamRosterPlayer[];
   recentGames: GameSummary[];
+}
+
+export interface StandingsRow extends TeamSummary {
+  seed: number;
+  gamesPlayed: number;
+  remainingGames: number;
 }
 
 export interface PlayerAverageLine {
@@ -235,8 +242,8 @@ export interface PlayersResponse {
 
 export interface StandingsResponse {
   season: string;
-  east: TeamSummary[];
-  west: TeamSummary[];
+  east: StandingsRow[];
+  west: StandingsRow[];
   playInNotes: string[];
 }
 
@@ -251,4 +258,57 @@ export interface CalendarResponse {
 export interface LeadersResponse {
   season: string;
   categories: LeaderCategory[];
+}
+
+export interface PostseasonKeyDate {
+  key: string;
+  label: string;
+  startDate: string;
+  endDate: string | null;
+  note: string | null;
+}
+
+export type PostseasonRound = "play-in" | "first-round";
+export type PostseasonSeriesStatus = "scheduled" | "confirmed" | "awaiting-play-in";
+
+export interface PostseasonSeries {
+  conference: Conference;
+  round: PostseasonRound;
+  status: PostseasonSeriesStatus;
+  label: string;
+  seedHigh: number;
+  seedLow: number;
+  highSeedTeam: StandingsRow | null;
+  lowSeedTeam: StandingsRow | null;
+  note: string | null;
+  games: GameSummary[];
+}
+
+export interface PostseasonConferenceSnapshot {
+  conference: Conference;
+  directSeeds: StandingsRow[];
+  playInSeeds: StandingsRow[];
+  outsidePicture: StandingsRow[];
+  playInSeries: PostseasonSeries[];
+  firstRoundSeries: PostseasonSeries[];
+}
+
+export interface PlayoffsOverview {
+  directQualifiedTeams: number;
+  playInTeams: number;
+  confirmedFirstRoundSeries: number;
+  playInGamesScheduled: number;
+  playoffGamesScheduled: number;
+}
+
+export interface PlayoffsResponse {
+  season: string;
+  overview: PlayoffsOverview;
+  keyDates: PostseasonKeyDate[];
+  finalsDates: PostseasonKeyDate[];
+  formatNotes: string[];
+  east: PostseasonConferenceSnapshot;
+  west: PostseasonConferenceSnapshot;
+  playInGames: GameSummary[];
+  playoffGames: GameSummary[];
 }

@@ -57,6 +57,17 @@ const navItems = [
     )
   },
   {
+    to: "/playoffs",
+    label: "Playoff",
+    icon: (
+      <SidebarIcon>
+        <path d="M7.5 18.5h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M8.4 15.6h7.2l1.4-7.6H7l1.4 7.6Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M9.5 8V6.4a2.5 2.5 0 0 1 5 0V8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </SidebarIcon>
+    )
+  },
+  {
     to: "/calendar",
     label: "Calendario",
     icon: (
