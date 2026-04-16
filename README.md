@@ -35,3 +35,10 @@ App previste:
 ## Nota dati
 
 Il backend usa solo fonti gratuite e pubbliche NBA. Le chiamate verso `stats.nba.com` passano dal server per evitare problemi di CORS e per gestire cache, retry e mapping dei payload.
+
+## Deploy (GitHub Pages + Render)
+
+- Backend Render: esporre le API su `https://<tuo-backend>.onrender.com/api/*`
+- Frontend GitHub Pages: impostare il secret `VITE_API_BASE_URL` senza slash finale
+  - ✅ `https://nba-api-bb0t.onrender.com`
+  - ❌ `https://nba-api-bb0t.onrender.com/`
