@@ -90,7 +90,7 @@ export function createLeadersService(deps: ServiceDeps) {
         },
         playersState.updatedAt,
         playersState.stale,
-        ["stats.nba.com/leaguedashplayerstats", "stats.nba.com/playerindex"]
+        ["stats.nba.com/leaguedashplayerstats", "stats.nba.com/playerindex", "stats.nba.com/leagueleaders"]
       );
     }
   };

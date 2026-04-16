@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryCache } from "../../cache/memoryCache.js";
-import { loadCalendarRange, loadStandings } from "./datasets.js";
+import { loadCalendarRange, loadPlayerCatalog, loadStandings } from "./datasets.js";
 import type { NbaApiClient } from "../../nba-client/client.js";
 
 function statsResponse(headers: string[], rows: unknown[][]) {
@@ -269,5 +269,46 @@ describe("shared datasets", () => {
     expect(state.value[0].homeTeam.score).toBe(104);
     expect(state.value[0].awayTeam.score).toBe(110);
     expect(state.value[0].nationalTv).toEqual(["ABC"]);
+  });
+
+  it("falls back to league leaders when player index and player stats are unavailable", async () => {
+    const cache = new MemoryCache();
+    const client = createClient({
+      getPlayerIndex: async () => {
+        throw new Error("Player index unavailable");
+      },
+      getLeagueDashPlayerStats: async () => {
+        throw new Error("League dash player stats unavailable");
+      },
+      getLeagueLeaders: async () =>
+        statsResponse(
+          [
+            "PLAYER_ID",
+            "PLAYER",
+            "TEAM_ID",
+            "TEAM",
+            "GP",
+            "MIN",
+            "PTS",
+            "REB",
+            "AST",
+            "STL",
+            "BLK",
+            "FG3M",
+            "FG_PCT",
+            "FG3_PCT",
+            "FT_PCT"
+          ],
+          [[2544, "LeBron James", 1610612747, "LAL", 60, 33.2, 20.9, 6.1, 7.2, 1.2, 0.6, 1.3, 0.515, 0.317, 0.737]]
+        )
+    });
+
+    const state = await loadPlayerCatalog({ client, cache });
+    const lebron = state.value.find((player) => player.playerId === 2544);
+
+    expect(lebron).toBeDefined();
+    expect(lebron?.fullName).toBe("LeBron James");
+    expect(lebron?.team?.code).toBe("LAL");
+    expect(lebron?.averages?.points).toBe(20.9);
   });
 });

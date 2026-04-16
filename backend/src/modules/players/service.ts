@@ -48,7 +48,7 @@ export function createPlayersService(deps: ServiceDeps) {
         },
         state.updatedAt,
         state.stale,
-        ["stats.nba.com/playerindex", "stats.nba.com/leaguedashplayerstats"]
+        ["stats.nba.com/playerindex", "stats.nba.com/leaguedashplayerstats", "stats.nba.com/leagueleaders"]
       );
     },
 

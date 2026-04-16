@@ -8,6 +8,7 @@ export interface NbaApiClient {
   getScheduleSnapshot(): Promise<unknown>;
   getPlayerIndex(): Promise<unknown>;
   getLeagueDashPlayerStats(): Promise<unknown>;
+  getLeagueLeaders?(statCategory?: string): Promise<unknown>;
   getCommonPlayerInfo(playerId: number): Promise<unknown>;
   getPlayerGameLogs(playerId: number): Promise<unknown>;
   getTeamInfoCommon(teamId: number): Promise<unknown>;
@@ -176,6 +177,17 @@ function buildPlayerIndexParams() {
   };
 }
 
+function buildLeagueLeadersParams(statCategory: string) {
+  return {
+    LeagueID: "00",
+    PerMode: "PerGame",
+    Scope: "S",
+    Season: NBA_SEASON,
+    SeasonType: REGULAR_SEASON_LABEL,
+    StatCategory: statCategory
+  };
+}
+
 export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
   return {
     getLiveScoreboard() {
@@ -211,6 +223,11 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
 
     getLeagueDashPlayerStats() {
       const url = buildUrl(env.statsBaseUrl, "leaguedashplayerstats", buildLeagueDashPlayerStatsParams());
+      return requestJson(fetchImpl, url, STATS_HEADERS);
+    },
+
+    getLeagueLeaders(statCategory = "PTS") {
+      const url = buildUrl(env.statsBaseUrl, "leagueleaders", buildLeagueLeadersParams(statCategory));
       return requestJson(fetchImpl, url, STATS_HEADERS);
     },
 

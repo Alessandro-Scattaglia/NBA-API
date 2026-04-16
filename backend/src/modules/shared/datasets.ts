@@ -435,17 +435,27 @@ export async function loadStandings(deps: ServiceDeps) {
 
 export async function loadPlayerCatalog(deps: ServiceDeps) {
   return getCache(deps).getOrLoad("players-catalog", TTL.stats, async () => {
-    const [playerIndexResult, playerStatsResult] = await Promise.allSettled([
+    const leagueLeadersRequest = deps.client.getLeagueLeaders
+      ? deps.client.getLeagueLeaders("PTS")
+      : Promise.reject(new Error("leagueleaders endpoint not available"));
+
+    const [playerIndexResult, playerStatsResult, leagueLeadersResult] = await Promise.allSettled([
       deps.client.getPlayerIndex(),
-      deps.client.getLeagueDashPlayerStats()
+      deps.client.getLeagueDashPlayerStats(),
+      leagueLeadersRequest
     ]);
 
-    if (playerIndexResult.status === "rejected" && playerStatsResult.status === "rejected") {
-      throw new Error("Unable to load both player index and player stats");
+    if (
+      playerIndexResult.status === "rejected" &&
+      playerStatsResult.status === "rejected" &&
+      leagueLeadersResult.status === "rejected"
+    ) {
+      throw new Error("Unable to load player index, player stats, and league leaders");
     }
 
     const playerRows = playerIndexResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playerIndexResult.value) : [];
     const statsRows = playerStatsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playerStatsResult.value) : [];
+    const leaderRows = leagueLeadersResult.status === "fulfilled" ? mapStatsRows<StatsRow>(leagueLeadersResult.value) : [];
     const statsByPlayerId = new Map<number, PlayerSummary["averages"]>();
     const statsIdentityByPlayerId = new Map<
       number,
@@ -456,10 +466,10 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
       }
     >();
 
-    for (const row of statsRows) {
+    const ingestStatsRow = (row: StatsRow) => {
       const playerId = getNumber(row, ["PLAYER_ID", "PERSON_ID"]);
       if (playerId <= 0) {
-        continue;
+        return;
       }
 
       statsByPlayerId.set(playerId, {
@@ -475,11 +485,20 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
         threePct: round(getNumber(row, ["FG3_PCT"]) * 100, 1),
         ftPct: round(getNumber(row, ["FT_PCT"]) * 100, 1)
       });
+
       statsIdentityByPlayerId.set(playerId, {
         fullName: getString(row, ["PLAYER_NAME", "PLAYER"], `Player ${playerId}`),
         teamId: getNumber(row, ["TEAM_ID"]),
-        teamCode: getString(row, ["TEAM_ABBREVIATION", "TEAM_CODE"])
+        teamCode: getString(row, ["TEAM_ABBREVIATION", "TEAM_CODE", "TEAM"])
       });
+    };
+
+    for (const row of statsRows) {
+      ingestStatsRow(row);
+    }
+
+    for (const row of leaderRows) {
+      ingestStatsRow(row);
     }
 
     const mappedFromIndex = playerRows
@@ -500,7 +519,7 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
         const teamId = getNumber(row, ["TEAM_ID"], statsIdentity?.teamId ?? 0);
         const teamCode = getString(
           row,
-          ["TEAM_ABBREVIATION", "TEAM_CODE"],
+          ["TEAM_ABBREVIATION", "TEAM_CODE", "TEAM"],
           statsIdentity?.teamCode ?? ""
         );
 
@@ -521,11 +540,7 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
       .filter((player): player is PlayerSummary => player !== null)
       .filter((player) => player.team !== null || player.averages !== null);
 
-    if (mappedFromIndex.length > 0) {
-      return mappedFromIndex.sort((left, right) => left.fullName.localeCompare(right.fullName));
-    }
-
-    return Array.from(statsIdentityByPlayerId.entries())
+    const mappedFromStats = Array.from(statsIdentityByPlayerId.entries())
       .map(([playerId, identity]) => {
         const fullName = identity.fullName.trim() || `Player ${playerId}`;
         const nameParts = fullName.split(/\s+/).filter(Boolean);
@@ -546,6 +561,41 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
           averages: statsByPlayerId.get(playerId) ?? null
         } satisfies PlayerSummary;
       })
+      .filter((player) => player.team !== null || player.averages !== null);
+
+    if (mappedFromIndex.length === 0) {
+      return mappedFromStats.sort((left, right) => left.fullName.localeCompare(right.fullName));
+    }
+
+    const mergedByPlayerId = new Map<number, PlayerSummary>();
+
+    for (const player of mappedFromStats) {
+      mergedByPlayerId.set(player.playerId, player);
+    }
+
+    for (const player of mappedFromIndex) {
+      const existing = mergedByPlayerId.get(player.playerId);
+      if (!existing) {
+        mergedByPlayerId.set(player.playerId, player);
+        continue;
+      }
+
+      mergedByPlayerId.set(player.playerId, {
+        ...existing,
+        ...player,
+        firstName: player.firstName || existing.firstName,
+        lastName: player.lastName || existing.lastName,
+        fullName: player.fullName || existing.fullName,
+        team: player.team ?? existing.team,
+        jersey: player.jersey ?? existing.jersey,
+        position: player.position ?? existing.position,
+        height: player.height ?? existing.height,
+        weight: player.weight ?? existing.weight,
+        averages: player.averages ?? existing.averages
+      });
+    }
+
+    return Array.from(mergedByPlayerId.values())
       .filter((player) => player.team !== null || player.averages !== null)
       .sort((left, right) => left.fullName.localeCompare(right.fullName));
   });
