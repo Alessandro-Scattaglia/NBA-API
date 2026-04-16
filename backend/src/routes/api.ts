@@ -4,10 +4,15 @@ import { TEAM_DIRECTORY } from "../config/teams.js";
 import type { AppServices } from "../modules/services.js";
 import type {
   ApiEnvelope,
+  LeaderCategoryKey,
+  LeadersResponse,
   PlayoffsResponse,
+  PlayerDetail,
+  PlayersResponse,
   PostseasonConferenceSnapshot,
   StandingsResponse,
   StandingsRow,
+  TeamDetail,
   TeamsResponse
 } from "../types/dto.js";
 
@@ -39,6 +44,15 @@ const PLAY_IN_NOTES = [
   "Le squadre dalla 7 alla 10 giocano il Play-In Tournament per assegnare le seed 7 e 8.",
   "Il formato corrente prevede 7 vs 8 e 9 vs 10, poi la seed 8 si decide tra la perdente di 7 vs 8 e la vincente di 9 vs 10."
 ];
+
+const LEADER_CATEGORY_LABELS: Record<LeaderCategoryKey, string> = {
+  points: "Punti a partita",
+  rebounds: "Rimbalzi a partita",
+  assists: "Assist a partita",
+  steals: "Rubate a partita",
+  blocks: "Stoppate a partita",
+  threesMade: "Triple a partita"
+};
 
 function getFallbackMeta() {
   return {
@@ -240,6 +254,88 @@ function buildFallbackPlayoffsEnvelope(): ApiEnvelope<PlayoffsResponse> {
   };
 }
 
+function buildFallbackTeamDetailEnvelope(teamId: number): ApiEnvelope<TeamDetail> {
+  const split = buildFallbackStandingsSplit();
+  const base = [...split.east, ...split.west].find((team) => team.teamId === teamId);
+
+  if (!base) {
+    const error = new Error(`Team ${teamId} not found`);
+    (error as Error & { status?: number }).status = 404;
+    throw error;
+  }
+
+  return {
+    data: {
+      ...base,
+      arena: null,
+      foundedYear: null,
+      coaches: [],
+      stats: null,
+      roster: [],
+      recentGames: []
+    },
+    meta: getFallbackMeta()
+  };
+}
+
+function buildFallbackPlayersEnvelope(page = 1, pageSize = 30): ApiEnvelope<PlayersResponse> {
+  return {
+    data: {
+      season: "2025-26",
+      total: 0,
+      page,
+      pageSize,
+      items: []
+    },
+    meta: getFallbackMeta()
+  };
+}
+
+function buildFallbackPlayerDetailEnvelope(playerId: number): ApiEnvelope<PlayerDetail> {
+  return {
+    data: {
+      playerId,
+      firstName: "",
+      lastName: "",
+      fullName: `Player ${playerId}`,
+      headshot: "",
+      team: null,
+      jersey: null,
+      position: null,
+      height: null,
+      weight: null,
+      averages: null,
+      birthDate: null,
+      age: null,
+      country: null,
+      school: null,
+      experience: null,
+      draft: null,
+      recentGames: []
+    },
+    meta: getFallbackMeta()
+  };
+}
+
+function buildFallbackLeadersEnvelope(): ApiEnvelope<LeadersResponse> {
+  return {
+    data: {
+      season: "2025-26",
+      categories: Object.entries(LEADER_CATEGORY_LABELS).map(([key, label]) => ({
+        key: key as LeaderCategoryKey,
+        label,
+        leaders: []
+      }))
+    },
+    meta: getFallbackMeta()
+  };
+}
+
+function isClientError(error: unknown) {
+  const status = (error as { status?: number } | null)?.status;
+  return typeof status === "number" && status >= 400 && status < 500;
+}
+
 function logFallback(route: string, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
   console.warn(`[fallback] ${route}: ${message}`);
@@ -284,29 +380,53 @@ export function createApiRouter(services: AppServices) {
   });
 
   router.get("/teams/:teamId", async (request, response, next) => {
+    let teamId: number | undefined;
+
     try {
-      const teamId = parseWithSchema(idParamSchema, request.params.teamId);
+      teamId = parseWithSchema(idParamSchema, request.params.teamId);
       response.json(await services.teams.getTeamDetail(teamId));
     } catch (error) {
-      next(error);
+      if (isClientError(error) || teamId === undefined) {
+        next(error);
+        return;
+      }
+
+      logFallback("/teams/:teamId", error);
+      response.json(buildFallbackTeamDetailEnvelope(teamId));
     }
   });
 
   router.get("/players", async (request, response, next) => {
+    let filters: z.infer<typeof playersQuerySchema> | undefined;
+
     try {
-      const filters = parseWithSchema(playersQuerySchema, request.query);
+      filters = parseWithSchema(playersQuerySchema, request.query);
       response.json(await services.players.getPlayers(filters));
     } catch (error) {
-      next(error);
+      if (isClientError(error)) {
+        next(error);
+        return;
+      }
+
+      logFallback("/players", error);
+      response.json(buildFallbackPlayersEnvelope(filters?.page ?? 1, filters?.pageSize ?? 30));
     }
   });
 
   router.get("/players/:playerId", async (request, response, next) => {
+    let playerId: number | undefined;
+
     try {
-      const playerId = parseWithSchema(idParamSchema, request.params.playerId);
+      playerId = parseWithSchema(idParamSchema, request.params.playerId);
       response.json(await services.players.getPlayerDetail(playerId));
     } catch (error) {
-      next(error);
+      if (isClientError(error) || playerId === undefined) {
+        next(error);
+        return;
+      }
+
+      logFallback("/players/:playerId", error);
+      response.json(buildFallbackPlayerDetailEnvelope(playerId));
     }
   });
 
@@ -346,11 +466,19 @@ export function createApiRouter(services: AppServices) {
   });
 
   router.get("/leaders", async (request, response, next) => {
+    let query: z.infer<typeof leadersQuerySchema> | undefined;
+
     try {
-      const query = parseWithSchema(leadersQuerySchema, request.query);
+      query = parseWithSchema(leadersQuerySchema, request.query);
       response.json(await services.leaders.getLeaders(query.limit));
     } catch (error) {
-      next(error);
+      if (isClientError(error)) {
+        next(error);
+        return;
+      }
+
+      logFallback("/leaders", error);
+      response.json(buildFallbackLeadersEnvelope());
     }
   });
 

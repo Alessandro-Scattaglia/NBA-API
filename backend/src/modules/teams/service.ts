@@ -127,23 +127,23 @@ export function createTeamsService(deps: ServiceDeps) {
 
     async getTeamDetail(teamId: number): Promise<ApiEnvelope<TeamDetail>> {
       const state = await (deps.cache ?? cache).getOrLoad(`team-detail:${teamId}`, TTL.profile, async () => {
-        const [standingsState, teamStatsState, scheduleState, teamInfoResponse, rosterResponse, teamGameLogResponse] =
-          await Promise.all([
-            loadStandings(deps),
-            loadTeamStats(deps),
-            loadScheduleSnapshotGames(deps),
-            deps.client.getTeamInfoCommon(teamId),
-            deps.client.getCommonTeamRoster(teamId),
-            deps.client.getTeamGameLog(teamId)
-          ]);
+        const standingsState = await loadStandings(deps);
+        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult] = await Promise.allSettled([
+          loadTeamStats(deps),
+          loadScheduleSnapshotGames(deps),
+          deps.client.getTeamInfoCommon(teamId),
+          deps.client.getCommonTeamRoster(teamId),
+          deps.client.getTeamGameLog(teamId)
+        ]);
 
         const base = standingsState.value.find((team) => team.teamId === teamId);
         if (!base) {
           throw new Error(`Team ${teamId} not found`);
         }
 
-        const teamInfo = mapStatsRows<StatsRow>(teamInfoResponse)[0] ?? {};
-        const roster = mapStatsRows<StatsRow>(rosterResponse).map((row) => {
+        const teamInfo = teamInfoResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamInfoResult.value)[0] ?? {} : {};
+        const rosterRows = rosterResult.status === "fulfilled" ? mapStatsRows<StatsRow>(rosterResult.value) : [];
+        const roster = rosterRows.map((row) => {
           const playerId = Number(row.PLAYER_ID ?? row.PlayerID ?? 0);
           const birthDate = row.BIRTH_DATE ? new Date(String(row.BIRTH_DATE)) : null;
           const age =
@@ -162,15 +162,18 @@ export function createTeamsService(deps: ServiceDeps) {
             headshot: buildPlayerHeadshotUrl(playerId)
           };
         });
-        const scheduleByGameId = new Map(scheduleState.value.map((game) => [game.gameId, game]));
-        const recentGames = mapRecentGames(teamId, mapStatsRows<StatsRow>(teamGameLogResponse), scheduleByGameId);
+        const scheduleByGameId = new Map(
+          (scheduleResult.status === "fulfilled" ? scheduleResult.value.value : []).map((game) => [game.gameId, game])
+        );
+        const recentRows = teamGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamGameLogResult.value) : [];
+        const recentGames = mapRecentGames(teamId, recentRows, scheduleByGameId);
 
         return {
           ...base,
           arena: String(teamInfo.ARENA ?? teamInfo.ARENA_NAME ?? "") || null,
           foundedYear: Number(teamInfo.YEARFOUNDED ?? 0) || null,
           coaches: [String(teamInfo.HEADCOACH ?? teamInfo.HEAD_COACH ?? "")].filter(Boolean),
-          stats: teamStatsState.value.get(teamId) ?? null,
+          stats: teamStatsResult.status === "fulfilled" ? teamStatsResult.value.value.get(teamId) ?? null : null,
           roster,
           recentGames
         } satisfies TeamDetail;

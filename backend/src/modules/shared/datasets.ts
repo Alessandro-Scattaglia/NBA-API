@@ -435,41 +435,74 @@ export async function loadStandings(deps: ServiceDeps) {
 
 export async function loadPlayerCatalog(deps: ServiceDeps) {
   return getCache(deps).getOrLoad("players-catalog", TTL.stats, async () => {
-    const [playerIndexResponse, playerStatsResponse] = await Promise.all([
+    const [playerIndexResult, playerStatsResult] = await Promise.allSettled([
       deps.client.getPlayerIndex(),
       deps.client.getLeagueDashPlayerStats()
     ]);
 
-    const playerRows = mapStatsRows<StatsRow>(playerIndexResponse);
-    const statsRows = mapStatsRows<StatsRow>(playerStatsResponse);
-    const statsByPlayerId = new Map(
-      statsRows.map((row) => [
-        getNumber(row, ["PLAYER_ID", "PERSON_ID"]),
-        {
-          gamesPlayed: getNumber(row, ["GP"]),
-          minutes: round(getNumber(row, ["MIN"])),
-          points: round(getNumber(row, ["PTS"])),
-          rebounds: round(getNumber(row, ["REB"])),
-          assists: round(getNumber(row, ["AST"])),
-          steals: round(getNumber(row, ["STL"])),
-          blocks: round(getNumber(row, ["BLK"])),
-          threesMade: round(getNumber(row, ["FG3M"])),
-          fgPct: round(getNumber(row, ["FG_PCT"]) * 100, 1),
-          threePct: round(getNumber(row, ["FG3_PCT"]) * 100, 1),
-          ftPct: round(getNumber(row, ["FT_PCT"]) * 100, 1)
-        }
-      ])
-    );
+    if (playerIndexResult.status === "rejected" && playerStatsResult.status === "rejected") {
+      throw new Error("Unable to load both player index and player stats");
+    }
 
-    return playerRows
+    const playerRows = playerIndexResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playerIndexResult.value) : [];
+    const statsRows = playerStatsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playerStatsResult.value) : [];
+    const statsByPlayerId = new Map<number, PlayerSummary["averages"]>();
+    const statsIdentityByPlayerId = new Map<
+      number,
+      {
+        fullName: string;
+        teamId: number;
+        teamCode: string;
+      }
+    >();
+
+    for (const row of statsRows) {
+      const playerId = getNumber(row, ["PLAYER_ID", "PERSON_ID"]);
+      if (playerId <= 0) {
+        continue;
+      }
+
+      statsByPlayerId.set(playerId, {
+        gamesPlayed: getNumber(row, ["GP"]),
+        minutes: round(getNumber(row, ["MIN"])),
+        points: round(getNumber(row, ["PTS"])),
+        rebounds: round(getNumber(row, ["REB"])),
+        assists: round(getNumber(row, ["AST"])),
+        steals: round(getNumber(row, ["STL"])),
+        blocks: round(getNumber(row, ["BLK"])),
+        threesMade: round(getNumber(row, ["FG3M"])),
+        fgPct: round(getNumber(row, ["FG_PCT"]) * 100, 1),
+        threePct: round(getNumber(row, ["FG3_PCT"]) * 100, 1),
+        ftPct: round(getNumber(row, ["FT_PCT"]) * 100, 1)
+      });
+      statsIdentityByPlayerId.set(playerId, {
+        fullName: getString(row, ["PLAYER_NAME", "PLAYER"], `Player ${playerId}`),
+        teamId: getNumber(row, ["TEAM_ID"]),
+        teamCode: getString(row, ["TEAM_ABBREVIATION", "TEAM_CODE"])
+      });
+    }
+
+    const mappedFromIndex = playerRows
       .map((row) => {
         const playerId = getNumber(row, ["PLAYER_ID", "PERSON_ID"]);
+        if (playerId <= 0) {
+          return null;
+        }
+
+        const statsIdentity = statsIdentityByPlayerId.get(playerId);
         const firstName = getString(row, ["PLAYER_FIRST_NAME", "FIRST_NAME"]);
         const lastName = getString(row, ["PLAYER_LAST_NAME", "LAST_NAME"]);
         const fullName =
-          getString(row, ["PLAYER_NAME", "DISPLAY_FIRST_LAST"]) || `${firstName} ${lastName}`.trim();
-        const teamId = getNumber(row, ["TEAM_ID"]);
-        const teamCode = getString(row, ["TEAM_ABBREVIATION", "TEAM_CODE"]);
+          getString(row, ["PLAYER_NAME", "DISPLAY_FIRST_LAST"]) ||
+          statsIdentity?.fullName ||
+          `${firstName} ${lastName}`.trim() ||
+          `Player ${playerId}`;
+        const teamId = getNumber(row, ["TEAM_ID"], statsIdentity?.teamId ?? 0);
+        const teamCode = getString(
+          row,
+          ["TEAM_ABBREVIATION", "TEAM_CODE"],
+          statsIdentity?.teamCode ?? ""
+        );
 
         return {
           playerId,
@@ -482,6 +515,34 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
           position: getString(row, ["POSITION"]) || null,
           height: getString(row, ["HEIGHT"]) || null,
           weight: getString(row, ["WEIGHT"]) || null,
+          averages: statsByPlayerId.get(playerId) ?? null
+        } satisfies PlayerSummary;
+      })
+      .filter((player): player is PlayerSummary => player !== null)
+      .filter((player) => player.team !== null || player.averages !== null);
+
+    if (mappedFromIndex.length > 0) {
+      return mappedFromIndex.sort((left, right) => left.fullName.localeCompare(right.fullName));
+    }
+
+    return Array.from(statsIdentityByPlayerId.entries())
+      .map(([playerId, identity]) => {
+        const fullName = identity.fullName.trim() || `Player ${playerId}`;
+        const nameParts = fullName.split(/\s+/).filter(Boolean);
+        const firstName = nameParts[0] ?? "";
+        const lastName = nameParts.slice(1).join(" ");
+
+        return {
+          playerId,
+          firstName,
+          lastName,
+          fullName,
+          headshot: buildPlayerHeadshotUrl(playerId),
+          team: resolveTeamReference(identity.teamId, identity.teamCode),
+          jersey: null,
+          position: null,
+          height: null,
+          weight: null,
           averages: statsByPlayerId.get(playerId) ?? null
         } satisfies PlayerSummary;
       })
