@@ -122,7 +122,7 @@ function PlayerTable({
     <SurfaceCard title={`Tabellino ${team.code}`} subtitle={team.name}>
       {rows.length > 0 ? (
         <div className="game-table-wrap">
-          <table className={`detail-table detail-table-${tone}`}>
+          <table className={`detail-table detail-table-${tone}`} aria-label={`Tabellino ${team.code}`}>
             <thead>
               <tr>
                 <th>Giocatore</th>
@@ -136,24 +136,24 @@ function PlayerTable({
             <tbody>
               {sortedRows.map((player) => (
                 <tr key={player.playerId} className={player.starter ? "detail-row-starter" : ""}>
-                  <td>
+                  <td data-label="Giocatore">
                     <div className="detail-player-copy">
                       <strong>{player.fullName}</strong>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Minuti">
                     <span className="detail-minutes-pill">{formatGameMinutes(player.minutes)}</span>
                   </td>
-                  <td>
+                  <td data-label="Punti">
                     <span className="detail-stat-pill detail-stat-pill-points">{player.points}</span>
                   </td>
-                  <td>
+                  <td data-label="Rimbalzi">
                     <span className="detail-stat-pill detail-stat-pill-rebounds">{player.rebounds}</span>
                   </td>
-                  <td>
+                  <td data-label="Assist">
                     <span className="detail-stat-pill detail-stat-pill-assists">{player.assists}</span>
                   </td>
-                  <td>
+                  <td data-label="Recuperi">
                     <span className="detail-stat-pill">{player.steals}</span>
                   </td>
                 </tr>

@@ -1,5 +1,7 @@
 .standings-table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .standings-table {
@@ -191,6 +193,14 @@
 }
 
 @media (max-width: 980px) {
+  .standings-table-rich {
+    min-width: 640px;
+  }
+
+  .standings-table-no-status {
+    min-width: 580px;
+  }
+
   .standings-table {
     font-size: 0.72rem;
   }
@@ -227,6 +237,14 @@
 }
 
 @media (max-width: 720px) {
+  .standings-table-rich {
+    min-width: 620px;
+  }
+
+  .standings-table-no-status {
+    min-width: 560px;
+  }
+
   .standings-table {
     font-size: 0.68rem;
   }
