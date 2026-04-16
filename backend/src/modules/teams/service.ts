@@ -118,7 +118,10 @@ export function createTeamsService(deps: ServiceDeps) {
         },
         standingsState.updatedAt,
         standingsState.stale,
-        ["stats.nba.com/leaguestandings"]
+        [
+          "stats.nba.com/leaguestandings",
+          "cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json"
+        ]
       );
     },
 

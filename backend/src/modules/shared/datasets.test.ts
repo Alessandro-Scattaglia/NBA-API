@@ -75,6 +75,91 @@ describe("shared datasets", () => {
     expect(state.value[2].playoffStatus).toBe("eliminated");
   });
 
+  it("falls back to schedule snapshot standings when stats endpoints fail", async () => {
+    const cache = new MemoryCache();
+    const client = createClient({
+      getLeagueStandings: async () => {
+        throw new Error("Stats unavailable");
+      },
+      getPlayoffPicture: async () => {
+        throw new Error("Playoff picture unavailable");
+      },
+      getScheduleSnapshot: async () => ({
+        leagueSchedule: {
+          gameDates: [
+            {
+              gameDate: "2026-03-01",
+              games: [
+                {
+                  gameId: "0022600901",
+                  gameCode: "20260301/BOSNYK",
+                  gameStatus: 3,
+                  gameStatusText: "Final",
+                  gameDateTimeUTC: "2026-03-01T20:00:00Z",
+                  arenaName: "Madison Square Garden",
+                  homeTeam: {
+                    teamId: 1610612752,
+                    teamName: "Knicks",
+                    teamCity: "New York",
+                    teamTricode: "NYK",
+                    wins: 45,
+                    losses: 27,
+                    score: 103
+                  },
+                  awayTeam: {
+                    teamId: 1610612738,
+                    teamName: "Celtics",
+                    teamCity: "Boston",
+                    teamTricode: "BOS",
+                    wins: 52,
+                    losses: 20,
+                    score: 111
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+    });
+
+    const state = await loadStandings({ client, cache });
+    const celtics = state.value.find((team) => team.teamId === 1610612738);
+
+    expect(state.stale).toBe(false);
+    expect(state.value).toHaveLength(30);
+    expect(celtics?.wins).toBe(52);
+    expect(celtics?.losses).toBe(20);
+    expect(celtics?.conferenceRank).toBe(1);
+    expect(celtics?.seed).toBe(1);
+    expect(celtics?.playoffStatus).toBe("playoff");
+    expect(celtics?.homeRecord).toBe("--");
+  });
+
+  it("returns directory fallback standings when both stats and schedule fail", async () => {
+    const cache = new MemoryCache();
+    const client = createClient({
+      getLeagueStandings: async () => {
+        throw new Error("Stats unavailable");
+      },
+      getPlayoffPicture: async () => {
+        throw new Error("Playoff picture unavailable");
+      },
+      getScheduleSnapshot: async () => {
+        throw new Error("Schedule unavailable");
+      }
+    });
+
+    const state = await loadStandings({ client, cache });
+    const lakers = state.value.find((team) => team.teamId === 1610612747);
+
+    expect(state.value).toHaveLength(30);
+    expect(lakers?.wins).toBe(0);
+    expect(lakers?.losses).toBe(0);
+    expect(lakers?.conferenceRank).toBeGreaterThanOrEqual(1);
+    expect(lakers?.conferenceRank).toBeLessThanOrEqual(15);
+  });
+
   it("falls back to scoreboard by date when schedule snapshot is empty", async () => {
     const cache = new MemoryCache();
     let scoreboardCalls = 0;

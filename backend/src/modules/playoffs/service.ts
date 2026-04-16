@@ -313,11 +313,37 @@ function buildConferenceSnapshot(
 export function createPlayoffsService(deps: ServiceDeps) {
   return {
     async getPlayoffs(): Promise<ApiEnvelope<PlayoffsResponse>> {
-      const [standingsState, calendarState, todayState] = await Promise.all([
+      const nowIso = new Date().toISOString();
+      const [standingsResult, calendarResult, todayResult] = await Promise.allSettled([
         loadStandings(deps),
         loadCalendarRange(deps, POSTSEASON_START_DATE, POSTSEASON_END_DATE),
         loadTodayGames(deps)
       ]);
+
+      const standingsState =
+        standingsResult.status === "fulfilled"
+          ? standingsResult.value
+          : {
+              value: [],
+              updatedAt: nowIso,
+              stale: true
+            };
+      const calendarState =
+        calendarResult.status === "fulfilled"
+          ? calendarResult.value
+          : {
+              value: [],
+              updatedAt: nowIso,
+              stale: true
+            };
+      const todayState =
+        todayResult.status === "fulfilled"
+          ? todayResult.value
+          : {
+              value: [],
+              updatedAt: nowIso,
+              stale: true
+            };
 
       const postseasonGames = mergeLivePostseasonGames(
         calendarState.value.filter((game) => game.phase === "play-in" || game.phase === "playoffs"),
@@ -351,7 +377,12 @@ export function createPlayoffsService(deps: ServiceDeps) {
           playoffGames
         },
         getLatestUpdatedAt([standingsState.updatedAt, calendarState.updatedAt, todayState.updatedAt]),
-        standingsState.stale || calendarState.stale || todayState.stale,
+        standingsState.stale ||
+          calendarState.stale ||
+          todayState.stale ||
+          standingsResult.status === "rejected" ||
+          calendarResult.status === "rejected" ||
+          todayResult.status === "rejected",
         [
           "https://stats.nba.com/stats/leaguestandings",
           "https://stats.nba.com/stats/playoffpicture",

@@ -22,7 +22,11 @@ export function createStandingsService(deps: ServiceDeps) {
         },
         standingsState.updatedAt,
         standingsState.stale,
-        ["stats.nba.com/leaguestandings", "stats.nba.com/playoffpicture"]
+        [
+          "stats.nba.com/leaguestandings",
+          "stats.nba.com/playoffpicture",
+          "cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json"
+        ]
       );
     }
   };

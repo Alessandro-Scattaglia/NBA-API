@@ -17,6 +17,13 @@ import type { NbaApiClient } from "../../nba-client/client.js";
 import type { ServiceDeps } from "./types.js";
 
 type StatsRow = Record<string, unknown>;
+type TeamRecordSnapshot = {
+  wins: number;
+  losses: number;
+  observedAt: string;
+};
+
+const STANDINGS_STATS_TIMEOUT_MS = 1500;
 
 function getNumber(row: StatsRow, keys: string[], fallback = 0) {
   for (const key of keys) {
@@ -124,6 +131,152 @@ function mapStandingsRow(row: StatsRow, playoffRow?: StatsRow): StandingsRow | n
     clinchedDivision: playoffFlags.clinchedDivision,
     clinchedConference: playoffFlags.clinchedConference
   };
+}
+
+function parseTeamRecord(record: string | null) {
+  if (!record) {
+    return null;
+  }
+
+  const match = record.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const wins = Number(match[1]);
+  const losses = Number(match[2]);
+
+  if (!Number.isFinite(wins) || !Number.isFinite(losses)) {
+    return null;
+  }
+
+  return {
+    wins,
+    losses
+  };
+}
+
+function upsertLatestRecord(
+  recordsByTeamId: Map<number, TeamRecordSnapshot>,
+  teamId: number,
+  record: { wins: number; losses: number },
+  observedAt: string
+) {
+  const current = recordsByTeamId.get(teamId);
+  const currentGamesPlayed = current ? current.wins + current.losses : -1;
+  const candidateGamesPlayed = record.wins + record.losses;
+
+  if (
+    !current ||
+    candidateGamesPlayed > currentGamesPlayed ||
+    (candidateGamesPlayed === currentGamesPlayed && observedAt > current.observedAt)
+  ) {
+    recordsByTeamId.set(teamId, {
+      wins: record.wins,
+      losses: record.losses,
+      observedAt
+    });
+  }
+}
+
+function buildConferenceRows(
+  conference: "East" | "West",
+  recordsByTeamId: Map<number, TeamRecordSnapshot>
+) {
+  const teams = TEAM_DIRECTORY
+    .filter((team) => team.conference === conference)
+    .map((team) => {
+      const record = recordsByTeamId.get(team.teamId) ?? {
+        wins: 0,
+        losses: 0,
+        observedAt: ""
+      };
+
+      return {
+        team,
+        wins: record.wins,
+        losses: record.losses
+      };
+    })
+    .sort((left, right) => {
+      if (right.wins !== left.wins) {
+        return right.wins - left.wins;
+      }
+
+      if (left.losses !== right.losses) {
+        return left.losses - right.losses;
+      }
+
+      return left.team.name.localeCompare(right.team.name);
+    });
+
+  const leader = teams[0] ?? null;
+  const leaderWins = leader?.wins ?? 0;
+  const leaderLosses = leader?.losses ?? 0;
+
+  return teams.map((entry, index) => {
+    const conferenceRank = index + 1;
+    const gamesPlayed = entry.wins + entry.losses;
+
+    return {
+      ...entry.team,
+      seed: conferenceRank,
+      wins: entry.wins,
+      losses: entry.losses,
+      gamesPlayed,
+      remainingGames: Math.max(82 - gamesPlayed, 0),
+      winPct: gamesPlayed > 0 ? round(entry.wins / gamesPlayed, 3) : 0,
+      gamesBehind:
+        conferenceRank === 1
+          ? 0
+          : round((leaderWins - entry.wins + entry.losses - leaderLosses) / 2, 1),
+      conferenceRank,
+      homeRecord: "--",
+      awayRecord: "--",
+      lastTen: "--",
+      streak: "--",
+      playoffStatus: derivePlayoffStatus(conferenceRank),
+      clinchedPlayoff: false,
+      clinchedDivision: false,
+      clinchedConference: false
+    } satisfies StandingsRow;
+  });
+}
+
+function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
+  const recordsByTeamId = new Map<number, TeamRecordSnapshot>();
+
+  for (const game of scheduleGames) {
+    const homeRecord = parseTeamRecord(game.homeTeam.record);
+    if (homeRecord) {
+      upsertLatestRecord(recordsByTeamId, game.homeTeam.teamId, homeRecord, game.dateTimeUtc);
+    }
+
+    const awayRecord = parseTeamRecord(game.awayTeam.record);
+    if (awayRecord) {
+      upsertLatestRecord(recordsByTeamId, game.awayTeam.teamId, awayRecord, game.dateTimeUtc);
+    }
+  }
+
+  return [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Timeout while loading ${label}`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 function inferPhase(values: {
@@ -245,19 +398,38 @@ function getCache(deps: ServiceDeps) {
 
 export async function loadStandings(deps: ServiceDeps) {
   return getCache(deps).getOrLoad("standings-dataset", TTL.standings, async () => {
-    const [standingsResponse, playoffPictureResponse] = await Promise.all([
-      deps.client.getLeagueStandings(),
-      deps.client.getPlayoffPicture()
-    ]);
+    try {
+      const [standingsResponse, playoffPictureResponse] = await Promise.all([
+        withTimeout(deps.client.getLeagueStandings(), STANDINGS_STATS_TIMEOUT_MS, "league standings"),
+        withTimeout(deps.client.getPlayoffPicture(), STANDINGS_STATS_TIMEOUT_MS, "playoff picture")
+      ]);
 
-    const standingsRows = mapAllStatsRows<StatsRow>(standingsResponse);
-    const playoffRows = mapAllStatsRows<StatsRow>(playoffPictureResponse);
-    const playoffByTeamId = new Map(playoffRows.map((row) => [getNumber(row, ["TEAM_ID", "TeamID"]), row]));
+      const standingsRows = mapAllStatsRows<StatsRow>(standingsResponse);
+      const playoffRows = mapAllStatsRows<StatsRow>(playoffPictureResponse);
+      const playoffByTeamId = new Map(playoffRows.map((row) => [getNumber(row, ["TEAM_ID", "TeamID"]), row]));
+      const mappedRows = standingsRows
+        .map((row) => mapStandingsRow(row, playoffByTeamId.get(getNumber(row, ["TeamID", "TEAM_ID"]))))
+        .filter((row): row is StandingsRow => row !== null);
 
-    return standingsRows
-      .map((row) => mapStandingsRow(row, playoffByTeamId.get(getNumber(row, ["TeamID", "TEAM_ID"]))))
-      .filter((row): row is StandingsRow => row !== null)
-      .sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
+      if (mappedRows.length >= 20) {
+        return mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
+      }
+    } catch {
+      // Fall back to schedule snapshot when stats endpoints are unavailable or too slow.
+    }
+
+    try {
+      const scheduleState = await withTimeout(
+        loadScheduleSnapshotGames(deps),
+        STANDINGS_STATS_TIMEOUT_MS,
+        "standings schedule snapshot"
+      );
+
+      return buildStandingsFromScheduleSnapshot(scheduleState.value);
+    } catch {
+      // Last-resort fallback that still keeps API responsive.
+      return buildStandingsFromScheduleSnapshot([]);
+    }
   });
 }
 

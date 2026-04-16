@@ -4,6 +4,6 @@ export const env = {
   statsBaseUrl: process.env.NBA_STATS_BASE_URL ?? "https://stats.nba.com/stats",
   cdnBaseUrl: process.env.NBA_CDN_BASE_URL ?? "https://cdn.nba.com",
   liveBaseUrl: process.env.NBA_LIVE_BASE_URL ?? "https://cdn.nba.com/static/json/liveData",
-  requestTimeoutMs: Number(process.env.NBA_REQUEST_TIMEOUT_MS ?? 10000),
+  requestTimeoutMs: Number(process.env.NBA_REQUEST_TIMEOUT_MS ?? 3500),
   requestRetries: Number(process.env.NBA_REQUEST_RETRIES ?? 0)
 } as const;
