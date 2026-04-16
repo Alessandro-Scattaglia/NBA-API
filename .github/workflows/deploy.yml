@@ -34,7 +34,7 @@ jobs:
         run: npm run build --workspace frontend
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_BASE_PATH: /nba-api
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
