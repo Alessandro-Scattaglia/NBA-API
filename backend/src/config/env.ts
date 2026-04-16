@@ -1,5 +1,5 @@
 export const env = {
-  port: Number(process.env.PORT ?? 4000),
+  port: Number(process.env.PORT ?? 4001),
   nbaSeason: process.env.NBA_SEASON ?? "2025-26",
   statsBaseUrl: process.env.NBA_STATS_BASE_URL ?? "https://stats.nba.com/stats",
   cdnBaseUrl: process.env.NBA_CDN_BASE_URL ?? "https://cdn.nba.com",

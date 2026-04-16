@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, LoadingState } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { formatDate, formatDraft, formatExperience, formatHeight, formatMatchup, formatNumber, formatPosition, formatWeight } from "../../lib/format";
@@ -31,21 +31,22 @@ export function PlayerDetailPage() {
 
   return (
     <>
-      <PageHeader title={data.fullName} description="Bio, squadra attuale, misure, medie stagionali e ultime partite." />
-      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
-
       <SurfaceCard>
-        <div className="detail-header">
-          <img src={data.headshot} alt="" className="player-headshot-large" />
-          <div className="detail-header-text">
+        <div className="player-detail-hero">
+          <img src={data.headshot} alt={data.fullName} className="player-headshot-large" />
+          <div className="player-detail-hero-copy">
+            <span className="eyebrow">NBA 2025-2026</span>
             <h1>{data.fullName}</h1>
-            <p className="detail-subtitle">
+            <p className="detail-subtitle">Bio, squadra attuale, misure, medie stagionali e ultime partite.</p>
+            <p className="player-detail-hero-meta">
               {data.team ? <Link to={`/teams/${data.team.teamId}`}>{data.team.name}</Link> : "Svincolato"} ·{" "}
               {formatPosition(data.position)} · #{data.jersey ?? "--"}
             </p>
           </div>
         </div>
       </SurfaceCard>
+
+      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
 
       <div className="stats-grid">
         <div className="stat-box">

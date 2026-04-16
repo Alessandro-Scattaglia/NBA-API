@@ -1,1 +1,30 @@
-/* PlayerDetailPage relies on shared UI styles from /styles/ui.css. */
+.player-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.player-detail-hero-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.player-detail-hero-copy h1 {
+  margin: 0;
+}
+
+.player-detail-hero-meta {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.player-detail-hero-meta a {
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .player-detail-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

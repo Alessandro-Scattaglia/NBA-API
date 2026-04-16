@@ -20,10 +20,26 @@ function getStreakTone(streak: string) {
   return streak.startsWith("W") ? "result-pill-win" : streak.startsWith("L") ? "result-pill-loss" : "";
 }
 
-export function StandingsTable({ teams }: { teams: TeamSummary[] }) {
+function getStatusTone(status: TeamSummary["playoffStatus"]) {
+  if (status === "playoff") {
+    return "success" as const;
+  }
+
+  if (status === "play-in") {
+    return "warning" as const;
+  }
+
+  if (status === "eliminated") {
+    return "danger" as const;
+  }
+
+  return "neutral" as const;
+}
+
+export function StandingsTable({ teams, showStatus = true }: { teams: TeamSummary[]; showStatus?: boolean }) {
   return (
-    <div className="table-wrap standings-table-wrap">
-      <table className="standings-table standings-table-rich">
+    <div className={`table-wrap standings-table-wrap ${showStatus ? "" : "standings-table-wrap-no-status"}`}>
+      <table className={`standings-table standings-table-rich ${showStatus ? "" : "standings-table-no-status"}`}>
         <thead>
           <tr>
             <th>Pos</th>
@@ -33,7 +49,7 @@ export function StandingsTable({ teams }: { teams: TeamSummary[] }) {
             <th>%</th>
             <th>Ult. 10</th>
             <th>Serie</th>
-            <th>Stato</th>
+            {showStatus ? <th>Stato</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -44,8 +60,9 @@ export function StandingsTable({ teams }: { teams: TeamSummary[] }) {
               </td>
               <td className="standings-team-cell">
                 <Link to={`/teams/${team.teamId}`} className="entity-link">
-                  <img src={team.logo} alt="" className="mini-logo" />
-                  <strong>{team.name}</strong>
+                  <img src={team.logo} alt="" className="mini-logo standings-team-logo" />
+                  <strong className="standings-team-name">{team.name}</strong>
+                  <strong className="standings-team-code">{team.code}</strong>
                 </Link>
               </td>
               <td className="cell-win">{team.wins}</td>
@@ -57,21 +74,11 @@ export function StandingsTable({ teams }: { teams: TeamSummary[] }) {
               <td>
                 <span className={`result-pill ${getStreakTone(team.streak)}`}>{team.streak}</span>
               </td>
-              <td>
-                <Badge
-                  tone={
-                    team.playoffStatus === "playoff"
-                      ? "success"
-                      : team.playoffStatus === "play-in"
-                        ? "warning"
-                        : team.playoffStatus === "eliminated"
-                          ? "danger"
-                          : "neutral"
-                  }
-                >
-                  {formatPlayoffStatus(team.playoffStatus)}
-                </Badge>
-              </td>
+              {showStatus ? (
+                <td>
+                  <Badge tone={getStatusTone(team.playoffStatus)}>{formatPlayoffStatus(team.playoffStatus)}</Badge>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

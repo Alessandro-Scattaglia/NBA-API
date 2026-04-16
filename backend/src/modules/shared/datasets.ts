@@ -126,23 +126,48 @@ function mapStandingsRow(row: StatsRow, playoffRow?: StatsRow): StandingsRow | n
   };
 }
 
-function inferPhase(seriesText: string) {
-  const normalized = seriesText.toLowerCase();
+function inferPhase(values: {
+  seriesText?: string;
+  seasonStage?: string;
+  stageText?: string;
+  gameId?: string;
+}) {
+  const normalizedText = [values.seriesText, values.seasonStage, values.stageText]
+    .filter((value) => Boolean(value && value.trim()))
+    .join(" ")
+    .toLowerCase();
+  const normalizedGameId = (values.gameId ?? "").trim();
 
-  if (normalized.includes("pre")) {
-    return "preseason" satisfies GamePhase;
-  }
-
-  if (normalized.includes("playoff")) {
-    return "playoffs" satisfies GamePhase;
-  }
-
-  if (normalized.includes("play-in")) {
+  if (normalizedText.includes("play-in") || normalizedText.includes("play in")) {
     return "play-in" satisfies GamePhase;
   }
 
-  if (normalized.includes("regular")) {
+  if (normalizedText.includes("playoff")) {
+    return "playoffs" satisfies GamePhase;
+  }
+
+  if (normalizedText.includes("regular")) {
     return "regular-season" satisfies GamePhase;
+  }
+
+  if (normalizedText.includes("pre")) {
+    return "preseason" satisfies GamePhase;
+  }
+
+  if (normalizedGameId.startsWith("005")) {
+    return "play-in" satisfies GamePhase;
+  }
+
+  if (normalizedGameId.startsWith("004")) {
+    return "playoffs" satisfies GamePhase;
+  }
+
+  if (normalizedGameId.startsWith("002")) {
+    return "regular-season" satisfies GamePhase;
+  }
+
+  if (normalizedGameId.startsWith("001")) {
+    return "preseason" satisfies GamePhase;
   }
 
   return "other" satisfies GamePhase;
@@ -185,7 +210,12 @@ function mapScoreboardGame(row: StatsRow, teamsById = new Map<number, string>())
     }),
     status: asGameStatus(gameStatusId, gameStatusText),
     statusText: gameStatusText || getString(row, ["gameStatusText", "gameLabel"]),
-    phase: inferPhase(getString(row, ["SEASON_STAGE", "seriesText", "stageText"], "Regular Season")),
+    phase: inferPhase({
+      gameId: getString(row, ["GAME_ID", "gameId"]),
+      seriesText: getString(row, ["seriesText", "SERIES_TEXT"], ""),
+      stageText: getString(row, ["stageText", "STAGE_TEXT"], ""),
+      seasonStage: getString(row, ["SEASON_STAGE", "SEASON_STAGE_ID"], "")
+    }),
     arena: arena || null,
     nationalTv: broadcasters,
     clock: getString(row, ["GAME_CLOCK", "gameClock"], "") || null,
@@ -335,7 +365,12 @@ function mapLiveGame(game: Record<string, unknown>): GameSummary {
     }),
     status: asGameStatus(statusValue, statusText),
     statusText,
-    phase: inferPhase(String(game.seriesText ?? "Regular Season")),
+    phase: inferPhase({
+      gameId: String(game.gameId ?? ""),
+      seriesText: String(game.seriesText ?? ""),
+      stageText: String(game.stageText ?? ""),
+      seasonStage: String(game.seasonStage ?? "")
+    }),
     arena: String((game.arena as Record<string, unknown> | undefined)?.arenaName ?? "") || null,
     nationalTv: nationalBroadcasters.map((item) => String(item.displayName ?? item.callLetters ?? "")).filter(Boolean),
     clock: String(game.gameClock ?? "") || null,
@@ -399,7 +434,12 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
     }),
     status,
     statusText,
-    phase: inferPhase(String(game.seriesText ?? "Regular Season")),
+    phase: inferPhase({
+      gameId: String(game.gameId ?? ""),
+      seriesText: String(game.seriesText ?? ""),
+      stageText: String(game.stageText ?? ""),
+      seasonStage: String(game.seasonStage ?? "")
+    }),
     arena: String((game.arenaName as string | undefined) ?? "") || null,
     nationalTv,
     clock: null,

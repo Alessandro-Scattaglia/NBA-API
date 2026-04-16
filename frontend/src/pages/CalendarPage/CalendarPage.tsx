@@ -38,7 +38,7 @@ function shiftIsoMonth(date: string, months: number) {
 }
 
 function getVisibleDates(centerDate: string) {
-  return [-2, -1, 0, 1, 2].map((offset) => shiftIsoDate(centerDate, offset));
+  return [-1, 0, 1].map((offset) => shiftIsoDate(centerDate, offset));
 }
 
 function formatCalendarPill(date: string) {

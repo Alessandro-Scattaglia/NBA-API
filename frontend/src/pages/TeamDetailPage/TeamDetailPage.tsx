@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, LoadingState } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { GameList } from "../../components/tables/GameList";
 import { apiGet } from "../../lib/api";
@@ -32,20 +32,23 @@ export function TeamDetailPage() {
 
   return (
     <>
-      <PageHeader title={data.name} description="Profilo squadra, rosa, rendimento stagionale e ultime partite." />
-      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
-
       <SurfaceCard>
-        <div className="detail-header">
-          <img src={data.logo} alt="" className="team-logo-large" />
-          <div className="detail-header-text">
+        <div className="team-detail-hero">
+          <img src={data.logo} alt={`${data.name} logo`} className="team-logo-large" />
+          <div className="team-detail-hero-copy">
+            <span className="eyebrow">NBA 2025-2026</span>
             <h1>{data.name}</h1>
             <p className="detail-subtitle">
+              Profilo squadra, rosa, rendimento stagionale e ultime partite.
+            </p>
+            <p className="team-detail-hero-meta">
               {formatConference(data.conference)} · {formatDivision(data.division)} · {data.wins}-{data.losses} · {formatPlayoffStatus(data.playoffStatus)}
             </p>
           </div>
         </div>
       </SurfaceCard>
+
+      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
 
       <div className="stats-grid">
         <div className="stat-box">

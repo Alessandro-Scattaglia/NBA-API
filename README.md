@@ -21,7 +21,7 @@ npm run dev
 App previste:
 
 - frontend su `http://localhost:5173`
-- backend su `http://localhost:4000`
+- backend su `http://localhost:4001`
 
 ## Pagine principali
 

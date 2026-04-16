@@ -1,1 +1,33 @@
-/* TeamDetailPage relies on shared UI styles from /styles/ui.css. */
+.team-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.team-detail-hero-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.team-detail-hero-copy h1 {
+  margin: 0;
+}
+
+.team-detail-hero .team-logo-large {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.team-detail-hero-meta {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 720px) {
+  .team-detail-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

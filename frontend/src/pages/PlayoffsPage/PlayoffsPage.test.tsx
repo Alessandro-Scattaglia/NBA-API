@@ -251,6 +251,35 @@ describe("PlayoffsPage", () => {
                   score: null,
                   record: "47-35"
                 }
+              },
+              {
+                gameId: "0042600103",
+                gameCode: "20260416/GSWLAC",
+                dateTimeUtc: "2026-04-16T02:00:00Z",
+                dateLabel: "16 apr 2026, 02:00",
+                status: "scheduled",
+                statusText: "10:00 pm ET",
+                phase: "playoffs",
+                arena: "Intuit Dome",
+                nationalTv: ["PRIME"],
+                clock: null,
+                period: null,
+                homeTeam: {
+                  teamId: 1610612746,
+                  name: "Los Angeles Clippers",
+                  code: "LAC",
+                  logo: "https://example.com/lac.svg",
+                  score: null,
+                  record: "51-31"
+                },
+                awayTeam: {
+                  teamId: 1610612744,
+                  name: "Golden State Warriors",
+                  code: "GSW",
+                  logo: "https://example.com/gsw.svg",
+                  score: null,
+                  record: "49-33"
+                }
               }
             ]
           },
@@ -282,12 +311,16 @@ describe("PlayoffsPage", () => {
       </QueryClientProvider>
     );
 
-    await screen.findByText("Calendario Play-In");
+    await screen.findByText("Calendario Postseason");
 
     expect(fetchMock).toHaveBeenCalledWith("/api/playoffs");
     expect(screen.getByText("Conference Est")).toBeInTheDocument();
     expect(screen.getByText("SoFi NBA Play-In Tournament")).toBeInTheDocument();
-    expect(screen.getByText("PHI -- - -- ORL")).toBeInTheDocument();
+    expect(screen.getByText("PHI")).toBeInTheDocument();
+    expect(screen.getByText("ORL")).toBeInTheDocument();
+    expect(screen.getByText("GSW")).toBeInTheDocument();
+    expect(screen.getByText("LAC")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "giovedi 16 aprile" })).toHaveLength(1);
     expect(screen.getByText("https://www.nba.com/playoffs/2026")).toBeInTheDocument();
   });
 });

@@ -85,6 +85,7 @@
   gap: 12px;
   color: var(--ink-soft);
   font-size: 0.84rem;
+  min-width: 0;
 }
 
 .entity-card strong,
@@ -224,6 +225,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.game-team strong,
+.entity-link strong {
+  min-width: 0;
 }
 
 .game-team-right {
@@ -309,6 +316,18 @@
 }
 
 @media (max-width: 720px) {
+  .filters-bar {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .filters-bar input,
+  .filters-bar select {
+    width: 100%;
+    min-height: 44px;
+  }
+
   .entity-grid {
     grid-template-columns: 1fr;
   }
@@ -326,7 +345,52 @@
     gap: 8px;
   }
 
+  .entity-meta,
+  .game-card-meta {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .leader-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .leader-value {
+    margin-left: 0;
+  }
+
   .detail-header {
     gap: 14px;
+  }
+
+  .table-wrap {
+    border-radius: 14px;
+  }
+
+  .detail-table {
+    min-width: 620px;
+  }
+}
+
+@media (max-width: 420px) {
+  .entity-card-head {
+    gap: 10px;
+  }
+
+  .entity-card-head img,
+  .team-logo-large,
+  .player-headshot-large {
+    width: 48px;
+    height: 48px;
+  }
+
+  .team-logo-large {
+    width: 58px;
+    height: 58px;
+  }
+
+  .detail-header-text h1 {
+    font-size: 1.45rem;
   }
 }

@@ -267,14 +267,16 @@
 }
 
 .game-table-wrap {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
   border-radius: 18px;
 }
 
 .detail-table {
   width: 100%;
-  min-width: 0;
+  min-width: 640px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -358,10 +360,11 @@
 
 @media (max-width: 720px) {
   .game-table-wrap {
-    overflow-x: visible;
+    overflow-x: auto;
   }
 
   .detail-table {
+    min-width: 560px;
     font-size: 0.78rem;
   }
 
@@ -399,6 +402,7 @@
 
   .game-leader-card {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .game-leader-rank {
@@ -420,5 +424,25 @@
   .detail-stat-pill {
     min-width: 0;
     font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .game-team-panel-head,
+  .game-team-brand,
+  .game-team-brand-home {
+    flex-wrap: wrap;
+  }
+
+  .game-team-brand-home > div {
+    text-align: left;
+  }
+
+  .game-score-center {
+    min-width: 0;
+  }
+
+  .game-score-value {
+    font-size: 1.95rem;
   }
 }
