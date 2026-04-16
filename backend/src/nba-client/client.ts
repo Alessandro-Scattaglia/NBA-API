@@ -71,20 +71,19 @@ async function requestJson(fetchImpl: FetchImpl, url: string, headers: Record<st
         signal: controller.signal
       });
 
-      clearTimeout(timeout);
-
       if (!response.ok) {
         throw new Error(`NBA API ${response.status} for ${url}`);
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
-      clearTimeout(timeout);
       lastError = error;
 
       if (attempt < env.requestRetries) {
         await delay(300 * (attempt + 1));
       }
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
