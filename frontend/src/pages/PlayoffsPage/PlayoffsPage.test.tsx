@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlayoffsPage } from "./PlayoffsPage";
@@ -9,7 +9,7 @@ describe("PlayoffsPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads the playoff snapshot and renders schedules plus conference data", async () => {
+  it("loads the playoff snapshot and renders an expandable postseason schedule", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -20,7 +20,7 @@ describe("PlayoffsPage", () => {
               playInTeams: 8,
               confirmedFirstRoundSeries: 4,
               playInGamesScheduled: 2,
-              playoffGamesScheduled: 2
+              playoffGamesScheduled: 3
             },
             keyDates: [
               {
@@ -280,6 +280,35 @@ describe("PlayoffsPage", () => {
                   score: null,
                   record: "49-33"
                 }
+              },
+              {
+                gameId: "0042600118",
+                gameCode: "20260425/BOSMIA",
+                dateTimeUtc: "2026-04-25T23:30:00Z",
+                dateLabel: "25 apr 2026, 23:30",
+                status: "scheduled",
+                statusText: "7:30 pm ET",
+                phase: "playoffs",
+                arena: "Kaseya Center",
+                nationalTv: ["ESPN"],
+                clock: null,
+                period: null,
+                homeTeam: {
+                  teamId: 1610612748,
+                  name: "Miami Heat",
+                  code: "MIA",
+                  logo: "https://example.com/mia.svg",
+                  score: null,
+                  record: "48-34"
+                },
+                awayTeam: {
+                  teamId: 1610612738,
+                  name: "Boston Celtics",
+                  code: "BOS",
+                  logo: "https://example.com/bos.svg",
+                  score: null,
+                  record: "57-25"
+                }
               }
             ]
           },
@@ -314,13 +343,16 @@ describe("PlayoffsPage", () => {
     await screen.findByText("Calendario Postseason");
 
     expect(fetchMock).toHaveBeenCalledWith("/api/playoffs");
-    expect(screen.getByText("Conference Est")).toBeInTheDocument();
-    expect(screen.getByText("SoFi NBA Play-In Tournament")).toBeInTheDocument();
-    expect(screen.getByText("PHI")).toBeInTheDocument();
-    expect(screen.getByText("ORL")).toBeInTheDocument();
-    expect(screen.getByText("GSW")).toBeInTheDocument();
-    expect(screen.getByText("LAC")).toBeInTheDocument();
-    expect(screen.getAllByRole("heading", { name: "giovedi 16 aprile" })).toHaveLength(1);
-    expect(screen.getByText("https://www.nba.com/playoffs/2026")).toBeInTheDocument();
+    expect(screen.getByText("Classifica playoff Est")).toBeInTheDocument();
+    expect(screen.getByText("Partite schedulate")).toBeInTheDocument();
+
+    const expandButton = screen.getByRole("button", { name: /Mostra altre/i });
+    expect(expandButton).toBeInTheDocument();
+
+    fireEvent.click(expandButton);
+    expect(screen.getByRole("button", { name: "Mostra meno partite" })).toBeInTheDocument();
+
+    expect(screen.queryByText("Date chiave")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fonti ufficiali")).not.toBeInTheDocument();
   });
 });

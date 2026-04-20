@@ -8,10 +8,10 @@ export const REGULAR_SEASON_LABEL = "Regular Season";
 
 export const TTL = {
   live: 30_000,
-  standings: 5 * 60_000,
-  stats: 15 * 60_000,
+  standings: 2 * 60_000,
+  stats: 10 * 60_000,
   profile: 12 * 60 * 60_000,
-  calendar: 6 * 60 * 60_000
+  calendar: 10 * 60_000
 } as const;
 
 export function getSeasonBounds() {

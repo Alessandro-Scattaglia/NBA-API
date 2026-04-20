@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
@@ -342,6 +343,17 @@ function getGameDayKey(dateTimeUtc: string) {
   }
 
   return `${year}-${month}-${day}`;
+}
+
+function addDaysToDayKey(dayKey: string, days: number) {
+  const baseDate = new Date(`${dayKey}T00:00:00Z`);
+
+  if (Number.isNaN(baseDate.getTime())) {
+    return dayKey;
+  }
+
+  baseDate.setUTCDate(baseDate.getUTCDate() + days);
+  return baseDate.toISOString().slice(0, 10);
 }
 
 function groupGamesByDay(games: GameSummary[]) {
@@ -710,53 +722,90 @@ function PostseasonSchedule({
   games: GameSummary[];
   emptyLabel: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const groups = groupGamesByDay(games);
+  const todayKey = getGameDayKey(new Date().toISOString());
+  const tomorrowKey = addDaysToDayKey(todayKey, 1);
+  const spotlightGroups = groups.filter((group) => group.key === todayKey || group.key === tomorrowKey);
+  const defaultGroups = spotlightGroups.length > 0 ? spotlightGroups : groups.slice(0, 2);
+  const visibleGroups = expanded ? groups : defaultGroups;
+  const visibleGroupKeys = new Set(visibleGroups.map((group) => group.key));
+  const hiddenGamesCount = groups.reduce((total, group) => {
+    if (visibleGroupKeys.has(group.key)) {
+      return total;
+    }
+
+    return total + group.games.length;
+  }, 0);
+  const completedGamesCount = games.filter((game) => game.status === "final").length;
+  const upcomingGamesCount = games.length - completedGamesCount;
 
   return (
     <SurfaceCard title={title} subtitle={subtitle}>
       {groups.length > 0 ? (
-        <div className="playoffs-game-groups">
-          {groups.map((group) => (
-            <div key={group.key} className="playoffs-game-group">
-              <div className="playoffs-block-head">
-                <h3>{group.label}</h3>
-                <Badge tone="neutral">{group.games.length}</Badge>
-              </div>
+        <>
+          <div className="playoffs-schedule-summary">
+            <Badge tone="warning">{upcomingGamesCount} in programma/live</Badge>
+            <Badge tone="neutral">{completedGamesCount} gia concluse</Badge>
+            <p className="playoffs-schedule-note">
+              {spotlightGroups.length > 0 ? "Vista rapida: oggi e domani." : "Vista rapida: prime giornate disponibili."}
+            </p>
+          </div>
 
-              <div className="playoffs-game-list">
-                {group.games.map((game) => (
-                  <Link key={game.gameId} to={`/games/${game.gameId}`} className="game-card playoffs-game-row-link">
-                    <div className="game-card-head">
-                      <span>{formatGameDateLabel(game)}</span>
-                      <Badge tone={game.status === "live" ? "live" : game.status === "final" ? "neutral" : "warning"}>
-                        {formatStatusLabel(game.status)}
-                      </Badge>
-                    </div>
+          <div className="playoffs-game-groups">
+            {visibleGroups.map((group) => (
+              <div key={group.key} className="playoffs-game-group">
+                <div className="playoffs-block-head">
+                  <h3>{group.label}</h3>
+                  <Badge tone="neutral">{group.games.length}</Badge>
+                </div>
 
-                    <div className="game-matchup">
-                      <div className="game-team">
-                        {game.awayTeam.logo ? <img src={game.awayTeam.logo} alt="" className="mini-logo" /> : null}
-                        <strong>{getTeamDisplayCode(game.awayTeam)}</strong>
+                <div className="playoffs-game-list">
+                  {group.games.map((game) => (
+                    <Link key={game.gameId} to={`/games/${game.gameId}`} className="game-card playoffs-game-row-link">
+                      <div className="game-card-head">
+                        <span>{formatGameDateLabel(game)}</span>
+                        <Badge tone={game.status === "live" ? "live" : game.status === "final" ? "neutral" : "warning"}>
+                          {formatStatusLabel(game.status)}
+                        </Badge>
                       </div>
 
-                      <strong>{formatCompactScore(game)}</strong>
+                      <div className="game-matchup">
+                        <div className="game-team">
+                          {game.awayTeam.logo ? <img src={game.awayTeam.logo} alt="" className="mini-logo" /> : null}
+                          <strong>{getTeamDisplayCode(game.awayTeam)}</strong>
+                        </div>
 
-                      <div className="game-team game-team-right">
-                        <strong>{getTeamDisplayCode(game.homeTeam)}</strong>
-                        {game.homeTeam.logo ? <img src={game.homeTeam.logo} alt="" className="mini-logo" /> : null}
+                        <strong>{formatCompactScore(game)}</strong>
+
+                        <div className="game-team game-team-right">
+                          <strong>{getTeamDisplayCode(game.homeTeam)}</strong>
+                          {game.homeTeam.logo ? <img src={game.homeTeam.logo} alt="" className="mini-logo" /> : null}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="game-card-meta">
-                      <span>{formatVenue(game.arena)}</span>
-                      <span>{formatGameStatusText(game)}</span>
-                    </div>
-                  </Link>
-                ))}
+                      <div className="game-card-meta">
+                        <span>{formatVenue(game.arena)}</span>
+                        <span>{formatGameStatusText(game)}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          {hiddenGamesCount > 0 ? (
+            <button
+              type="button"
+              className="playoffs-schedule-toggle"
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+            >
+              {expanded ? "Mostra meno partite" : `Mostra altre ${hiddenGamesCount} partite`}
+            </button>
+          ) : null}
+        </>
       ) : (
         <EmptyState label={emptyLabel} />
       )}
@@ -800,7 +849,7 @@ export function PlayoffsPage() {
     <>
       <PageHeader
         title="Playoff"
-        description="Quadro completo della postseason NBA 2025-2026: date chiave ufficiali, formato del torneo, seed Est/Ovest, Play-In, serie confermate e partite gia in calendario."
+        description="Quadro della postseason NBA 2025-2026: classifiche playoff Est/Ovest, tabellone e calendario partite con vista rapida su oggi e domani."
       />
 
       {query.isLoading ? <LoadingState label="Sto caricando il quadro playoff..." /> : null}
@@ -839,13 +888,6 @@ export function PlayoffsPage() {
 
           <PlayoffBracket east={query.data.data.east} west={query.data.data.west} />
 
-          <PostseasonSchedule
-            title="Calendario Postseason"
-            subtitle="Ogni gara appare una sola volta, ordinata per giorno e distinta tra Play-In e tabellone playoff"
-            games={postseasonGames}
-            emptyLabel="Il calendario dettagliato della postseason non e ancora disponibile nell'API."
-          />
-
           <div className="stats-grid">
             <div className="stat-box">
               <span>Gia qualificate</span>
@@ -867,52 +909,12 @@ export function PlayoffsPage() {
             </div>
           </div>
 
-          <div className="grid-2 playoffs-overview-grid">
-            <SurfaceCard title="Date chiave" subtitle="Verificate su NBA.com per la postseason 2025-26">
-              <div className="playoffs-timeline">
-                {query.data.data.keyDates.map((item) => (
-                  <article key={item.key} className="playoffs-timeline-card">
-                    <span className="eyebrow">{formatMilestoneRange(item)}</span>
-                    <strong>{item.label}</strong>
-                    <p>{item.note}</p>
-                  </article>
-                ))}
-              </div>
-            </SurfaceCard>
-
-            <SurfaceCard title="Come funziona il torneo" subtitle="Play-In, bracket di conference e formula delle serie">
-              <div className="leader-list">
-                {query.data.data.formatNotes.map((note) => (
-                  <div key={note} className="filter-chip">
-                    {note}
-                  </div>
-                ))}
-              </div>
-            </SurfaceCard>
-          </div>
-
-          <div className="grid-2 playoffs-conference-columns">
-            <ConferenceSnapshot snapshot={query.data.data.east} />
-            <ConferenceSnapshot snapshot={query.data.data.west} />
-          </div>
-
-          <div className="grid-2 playoffs-overview-grid">
-            <SurfaceCard title="NBA Finals 2026" subtitle="Calendario ufficiale della finale, con Gara 7 se necessaria">
-              <div className="playoffs-finals-list">
-                {query.data.data.finalsDates.map((item) => (
-                  <article key={item.key} className="playoffs-finals-row">
-                    <div>
-                      <strong>{item.label}</strong>
-                      <p>{item.note}</p>
-                    </div>
-                    <Badge tone="neutral">{formatDate(item.startDate)}</Badge>
-                  </article>
-                ))}
-              </div>
-            </SurfaceCard>
-
-            <SourceList sources={query.data.meta.source} />
-          </div>
+          <PostseasonSchedule
+            title="Calendario Postseason"
+            subtitle="Container espandibile con tutte le gare gia giocate e future: in vista rapida vedi solo oggi e domani."
+            games={postseasonGames}
+            emptyLabel="Il calendario dettagliato della postseason non e ancora disponibile nell'API."
+          />
         </div>
       ) : null}
 
