@@ -2,6 +2,8 @@ import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { createServices } from "./modules/services.js";
 
+const WARMUP_INTERVAL_MS = 45_000;
+
 const services = createServices();
 const app = createApp(services);
 
@@ -20,7 +22,7 @@ async function runWarmup() {
       services.standings.getStandings(),
       services.playoffs.getPlayoffs(),
       services.teams.getTeams(),
-      services.players.getPlayers(),
+      services.players.getPlayers({}),
       services.leaders.getLeaders(),
       services.calendar.getCalendar({})
     ]);
@@ -32,14 +34,10 @@ async function runWarmup() {
 app.listen(env.port, () => {
   console.log(`NBA backend running on http://localhost:${env.port}`);
 
-  if (!env.warmupEnabled) {
-    return;
-  }
-
-  console.log(`Cache warmup enabled (interval ${env.warmupIntervalMs} ms)`);
+  console.log(`Cache warmup enabled (interval ${WARMUP_INTERVAL_MS} ms)`);
   void runWarmup();
   const warmupTimer = setInterval(() => {
     void runWarmup();
-  }, env.warmupIntervalMs);
+  }, WARMUP_INTERVAL_MS);
   warmupTimer.unref();
 });

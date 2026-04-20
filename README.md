@@ -54,13 +54,11 @@ Variabili ambiente consigliate:
 - `NBA_SEASON=2025-26`
 - `NBA_REQUEST_TIMEOUT_MS=2200`
 - `NBA_REQUEST_RETRIES=0`
-- `WARMUP_ENABLED=true`
-- `WARMUP_INTERVAL_MS=45000`
 
 Note performance:
 
 - La cache backend usa strategia stale-while-revalidate: se la cache e scaduta, l'API risponde subito con l'ultimo snapshot disponibile e aggiorna in background.
-- Al boot del server parte un warmup automatico e un refresh periodico per mantenere i dataset caldi.
+- Al boot del server parte un warmup automatico e un refresh periodico (senza variabili extra) per mantenere i dataset caldi.
 - TTL ridotti per standings/calendario per avere feed piu freschi senza bloccare la risposta.
 
 ### 2) Frontend su GitHub Pages
