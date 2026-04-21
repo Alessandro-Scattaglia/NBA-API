@@ -16,7 +16,7 @@ export function HomePage() {
   });
 
   if (query.isLoading) {
-    return <LoadingState label="Sto caricando la panoramica della stagione..." />;
+    return <LoadingState label="Sto caricando la home..." />;
   }
 
   if (query.error) {
@@ -32,9 +32,30 @@ export function HomePage() {
   return (
     <>
       <PageHeader
-        title="Panoramica stagione"
-        description="Dati aggiornati della stagione NBA 2025-2026."
+        title="Home"
+        description="Accesso rapido ai playoff e ai dati aggiornati della stagione NBA 2025-2026."
       />
+
+      <section className="hero-card hero-card-playoffs">
+        <div className="hero-card-head">
+          <div>
+            <p className="eyebrow">Home</p>
+            <h2 className="hero-title">Playoff subito in primo piano</h2>
+            <p className="hero-copy">
+              Vai direttamente alla pagina playoff per bracket, serie aperte, calendario della postseason e quadro completo
+              di Est e Ovest.
+            </p>
+          </div>
+          <Link to="/playoffs" className="hero-card-cta">
+            Vai alla pagina Playoff
+          </Link>
+        </div>
+        <div className="pill-row">
+          <span className="metric-pill">Bracket completo</span>
+          <span className="metric-pill">Serie aggiornate</span>
+          <span className="metric-pill">Calendario postseason</span>
+        </div>
+      </section>
 
       <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
 
@@ -122,11 +143,11 @@ export function HomePage() {
       </div>
 
       <section className="hero-card hero-card-secondary">
-        <p className="eyebrow">Panoramica</p>
-        <h2 className="hero-title">Tutto quello che conta nella stagione NBA 2025-2026</h2>
+        <p className="eyebrow">Home</p>
+        <h2 className="hero-title">Panoramica rapida della stagione NBA 2025-2026</h2>
         <p className="hero-copy">
-          Dati aggiornati dal backend, classifica Est e Ovest, focus su squadre e giocatori, calendario filtrabile
-          e leader statistici in un'unica interfaccia.
+          Dalla home puoi passare subito ai playoff, controllare squadre e giocatori, consultare il calendario e vedere
+          i leader statistici in un'unica interfaccia.
         </p>
         <div className="pill-row">
           <span className="metric-pill">{data.todayGames.length} partite oggi</span>

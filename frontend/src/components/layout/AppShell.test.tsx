@@ -15,6 +15,7 @@ describe("AppShell", () => {
       </MemoryRouter>
     );
 
+    expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("Squadre")).toBeInTheDocument();
     expect(screen.getByText("Giocatori")).toBeInTheDocument();
     expect(screen.getByText("Playoff")).toBeInTheDocument();

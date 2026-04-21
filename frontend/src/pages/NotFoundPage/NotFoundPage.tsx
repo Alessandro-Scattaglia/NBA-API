@@ -8,9 +8,9 @@ export function NotFoundPage() {
     <>
       <PageHeader title="Pagina non trovata" description="La pagina richiesta non esiste oppure non e` ancora disponibile." />
       <SurfaceCard>
-        <p>Torna alla panoramica principale per continuare la navigazione.</p>
+        <p>Torna alla Home principale per continuare la navigazione.</p>
         <Link to="/" className="filter-chip">
-          Vai alla panoramica
+          Vai alla Home
         </Link>
       </SurfaceCard>
     </>

@@ -15,7 +15,7 @@ const NBA_WIKIPEDIA_LOGO = "https://upload.wikimedia.org/wikipedia/en/0/03/Natio
 const navItems = [
   {
     to: "/",
-    label: "Panoramica",
+    label: "Home",
     icon: (
       <SidebarIcon>
         <path d="M4 12.5 12 5l8 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

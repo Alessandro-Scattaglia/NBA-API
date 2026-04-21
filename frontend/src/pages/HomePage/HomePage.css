@@ -17,6 +17,22 @@
   background: linear-gradient(90deg, var(--accent), rgba(var(--accent-2-rgb), 0.85));
 }
 
+.hero-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.hero-card-playoffs {
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-2-rgb), 0.12) 58%, #ffffff 100%);
+  border-color: rgba(var(--accent-rgb), 0.24);
+}
+
+.hero-card-playoffs::before {
+  height: 4px;
+}
+
 .hero-title {
   margin: 0;
   max-width: 16ch;
@@ -34,6 +50,34 @@
 
 .hero-card-secondary {
   margin-top: 4px;
+}
+
+.hero-card-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  box-shadow: var(--shadow-soft);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.hero-card-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  opacity: 0.96;
+}
+
+.hero-card-cta:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.25);
+  outline-offset: 2px;
 }
 
 .pill-row {
@@ -57,7 +101,15 @@
     border-radius: 20px;
   }
 
+  .hero-card-head {
+    flex-direction: column;
+  }
+
   .hero-title {
     font-size: clamp(1.45rem, 7vw, 2rem);
+  }
+
+  .hero-card-cta {
+    width: 100%;
   }
 }
