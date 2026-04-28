@@ -4,7 +4,7 @@ import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } fr
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { formatGamePhase, formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
-import type { CalendarResponse, GameSummary } from "../../lib/types";
+import type { CalendarResponse, GameSummary, TeamsResponse } from "../../lib/types";
 import "./CalendarPage.css";
 
 function buildCalendarPath(searchParams: URLSearchParams) {
@@ -120,6 +120,13 @@ export function CalendarPage() {
     queryKey: ["calendar", searchParams.toString()],
     queryFn: () => apiGet<CalendarResponse>(buildCalendarPath(searchParams))
   });
+  const teamsQuery = useQuery({
+    queryKey: ["teams", "calendar-filter"],
+    queryFn: () => apiGet<TeamsResponse>("/api/teams")
+  });
+  const teamOptions = teamsQuery.data
+    ? [...teamsQuery.data.data.east, ...teamsQuery.data.data.west].sort((left, right) => left.name.localeCompare(right.name))
+    : [];
 
   const updateParam = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -202,6 +209,18 @@ export function CalendarPage() {
               <option value="regular-season">{formatGamePhase("regular-season")}</option>
               <option value="play-in">Play-In</option>
               <option value="playoffs">{formatGamePhase("playoffs")}</option>
+            </select>
+            <select
+              value={searchParams.get("teamId") ?? ""}
+              onChange={(event) => updateParam("teamId", event.target.value)}
+              disabled={teamsQuery.isLoading || Boolean(teamsQuery.error)}
+            >
+              <option value="">Tutte le squadre</option>
+              {teamOptions.map((team) => (
+                <option key={team.teamId} value={team.teamId}>
+                  {team.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>

@@ -12,7 +12,7 @@ import {
   formatStatusLabel,
   formatVenue
 } from "../../lib/format";
-import type { GameDetail, GameLeader } from "../../lib/types";
+import type { GameDetail, GameLeader, GamePlayerLine } from "../../lib/types";
 import "./GameDetailPage.css";
 
 function getStatusTone(status: GameDetail["game"]["status"]) {
@@ -46,16 +46,186 @@ function getPlayedMinutesSortValue(value: string | null) {
   return Number(isoMatch[1] ?? 0) * 60 + Number(isoMatch[2] ?? 0);
 }
 
+type HighlightTone = "triple" | "double" | "thirty" | "forty" | "fifty" | "record" | "clutch";
+
+type PerformanceHighlight = {
+  key: string;
+  label: string;
+  icon: string;
+  tone: HighlightTone;
+  priority: number;
+  description: string;
+};
+
+type MilestoneCarrier = {
+  milestones?: {
+    careerHigh?: boolean;
+    personalRecord?: string | null;
+    teamRecord?: string | null;
+    gameWinner?: boolean;
+    clutchMoment?: boolean;
+  } | null;
+};
+
+function getWinningTeamId(game: GameDetail["game"]) {
+  if (game.homeTeam.score === null || game.awayTeam.score === null || game.homeTeam.score === game.awayTeam.score) {
+    return null;
+  }
+
+  return game.homeTeam.score > game.awayTeam.score ? game.homeTeam.teamId : game.awayTeam.teamId;
+}
+
+function getScoreMargin(game: GameDetail["game"]) {
+  if (game.homeTeam.score === null || game.awayTeam.score === null) {
+    return null;
+  }
+
+  return Math.abs(game.homeTeam.score - game.awayTeam.score);
+}
+
+function getLeaderLine(leader: GameLeader, rows: GamePlayerLine[]) {
+  return rows.find((row) => row.playerId === leader.playerId) ?? null;
+}
+
+function getDoubleFigureCategories(player: Pick<GamePlayerLine, "points" | "rebounds" | "assists" | "steals" | "blocks">) {
+  return [player.points, player.rebounds, player.assists, player.steals, player.blocks].filter((value) => value >= 10).length;
+}
+
+function buildPerformanceHighlights(
+  leader: GameLeader,
+  line: GamePlayerLine | null,
+  game: GameDetail["game"],
+  teamRows: GamePlayerLine[]
+) {
+  const highlights: PerformanceHighlight[] = [];
+  const player = line ?? { points: leader.points, rebounds: leader.rebounds, assists: leader.assists, steals: 0, blocks: 0 };
+  const doubleFigureCategories = getDoubleFigureCategories(player);
+  const milestoneData = leader as GameLeader & MilestoneCarrier;
+
+  if (doubleFigureCategories >= 3) {
+    highlights.push({
+      key: "triple-double",
+      label: "Tripla doppia",
+      icon: "TD",
+      tone: "triple",
+      priority: 100,
+      description: "Almeno tre categorie in doppia cifra."
+    });
+  } else if (doubleFigureCategories >= 2) {
+    highlights.push({
+      key: "double-double",
+      label: "Doppia doppia",
+      icon: "DD",
+      tone: "double",
+      priority: 80,
+      description: "Almeno due categorie in doppia cifra."
+    });
+  }
+
+  if (leader.points >= 50) {
+    highlights.push({
+      key: "fifty-points",
+      label: "50+ punti",
+      icon: "50",
+      tone: "fifty",
+      priority: 96,
+      description: "Serata da 50 o più punti."
+    });
+  } else if (leader.points >= 40) {
+    highlights.push({
+      key: "forty-points",
+      label: "40+ punti",
+      icon: "40",
+      tone: "forty",
+      priority: 74,
+      description: "Serata da 40 o più punti."
+    });
+  } else if (leader.points >= 30) {
+    highlights.push({
+      key: "thirty-points",
+      label: "30+ punti",
+      icon: "30",
+      tone: "thirty",
+      priority: 56,
+      description: "Serata da 30 o più punti."
+    });
+  }
+
+  const winningTeamId = getWinningTeamId(game);
+  const scoreMargin = getScoreMargin(game);
+  const teamBestPoints = Math.max(...teamRows.map((row) => row.points), leader.points);
+  const likelyClutch =
+    game.status === "final" &&
+    winningTeamId === leader.teamId &&
+    scoreMargin !== null &&
+    scoreMargin <= 5 &&
+    leader.points >= teamBestPoints &&
+    (leader.points >= 25 || doubleFigureCategories >= 2);
+
+  if (milestoneData.milestones?.gameWinner || milestoneData.milestones?.clutchMoment || likelyClutch) {
+    highlights.push({
+      key: "clutch",
+      label: milestoneData.milestones?.gameWinner ? "Game winner" : "Clutch moment",
+      icon: milestoneData.milestones?.gameWinner ? "GW" : "CL",
+      tone: "clutch",
+      priority: milestoneData.milestones?.gameWinner ? 90 : 84,
+      description:
+        milestoneData.milestones?.gameWinner
+          ? "Canestro o giocata decisiva nel finale."
+          : "Prestazione pesante in una gara chiusa punto a punto."
+    });
+  }
+
+  if (milestoneData.milestones?.careerHigh) {
+    highlights.push({
+      key: "career-high",
+      label: "Career high",
+      icon: "CH",
+      tone: "record",
+      priority: 98,
+      description: "Nuovo massimo in carriera."
+    });
+  }
+
+  if (milestoneData.milestones?.personalRecord) {
+    highlights.push({
+      key: "personal-record",
+      label: milestoneData.milestones.personalRecord,
+      icon: "PR",
+      tone: "record",
+      priority: 94,
+      description: "Record personale."
+    });
+  }
+
+  if (milestoneData.milestones?.teamRecord) {
+    highlights.push({
+      key: "team-record",
+      label: milestoneData.milestones.teamRecord,
+      icon: "TR",
+      tone: "record",
+      priority: 92,
+      description: "Record di squadra."
+    });
+  }
+
+  return highlights.sort((left, right) => right.priority - left.priority);
+}
+
 function LeaderSection({
   title,
   subtitle,
   leaders,
+  playerRows,
+  game,
   emptyLabel,
   tone
 }: {
   title: string;
   subtitle: string;
   leaders: GameLeader[];
+  playerRows: GamePlayerLine[];
+  game: GameDetail["game"];
   emptyLabel: string;
   tone: "away" | "home";
 }) {
@@ -63,34 +233,60 @@ function LeaderSection({
     <SurfaceCard title={title} subtitle={subtitle}>
       {leaders.length > 0 ? (
         <div className="leader-list">
-          {leaders.map((leader, index) => (
-            <div key={leader.playerId} className={`game-leader-card game-leader-card-${tone}`}>
-              <span className="game-leader-rank">{index + 1}</span>
-              <img
-                src={buildPlayerHeadshotUrl(leader.playerId)}
-                alt={`Headshot di ${leader.fullName}`}
-                className="game-leader-headshot"
-                loading="lazy"
-              />
-              <div className="game-leader-copy">
-                <strong>{leader.fullName}</strong>
-                <div className="game-leader-stats">
-                  <span className="game-leader-pill game-leader-pill-points">
-                    <strong>{leader.points}</strong>
-                    <small>PTS</small>
-                  </span>
-                  <span className="game-leader-pill game-leader-pill-rebounds">
-                    <strong>{leader.rebounds}</strong>
-                    <small>REB</small>
-                  </span>
-                  <span className="game-leader-pill game-leader-pill-assists">
-                    <strong>{leader.assists}</strong>
-                    <small>AST</small>
-                  </span>
+          {leaders.map((leader, index) => {
+            const line = getLeaderLine(leader, playerRows);
+            const highlights = buildPerformanceHighlights(leader, line, game, playerRows);
+            const primaryHighlight = highlights[0] ?? null;
+            const secondaryHighlights = highlights.slice(1, 4);
+            const summary = `${leader.points} PT • ${leader.rebounds} REB • ${leader.assists} AST`;
+            const tooltip = [summary, ...highlights.map((highlight) => `${highlight.label}: ${highlight.description}`)].join("\n");
+
+            return (
+              <div
+                key={leader.playerId}
+                className={`game-leader-card game-leader-card-${tone} ${primaryHighlight ? `game-leader-card-highlight-${primaryHighlight.tone}` : ""}`}
+                title={tooltip}
+              >
+                <span className="game-leader-rank">{index + 1}</span>
+                <img
+                  src={buildPlayerHeadshotUrl(leader.playerId)}
+                  alt={`Headshot di ${leader.fullName}`}
+                  className="game-leader-headshot"
+                  loading="lazy"
+                />
+                <div className="game-leader-copy">
+                  <strong>{leader.fullName}</strong>
+
+                  <div className="game-leader-meta-row">
+                    <p className="game-leader-performance-summary">
+                      <span className="game-leader-performance-stat game-leader-performance-stat-points">{leader.points} PT</span>
+                      <span className="game-leader-performance-dot">•</span>
+                      <span className="game-leader-performance-stat game-leader-performance-stat-rebounds">{leader.rebounds} REB</span>
+                      <span className="game-leader-performance-dot">•</span>
+                      <span className="game-leader-performance-stat game-leader-performance-stat-assists">{leader.assists} AST</span>
+                    </p>
+                    {primaryHighlight ? (
+                      <span className={`game-highlight-badge game-highlight-badge-${primaryHighlight.tone}`}>
+                        <span className="game-highlight-badge-icon">{primaryHighlight.icon}</span>
+                        <span>{primaryHighlight.label}</span>
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {secondaryHighlights.length > 0 ? (
+                    <div className="game-highlight-badge-row">
+                      {secondaryHighlights.map((highlight) => (
+                        <span key={highlight.key} className={`game-highlight-badge game-highlight-badge-secondary game-highlight-badge-${highlight.tone}`}>
+                          <span className="game-highlight-badge-icon">{highlight.icon}</span>
+                          <span>{highlight.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <EmptyState label={emptyLabel} />
@@ -273,6 +469,8 @@ export function GameDetailPage() {
           title={`Migliori prestazioni ${data.game.awayTeam.code}`}
           subtitle={data.game.awayTeam.name}
           leaders={data.awayLeaders}
+          playerRows={data.awayPlayers}
+          game={data.game}
           emptyLabel={emptyDataLabel}
           tone="away"
         />
@@ -280,6 +478,8 @@ export function GameDetailPage() {
           title={`Migliori prestazioni ${data.game.homeTeam.code}`}
           subtitle={data.game.homeTeam.name}
           leaders={data.homeLeaders}
+          playerRows={data.homePlayers}
+          game={data.game}
           emptyLabel={emptyDataLabel}
           tone="home"
         />

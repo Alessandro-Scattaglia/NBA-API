@@ -148,9 +148,13 @@ describe("GameDetailPage", () => {
                 playerId: 2,
                 fullName: "Paolo Banchero",
                 teamId: 1610612753,
-                points: 27,
-                rebounds: 8,
-                assists: 7
+                points: 32,
+                rebounds: 11,
+                assists: 10,
+                milestones: {
+                  careerHigh: true,
+                  personalRecord: "Record personale assist"
+                }
               }
             ],
             homePlayers: [
@@ -175,9 +179,9 @@ describe("GameDetailPage", () => {
                 position: "F",
                 starter: true,
                 minutes: "PT37M19.00S",
-                points: 27,
-                rebounds: 8,
-                assists: 7,
+                points: 32,
+                rebounds: 11,
+                assists: 10,
                 steals: 0,
                 blocks: 0,
                 plusMinus: 9
@@ -215,6 +219,9 @@ describe("GameDetailPage", () => {
     expect(screen.getByText("117")).toBeInTheDocument();
     expect(screen.getByText("37 min")).toBeInTheDocument();
     expect(screen.getByText("TV: ESPN")).toBeInTheDocument();
+    expect(screen.getByText("Tripla doppia")).toBeInTheDocument();
+    expect(screen.getByText("Career high")).toBeInTheDocument();
+    expect(screen.getByText((content, element) => element?.textContent === "32 PT•11 REB•10 AST")).toBeInTheDocument();
     expect(screen.getByAltText("Headshot di Paolo Banchero")).toHaveAttribute(
       "src",
       "https://cdn.nba.com/headshots/nba/latest/1040x760/2.png"

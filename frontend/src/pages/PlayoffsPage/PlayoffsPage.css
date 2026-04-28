@@ -10,6 +10,39 @@
 .playoffs-standings-pane { min-width: 0; }
 .playoffs-standings-stack .surface-card { padding-left: 14px; padding-right: 14px; }
 
+.playoffs-calendar-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 14px;
+}
+
+.playoffs-calendar-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.playoffs-calendar-toolbar {
+  margin-bottom: 6px;
+}
+
+.playoffs-calendar-filter-row {
+  margin-bottom: 14px;
+}
+
+.playoffs-page-layout .calendar-nav-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.playoffs-page-layout .calendar-nav-button:disabled:hover {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
 /* ── Schedule ── */
 .playoffs-schedule-summary {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px;

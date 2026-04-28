@@ -104,6 +104,51 @@ function mapRecentGames(teamId: number, rows: StatsRow[], scheduleByGameId: Map<
   });
 }
 
+function buildRecentGamesFromSchedule(teamId: number, scheduleGames: GameSummary[]) {
+  const now = Date.now();
+
+  return scheduleGames
+    .filter((game) => game.homeTeam.teamId === teamId || game.awayTeam.teamId === teamId)
+    .filter((game) => Date.parse(game.dateTimeUtc) <= now || game.status !== "scheduled")
+    .sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc))
+    .slice(0, 5);
+}
+
+function mergeUniqueRecentGames(primary: GameSummary[], fallback: GameSummary[]) {
+  const byGameId = new Map<string, GameSummary>();
+
+  for (const game of primary) {
+    byGameId.set(game.gameId, game);
+  }
+
+  for (const game of fallback) {
+    const current = byGameId.get(game.gameId);
+    if (!current) {
+      byGameId.set(game.gameId, game);
+      continue;
+    }
+
+    byGameId.set(game.gameId, {
+      ...current,
+      statusText: game.statusText || current.statusText,
+      homeTeam: {
+        ...current.homeTeam,
+        score: current.homeTeam.score ?? game.homeTeam.score,
+        record: current.homeTeam.record ?? game.homeTeam.record
+      },
+      awayTeam: {
+        ...current.awayTeam,
+        score: current.awayTeam.score ?? game.awayTeam.score,
+        record: current.awayTeam.record ?? game.awayTeam.record
+      }
+    });
+  }
+
+  return Array.from(byGameId.values())
+    .sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc))
+    .slice(0, 5);
+}
+
 export function createTeamsService(deps: ServiceDeps) {
   return {
     async getTeams(): Promise<ApiEnvelope<TeamsResponse>> {
@@ -162,11 +207,12 @@ export function createTeamsService(deps: ServiceDeps) {
             headshot: buildPlayerHeadshotUrl(playerId)
           };
         });
-        const scheduleByGameId = new Map(
-          (scheduleResult.status === "fulfilled" ? scheduleResult.value.value : []).map((game) => [game.gameId, game])
-        );
+        const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : [];
+        const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = teamGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamGameLogResult.value) : [];
-        const recentGames = mapRecentGames(teamId, recentRows, scheduleByGameId);
+        const recentGamesFromSchedule = buildRecentGamesFromSchedule(teamId, scheduleGames);
+        const recentGamesFromLog = mapRecentGames(teamId, recentRows, scheduleByGameId);
+        const recentGames = mergeUniqueRecentGames(recentGamesFromSchedule, recentGamesFromLog);
 
         return {
           ...base,

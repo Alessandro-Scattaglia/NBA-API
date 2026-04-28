@@ -1,15 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlayoffsPage } from "./PlayoffsPage";
 
 describe("PlayoffsPage", () => {
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
   });
 
-  it("loads the playoff snapshot and renders an expandable postseason schedule", async () => {
+  it("loads the playoff snapshot and renders a dedicated playoff calendar with the shared calendar layout", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -340,19 +341,439 @@ describe("PlayoffsPage", () => {
       </QueryClientProvider>
     );
 
-    await screen.findByText("Calendario Postseason");
+    await screen.findByText("Calendario Playoff");
 
     expect(fetchMock).toHaveBeenCalledWith("/api/playoffs");
     expect(screen.getByText("Classifica playoff Est")).toBeInTheDocument();
     expect(screen.getByText("Partite schedulate")).toBeInTheDocument();
-
-    const expandButton = screen.getByRole("button", { name: /Mostra altre/i });
-    expect(expandButton).toBeInTheDocument();
-
-    fireEvent.click(expandButton);
-    expect(screen.getByRole("button", { name: "Mostra meno partite" })).toBeInTheDocument();
+    expect(screen.getByText("Partite playoff del giorno")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getAllByRole("link").some((link) => link.getAttribute("href") === "/games/0042600118")).toBe(true);
 
     expect(screen.queryByText("Date chiave")).not.toBeInTheDocument();
     expect(screen.queryByText("Fonti ufficiali")).not.toBeInTheDocument();
+  });
+
+  it("shows a first-round winner in the next slot even if the opposing series is still in progress", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            season: "2025-26",
+            overview: {
+              directQualifiedTeams: 12,
+              playInTeams: 8,
+              confirmedFirstRoundSeries: 8,
+              playInGamesScheduled: 0,
+              playoffGamesScheduled: 8
+            },
+            keyDates: [
+              {
+                key: "playoffs-begin",
+                label: "Inizio playoff NBA",
+                startDate: "2026-04-18",
+                endDate: null,
+                note: "Parte il primo turno."
+              }
+            ],
+            finalsDates: [],
+            formatNotes: [],
+            east: {
+              conference: "East",
+              directSeeds: [],
+              playInSeeds: [],
+              outsidePicture: [],
+              playInSeries: [],
+              firstRoundSeries: []
+            },
+            west: {
+              conference: "West",
+              directSeeds: [
+                {
+                  teamId: 1610612760,
+                  city: "Oklahoma City",
+                  name: "Thunder",
+                  nickname: "Thunder",
+                  code: "OKC",
+                  slug: "oklahoma-city-thunder",
+                  conference: "West",
+                  division: "Northwest",
+                  logo: "https://example.com/okc.svg",
+                  wins: 68,
+                  losses: 14,
+                  winPct: 0.829,
+                  gamesBehind: 0,
+                  conferenceRank: 1,
+                  homeRecord: "34-7",
+                  awayRecord: "34-7",
+                  lastTen: "8-2",
+                  streak: "W4",
+                  playoffStatus: "playoff",
+                  clinchedPlayoff: true,
+                  clinchedDivision: true,
+                  clinchedConference: true,
+                  seed: 1,
+                  gamesPlayed: 82,
+                  remainingGames: 0
+                },
+                {
+                  teamId: 1610612747,
+                  city: "Los Angeles",
+                  name: "Lakers",
+                  nickname: "Lakers",
+                  code: "LAL",
+                  slug: "los-angeles-lakers",
+                  conference: "West",
+                  division: "Pacific",
+                  logo: "https://example.com/lal.svg",
+                  wins: 52,
+                  losses: 30,
+                  winPct: 0.634,
+                  gamesBehind: 16,
+                  conferenceRank: 4,
+                  homeRecord: "28-13",
+                  awayRecord: "24-17",
+                  lastTen: "7-3",
+                  streak: "W1",
+                  playoffStatus: "playoff",
+                  clinchedPlayoff: true,
+                  clinchedDivision: false,
+                  clinchedConference: false,
+                  seed: 4,
+                  gamesPlayed: 82,
+                  remainingGames: 0
+                },
+                {
+                  teamId: 1610612745,
+                  city: "Houston",
+                  name: "Rockets",
+                  nickname: "Rockets",
+                  code: "HOU",
+                  slug: "houston-rockets",
+                  conference: "West",
+                  division: "Southwest",
+                  logo: "https://example.com/hou.svg",
+                  wins: 50,
+                  losses: 32,
+                  winPct: 0.61,
+                  gamesBehind: 18,
+                  conferenceRank: 5,
+                  homeRecord: "27-14",
+                  awayRecord: "23-18",
+                  lastTen: "6-4",
+                  streak: "L1",
+                  playoffStatus: "playoff",
+                  clinchedPlayoff: true,
+                  clinchedDivision: false,
+                  clinchedConference: false,
+                  seed: 5,
+                  gamesPlayed: 82,
+                  remainingGames: 0
+                }
+              ],
+              playInSeeds: [
+                {
+                  teamId: 1610612756,
+                  city: "Phoenix",
+                  name: "Suns",
+                  nickname: "Suns",
+                  code: "PHX",
+                  slug: "phoenix-suns",
+                  conference: "West",
+                  division: "Pacific",
+                  logo: "https://example.com/phx.svg",
+                  wins: 44,
+                  losses: 38,
+                  winPct: 0.537,
+                  gamesBehind: 24,
+                  conferenceRank: 8,
+                  homeRecord: "24-17",
+                  awayRecord: "20-21",
+                  lastTen: "5-5",
+                  streak: "L4",
+                  playoffStatus: "playoff",
+                  clinchedPlayoff: true,
+                  clinchedDivision: false,
+                  clinchedConference: false,
+                  seed: 8,
+                  gamesPlayed: 82,
+                  remainingGames: 0
+                }
+              ],
+              outsidePicture: [],
+              playInSeries: [],
+              firstRoundSeries: [
+                {
+                  conference: "West",
+                  round: "first-round",
+                  status: "confirmed",
+                  label: "(1) Thunder vs. (8) Suns",
+                  seedHigh: 1,
+                  seedLow: 8,
+                  highSeedTeam: {
+                    teamId: 1610612760,
+                    city: "Oklahoma City",
+                    name: "Thunder",
+                    nickname: "Thunder",
+                    code: "OKC",
+                    slug: "oklahoma-city-thunder",
+                    conference: "West",
+                    division: "Northwest",
+                    logo: "https://example.com/okc.svg",
+                    wins: 68,
+                    losses: 14,
+                    winPct: 0.829,
+                    gamesBehind: 0,
+                    conferenceRank: 1,
+                    homeRecord: "34-7",
+                    awayRecord: "34-7",
+                    lastTen: "8-2",
+                    streak: "W4",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: true,
+                    clinchedConference: true,
+                    seed: 1,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  lowSeedTeam: {
+                    teamId: 1610612756,
+                    city: "Phoenix",
+                    name: "Suns",
+                    nickname: "Suns",
+                    code: "PHX",
+                    slug: "phoenix-suns",
+                    conference: "West",
+                    division: "Pacific",
+                    logo: "https://example.com/phx.svg",
+                    wins: 44,
+                    losses: 38,
+                    winPct: 0.537,
+                    gamesBehind: 24,
+                    conferenceRank: 8,
+                    homeRecord: "24-17",
+                    awayRecord: "20-21",
+                    lastTen: "5-5",
+                    streak: "L4",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: false,
+                    clinchedConference: false,
+                    seed: 8,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  note: "Serie del primo turno confermata.",
+                  games: [
+                    {
+                      gameId: "1",
+                      gameCode: "G1",
+                      dateTimeUtc: "2026-04-18T20:00:00Z",
+                      dateLabel: "18 apr 2026, 20:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Paycom Center",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 120, record: "68-14" },
+                      awayTeam: { teamId: 1610612756, name: "Suns", code: "PHX", logo: "https://example.com/phx.svg", score: 101, record: "44-38" }
+                    },
+                    {
+                      gameId: "2",
+                      gameCode: "G2",
+                      dateTimeUtc: "2026-04-20T20:00:00Z",
+                      dateLabel: "20 apr 2026, 20:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Paycom Center",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 118, record: "68-14" },
+                      awayTeam: { teamId: 1610612756, name: "Suns", code: "PHX", logo: "https://example.com/phx.svg", score: 98, record: "44-38" }
+                    },
+                    {
+                      gameId: "3",
+                      gameCode: "G3",
+                      dateTimeUtc: "2026-04-22T20:00:00Z",
+                      dateLabel: "22 apr 2026, 20:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Footprint Center",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612756, name: "Suns", code: "PHX", logo: "https://example.com/phx.svg", score: 99, record: "44-38" },
+                      awayTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 110, record: "68-14" }
+                    },
+                    {
+                      gameId: "4",
+                      gameCode: "G4",
+                      dateTimeUtc: "2026-04-24T20:00:00Z",
+                      dateLabel: "24 apr 2026, 20:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Footprint Center",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612756, name: "Suns", code: "PHX", logo: "https://example.com/phx.svg", score: 97, record: "44-38" },
+                      awayTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 114, record: "68-14" }
+                    }
+                  ]
+                },
+                {
+                  conference: "West",
+                  round: "first-round",
+                  status: "confirmed",
+                  label: "(4) Lakers vs. (5) Rockets",
+                  seedHigh: 4,
+                  seedLow: 5,
+                  highSeedTeam: {
+                    teamId: 1610612747,
+                    city: "Los Angeles",
+                    name: "Lakers",
+                    nickname: "Lakers",
+                    code: "LAL",
+                    slug: "los-angeles-lakers",
+                    conference: "West",
+                    division: "Pacific",
+                    logo: "https://example.com/lal.svg",
+                    wins: 52,
+                    losses: 30,
+                    winPct: 0.634,
+                    gamesBehind: 16,
+                    conferenceRank: 4,
+                    homeRecord: "28-13",
+                    awayRecord: "24-17",
+                    lastTen: "7-3",
+                    streak: "W1",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: false,
+                    clinchedConference: false,
+                    seed: 4,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  lowSeedTeam: {
+                    teamId: 1610612745,
+                    city: "Houston",
+                    name: "Rockets",
+                    nickname: "Rockets",
+                    code: "HOU",
+                    slug: "houston-rockets",
+                    conference: "West",
+                    division: "Southwest",
+                    logo: "https://example.com/hou.svg",
+                    wins: 50,
+                    losses: 32,
+                    winPct: 0.61,
+                    gamesBehind: 18,
+                    conferenceRank: 5,
+                    homeRecord: "27-14",
+                    awayRecord: "23-18",
+                    lastTen: "6-4",
+                    streak: "L1",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: false,
+                    clinchedConference: false,
+                    seed: 5,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  note: "Serie del primo turno confermata.",
+                  games: [
+                    {
+                      gameId: "5",
+                      gameCode: "G5",
+                      dateTimeUtc: "2026-04-18T22:00:00Z",
+                      dateLabel: "18 apr 2026, 22:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Crypto.com Arena",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 112, record: "52-30" },
+                      awayTeam: { teamId: 1610612745, name: "Rockets", code: "HOU", logo: "https://example.com/hou.svg", score: 105, record: "50-32" }
+                    },
+                    {
+                      gameId: "6",
+                      gameCode: "G6",
+                      dateTimeUtc: "2026-04-20T22:00:00Z",
+                      dateLabel: "20 apr 2026, 22:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Crypto.com Arena",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 104, record: "52-30" },
+                      awayTeam: { teamId: 1610612745, name: "Rockets", code: "HOU", logo: "https://example.com/hou.svg", score: 108, record: "50-32" }
+                    },
+                    {
+                      gameId: "7",
+                      gameCode: "G7",
+                      dateTimeUtc: "2026-04-22T22:00:00Z",
+                      dateLabel: "22 apr 2026, 22:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Toyota Center",
+                      nationalTv: [],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612745, name: "Rockets", code: "HOU", logo: "https://example.com/hou.svg", score: 99, record: "50-32" },
+                      awayTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 115, record: "52-30" }
+                    }
+                  ]
+                }
+              ]
+            },
+            playInGames: [],
+            playoffGames: []
+          },
+          meta: {
+            updatedAt: "2026-04-28T10:00:00.000Z",
+            stale: false,
+            source: ["https://www.nba.com/playoffs/2026"]
+          }
+        }),
+        { status: 200 }
+      )
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false
+        }
+      }
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/playoffs"]}>
+          <Routes>
+            <Route path="/playoffs" element={<PlayoffsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await screen.findByText("Tabellone Playoff NBA 2026");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/playoffs");
+    expect(screen.getAllByText("OKC").length).toBeGreaterThan(1);
   });
 });

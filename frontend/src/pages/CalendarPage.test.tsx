@@ -10,8 +10,84 @@ describe("CalendarPage", () => {
   });
 
   it("loads the selected day and lets the user navigate by day", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url === "/api/teams") {
+        return new Response(
+          JSON.stringify({
+            data: {
+              season: "2025-26",
+              east: [
+                {
+                  teamId: 1610612738,
+                  city: "Boston",
+                  name: "Boston Celtics",
+                  nickname: "Celtics",
+                  code: "BOS",
+                  slug: "boston-celtics",
+                  conference: "East",
+                  division: "Atlantic",
+                  logo: "https://example.com/bos.svg",
+                  wins: 44,
+                  losses: 23,
+                  winPct: 0.657,
+                  gamesBehind: 0,
+                  conferenceRank: 1,
+                  homeRecord: "22-11",
+                  awayRecord: "22-12",
+                  lastTen: "7-3",
+                  streak: "W2",
+                  playoffStatus: "playoff",
+                  clinchedPlayoff: true,
+                  clinchedDivision: false,
+                  clinchedConference: false,
+                  seed: 1,
+                  gamesPlayed: 67,
+                  remainingGames: 15
+                }
+              ],
+              west: [
+                {
+                  teamId: 1610612748,
+                  city: "Miami",
+                  name: "Miami Heat",
+                  nickname: "Heat",
+                  code: "MIA",
+                  slug: "miami-heat",
+                  conference: "East",
+                  division: "Southeast",
+                  logo: "https://example.com/mia.svg",
+                  wins: 35,
+                  losses: 31,
+                  winPct: 0.53,
+                  gamesBehind: 0,
+                  conferenceRank: 8,
+                  homeRecord: "18-15",
+                  awayRecord: "17-16",
+                  lastTen: "5-5",
+                  streak: "L1",
+                  playoffStatus: "play-in",
+                  clinchedPlayoff: false,
+                  clinchedDivision: false,
+                  clinchedConference: false,
+                  seed: 8,
+                  gamesPlayed: 66,
+                  remainingGames: 16
+                }
+              ]
+            },
+            meta: {
+              updatedAt: "2026-03-15T11:00:00.000Z",
+              stale: false,
+              source: ["test"]
+            }
+          }),
+          { status: 200 }
+        );
+      }
+
+      return new Response(
         JSON.stringify({
           data: {
             season: "2025-26",
@@ -57,8 +133,8 @@ describe("CalendarPage", () => {
           }
         }),
         { status: 200 }
-      )
-    );
+      );
+    });
 
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -87,6 +163,14 @@ describe("CalendarPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/calendar?from=2026-03-16&to=2026-03-16");
+    });
+
+    fireEvent.change(screen.getByDisplayValue("Tutte le squadre"), {
+      target: { value: "1610612748" }
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/calendar?from=2026-03-16&to=2026-03-16&teamId=1610612748");
     });
   });
 });

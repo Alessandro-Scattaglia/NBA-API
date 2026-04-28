@@ -5,7 +5,7 @@ import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } fr
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { StandingsTable } from "../../components/tables/StandingsTable";
 import { apiGet } from "../../lib/api";
-import { formatGameDateLabel, formatGameStatusText, formatStatusLabel, formatVenue } from "../../lib/format";
+import { formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
 import type {
   GameSummary,
   PlayoffsResponse,
@@ -14,6 +14,7 @@ import type {
   StandingsRow,
   TeamSummary,
 } from "../../lib/types";
+import "../CalendarPage/CalendarPage.css";
 import "./PlayoffsPage.css";
 
 // ─── shared helpers ───────────────────────────────────────────────
@@ -97,10 +98,23 @@ function toPlayoffConferenceStandings(
   });
 }
 
-function mergePostseasonGames(playIn: GameSummary[], playoff: GameSummary[]) {
-  const map = new Map<string, GameSummary>();
-  for (const g of [...playIn, ...playoff]) { if (!map.has(g.gameId)) map.set(g.gameId, g); }
-  return Array.from(map.values()).sort((a, b) => Date.parse(a.dateTimeUtc) - Date.parse(b.dateTimeUtc));
+function formatCalendarPill(date: string) {
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    weekday: "short",
+    day: "2-digit",
+    month: "short"
+  }).format(new Date(`${date}T00:00:00.000Z`));
+}
+
+function formatCalendarHeading(date: string) {
+  return new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
 function getGameDayKey(dateTimeUtc: string) {
@@ -109,28 +123,6 @@ function getGameDayKey(dateTimeUtc: string) {
   const m = p.find((x) => x.type === "month")?.value;
   const d = p.find((x) => x.type === "day")?.value;
   return y && m && d ? `${y}-${m}-${d}` : dateTimeUtc.slice(0, 10);
-}
-
-function addDaysToDayKey(key: string, days: number) {
-  const d = new Date(`${key}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return key;
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatGameDay(dateTimeUtc: string) {
-  return new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", weekday: "long", day: "numeric", month: "long" }).format(new Date(dateTimeUtc));
-}
-
-function groupGamesByDay(games: GameSummary[]) {
-  const groups = new Map<string, { label: string; games: GameSummary[] }>();
-  for (const g of games) {
-    const k = getGameDayKey(g.dateTimeUtc);
-    const ex = groups.get(k);
-    if (ex) ex.games.push(g);
-    else groups.set(k, { label: formatGameDay(g.dateTimeUtc), games: [g] });
-  }
-  return Array.from(groups.entries()).map(([key, val]) => ({ key, label: val.label, games: val.games }));
 }
 
 function getTeamCode(team: GameSummary["homeTeam"]) {
@@ -142,11 +134,33 @@ function displayScore(game: GameSummary, side: "home" | "away") {
   return game.status === "scheduled" ? "--" : (s ?? "--");
 }
 
+function getDefaultPlayoffDate(games: GameSummary[], availableDates: string[]) {
+  if (availableDates.length === 0) return "";
+
+  const todayKey = getGameDayKey(new Date().toISOString());
+  if (availableDates.includes(todayKey)) return todayKey;
+
+  const nextUpcoming = games
+    .filter((game) => game.status !== "final" && getGameDayKey(game.dateTimeUtc) >= todayKey)
+    .sort((left, right) => Date.parse(left.dateTimeUtc) - Date.parse(right.dateTimeUtc))
+    .at(0);
+
+  if (nextUpcoming) return getGameDayKey(nextUpcoming.dateTimeUtc);
+  return availableDates[availableDates.length - 1];
+}
+
+function getVisibleDateWindow(availableDates: string[], selectedDate: string) {
+  if (availableDates.length <= 3) return availableDates;
+  const index = Math.max(0, availableDates.indexOf(selectedDate));
+  const start = Math.max(0, Math.min(index - 1, availableDates.length - 3));
+  return availableDates.slice(start, start + 3);
+}
+
 // ─── Bracket Components ───────────────────────────────────────────
 
 type BtSeries = {
-  seedHigh: number;
-  seedLow: number;
+  seedHigh: number | "?";
+  seedLow: number | "?";
   teamHigh: StandingsRow | null;
   teamLow: StandingsRow | null;
   winsHigh: number;
@@ -196,7 +210,7 @@ function btMatchups(snap: PostseasonConferenceSnapshot): BtSeries[] {
 function BtTeam({
   seed, team, wins, isLeading,
 }: {
-  seed: number; team: StandingsRow | null; wins: number; isLeading: boolean;
+  seed: number | "?"; team: StandingsRow | null; wins: number; isLeading: boolean;
 }) {
   const inner = (
     <div className="bt-team">
@@ -282,7 +296,11 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
     (s.seedHigh === 2 && s.seedLow === 3)
   );
 
-  const getSemiData = (semi?: PostseasonSeries, winnersFromFr?: [StandingsRow | null, StandingsRow | null]): BtSeries | null => {
+  const getSemiData = (
+    semi?: PostseasonSeries,
+    winnersFromFr?: [StandingsRow | null, StandingsRow | null],
+    fallbackSeeds?: [number | "?", number | "?"]
+  ): BtSeries | null => {
     if (semi) {
       const rec = btRecord(semi);
       return {
@@ -294,14 +312,14 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
         winsLow: rec.winsLow,
       };
     }
-    // Se la serie non esiste ancora ma abbiamo i vincitori del primo turno, creiamo placeholder con i team corretti
-    if (winnersFromFr && winnersFromFr[0] && winnersFromFr[1]) {
-      const [t1, t2] = winnersFromFr;
-      const high = t1.seed < t2.seed ? t1 : t2;
-      const low  = t1.seed < t2.seed ? t2 : t1;
+    // Se la serie non esiste ancora, mostra comunque le squadre gia qualificate.
+    if (winnersFromFr && (winnersFromFr[0] || winnersFromFr[1])) {
+      const knownTeams = winnersFromFr.filter((team): team is StandingsRow => team !== null).sort((a, b) => a.seed - b.seed);
+      const high = knownTeams[0] ?? null;
+      const low = knownTeams[1] ?? null;
       return {
-        seedHigh: high.seed,
-        seedLow: low.seed,
+        seedHigh: high?.seed ?? fallbackSeeds?.[0] ?? "?",
+        seedLow: low?.seed ?? fallbackSeeds?.[1] ?? "?",
         teamHigh: high,
         teamLow: low,
         winsHigh: 0,
@@ -319,8 +337,8 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
   });
 
   // Coppie per le semifinali: (1/8 vs 4/5) e (3/6 vs 2/7)
-  const semi1Data = getSemiData(semi1, [frWinners[0], frWinners[1]]);
-  const semi2Data = getSemiData(semi2, [frWinners[2], frWinners[3]]);
+  const semi1Data = getSemiData(semi1, [frWinners[0], frWinners[1]], [1, "?"]);
+  const semi2Data = getSemiData(semi2, [frWinners[2], frWinners[3]], [2, "?"]);
 
   // Conference Finals
   const cfSeries = snapExtended.conferenceFinalsSeries?.[0];
@@ -458,83 +476,147 @@ function PlayoffBracketShowcase({
 // ─── Postseason Schedule ──────────────────────────────────────────
 // (invariato rispetto all'originale)
 
-function PostseasonSchedule({
+function PlayoffCalendar({
   title, subtitle, games, emptyLabel,
 }: {
   title: string; subtitle: string; games: GameSummary[]; emptyLabel: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const groups     = groupGamesByDay(games);
-  const todayKey   = getGameDayKey(new Date().toISOString());
-  const tomorrowKey = addDaysToDayKey(todayKey, 1);
-  const spotlight  = groups.filter((g) => g.key === todayKey || g.key === tomorrowKey);
-  const defaultGroups = spotlight.length > 0 ? spotlight : groups.slice(0, 2);
-  const visible    = expanded ? groups : defaultGroups;
-  const visibleKeys = new Set(visible.map((g) => g.key));
-  const hiddenCount = groups.reduce((n, g) => (visibleKeys.has(g.key) ? n : n + g.games.length), 0);
-  const doneCount   = games.filter((g) => g.status === "final").length;
-  const upcomingCount = games.length - doneCount;
+  const [selectedDateState, setSelectedDateState] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"" | GameSummary["status"]>("");
+  const availableDates = Array.from(new Set(games.map((game) => getGameDayKey(game.dateTimeUtc)))).sort();
+  const defaultDate = getDefaultPlayoffDate(games, availableDates);
+  const selectedDate =
+    selectedDateState && availableDates.includes(selectedDateState) ? selectedDateState : defaultDate;
+  const visibleDates = selectedDate ? getVisibleDateWindow(availableDates, selectedDate) : [];
+  const selectedIndex = availableDates.indexOf(selectedDate);
+  const doneCount = games.filter((game) => game.status === "final").length;
+  const liveOrUpcomingCount = games.filter((game) => game.status !== "final").length;
+  const filteredGames = games.filter((game) => {
+    const matchesDay = getGameDayKey(game.dateTimeUtc) === selectedDate;
+    const matchesStatus = statusFilter ? game.status === statusFilter : true;
+    return matchesDay && matchesStatus;
+  });
+
+  const moveDate = (offset: number) => {
+    if (selectedIndex < 0) return;
+    const nextIndex = selectedIndex + offset;
+    if (nextIndex < 0 || nextIndex >= availableDates.length) return;
+    setSelectedDateState(availableDates[nextIndex]);
+  };
+
+  const jumpToBoundary = (edge: "start" | "end") => {
+    if (availableDates.length === 0) return;
+    setSelectedDateState(edge === "start" ? availableDates[0] : availableDates[availableDates.length - 1]);
+  };
 
   return (
     <SurfaceCard title={title} subtitle={subtitle}>
-      {groups.length > 0 ? (
+      {availableDates.length > 0 ? (
         <>
-          <div className="playoffs-schedule-summary">
-            <Badge tone="warning">{upcomingCount} in programma/live</Badge>
+          <div className="playoffs-calendar-summary">
+            <Badge tone="warning">{liveOrUpcomingCount} in programma/live</Badge>
             <Badge tone="neutral">{doneCount} concluse</Badge>
-            <p className="playoffs-schedule-note">
-              {spotlight.length > 0 ? "Vista rapida: oggi e domani." : "Vista rapida: prime giornate disponibili."}
+            <p className="playoffs-calendar-note">
+              Navigazione giornaliera dedicata ai playoff con lo stesso layout del calendario principale.
             </p>
           </div>
 
-          <div className="playoffs-game-groups">
-            {visible.map((group) => (
-              <div key={group.key} className="playoffs-game-group">
-                <div className="playoffs-block-head">
-                  <h3>{group.label}</h3>
-                  <Badge tone="neutral">{group.games.length}</Badge>
-                </div>
-                <div className="playoffs-game-list">
-                  {group.games.map((game) => (
-                    <Link key={game.gameId} to={`/games/${game.gameId}`} className="game-card playoffs-game-row-link">
-                      <div className="game-card-head">
-                        <span>{formatGameDateLabel(game)}</span>
-                        <Badge tone={game.status === "live" ? "live" : game.status === "final" ? "neutral" : "warning"}>
-                          {formatStatusLabel(game.status)}
-                        </Badge>
-                      </div>
-                      <div className="game-matchup">
-                        <div className="game-team">
-                          {game.awayTeam.logo ? <img src={game.awayTeam.logo} alt="" className="mini-logo" /> : null}
-                          <strong>{getTeamCode(game.awayTeam)}</strong>
-                        </div>
-                        <strong>{displayScore(game, "away")} - {displayScore(game, "home")}</strong>
-                        <div className="game-team game-team-right">
-                          <strong>{getTeamCode(game.homeTeam)}</strong>
-                          {game.homeTeam.logo ? <img src={game.homeTeam.logo} alt="" className="mini-logo" /> : null}
-                        </div>
-                      </div>
-                      <div className="game-card-meta">
-                        <span>{formatVenue(game.arena)}</span>
-                        <span>{formatGameStatusText(game)}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+          <div className="calendar-toolbar playoffs-calendar-toolbar">
+            <div className="calendar-rail">
+              <button type="button" className="calendar-nav-button" onClick={() => jumpToBoundary("start")} disabled={selectedIndex <= 0}>
+                {"<<"}
+              </button>
+              <button type="button" className="calendar-nav-button" onClick={() => moveDate(-1)} disabled={selectedIndex <= 0}>
+                {"<"}
+              </button>
+              <div className="calendar-date-strip">
+                {visibleDates.map((date) => (
+                  <button
+                    key={date}
+                    type="button"
+                    className={`calendar-date-pill ${date === selectedDate ? "calendar-date-pill-active" : ""}`}
+                    onClick={() => setSelectedDateState(date)}
+                  >
+                    <span>{formatCalendarPill(date)}</span>
+                    {date === getGameDayKey(new Date().toISOString()) ? <small>Oggi</small> : null}
+                  </button>
+                ))}
               </div>
-            ))}
+              <button
+                type="button"
+                className="calendar-nav-button"
+                onClick={() => moveDate(1)}
+                disabled={selectedIndex === -1 || selectedIndex >= availableDates.length - 1}
+              >
+                {">"}
+              </button>
+              <button
+                type="button"
+                className="calendar-nav-button"
+                onClick={() => jumpToBoundary("end")}
+                disabled={selectedIndex === -1 || selectedIndex >= availableDates.length - 1}
+              >
+                {">>"}
+              </button>
+            </div>
           </div>
 
-          {expanded || hiddenCount > 0 ? (
-            <button
-              type="button"
-              className="playoffs-schedule-toggle"
-              onClick={() => setExpanded((v) => !v)}
-              aria-expanded={expanded}
-            >
-              {expanded ? "Mostra meno partite" : `Mostra altre ${hiddenCount} partite`}
-            </button>
-          ) : null}
+          <div className="calendar-filter-row playoffs-calendar-filter-row">
+            <div className="calendar-selected-day">
+              <span className="eyebrow">Partite playoff del giorno</span>
+              <strong>{selectedDate ? formatCalendarHeading(selectedDate) : "Nessuna data disponibile"}</strong>
+            </div>
+            <div className="filters-bar calendar-filters">
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "" | GameSummary["status"])}>
+                <option value="">Tutti gli stati</option>
+                <option value="scheduled">In programma</option>
+                <option value="live">In diretta</option>
+                <option value="final">Finita</option>
+              </select>
+            </div>
+          </div>
+
+          {filteredGames.length > 0 ? (
+            <div className="calendar-day-list">
+              {filteredGames.map((game) => (
+                <Link key={game.gameId} to={`/games/${game.gameId}`} className="calendar-game-row">
+                  <div className="calendar-game-time">
+                    <span className="calendar-game-hour">{formatTime(game.dateTimeUtc)}</span>
+                    <Badge tone={game.status === "live" ? "live" : game.status === "final" ? "neutral" : "warning"}>
+                      {formatStatusLabel(game.status)}
+                    </Badge>
+                  </div>
+
+                  <div className="calendar-game-matchup">
+                    <div className="calendar-team-inline">
+                      <div className="game-team">
+                        <img src={game.awayTeam.logo} alt="" className="mini-logo" />
+                        <strong>{getTeamCode(game.awayTeam)}</strong>
+                      </div>
+                      <span className="calendar-team-score">{displayScore(game, "away")}</span>
+                    </div>
+
+                    <span className="calendar-game-separator">-</span>
+
+                    <div className="calendar-team-inline calendar-team-inline-home">
+                      <span className="calendar-team-score">{displayScore(game, "home")}</span>
+                      <div className="game-team">
+                        <strong>{getTeamCode(game.homeTeam)}</strong>
+                        <img src={game.homeTeam.logo} alt="" className="mini-logo" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="calendar-game-info">
+                    <strong>{formatVenue(game.arena)}</strong>
+                    <span>{formatGameStatusText(game)}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyState label="Nessuna partita playoff trovata per questo giorno con i filtri attivi." />
+          )}
         </>
       ) : (
         <EmptyState label={emptyLabel} />
@@ -553,9 +635,6 @@ export function PlayoffsPage() {
     refetchIntervalInBackground: true,
   });
 
-  const postseasonGames = query.data
-    ? mergePostseasonGames(query.data.data.playInGames, query.data.data.playoffGames)
-    : [];
   const playoffsStarted = query.data ? hasPlayoffsStarted(query.data.data) : false;
   const eastStandings = query.data
     ? toPlayoffConferenceStandings(query.data.data.east, query.data.data.playoffGames, playoffsStarted)
@@ -609,11 +688,11 @@ export function PlayoffsPage() {
             </div>
           </div>
 
-          <PostseasonSchedule
-            title="Calendario Postseason"
-            subtitle="Vista rapida su oggi e domani · espandi per vedere tutte le gare"
-            games={postseasonGames}
-            emptyLabel="Il calendario dettagliato della postseason non è ancora disponibile nell'API."
+          <PlayoffCalendar
+            title="Calendario Playoff"
+            subtitle="Versione dedicata ai playoff con lo stesso layout della pagina Calendario."
+            games={query.data.data.playoffGames}
+            emptyLabel="Il calendario playoff non è ancora disponibile nell'API."
           />
         </div>
       ) : null}
