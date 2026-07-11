@@ -173,12 +173,13 @@ export function createTeamsService(deps: ServiceDeps) {
     async getTeamDetail(teamId: number): Promise<ApiEnvelope<TeamDetail>> {
       const state = await (deps.cache ?? cache).getOrLoad(`team-detail:${teamId}`, TTL.profile, async () => {
         const standingsState = await loadStandings(deps);
-        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult] = await Promise.allSettled([
+        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult, playoffGameLogResult] = await Promise.allSettled([
           loadTeamStats(deps),
           loadScheduleSnapshotGames(deps),
           deps.client.getTeamInfoCommon(teamId),
           deps.client.getCommonTeamRoster(teamId),
-          deps.client.getTeamGameLog(teamId)
+          deps.client.getTeamGameLog(teamId),
+          deps.client.getTeamGameLog(teamId, "Playoffs")
         ]);
 
         const base = standingsState.value.find((team) => team.teamId === teamId);
@@ -209,7 +210,14 @@ export function createTeamsService(deps: ServiceDeps) {
         });
         const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : [];
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
-        const recentRows = teamGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamGameLogResult.value) : [];
+        const recentRows = [
+          ...(playoffGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playoffGameLogResult.value) : []),
+          ...(teamGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamGameLogResult.value) : [])
+        ].sort((a, b) => {
+          const dateA = new Date(String(a.GAME_DATE ?? 0)).getTime();
+          const dateB = new Date(String(b.GAME_DATE ?? 0)).getTime();
+          return dateB - dateA;
+        });
         const recentGamesFromSchedule = buildRecentGamesFromSchedule(teamId, scheduleGames);
         const recentGamesFromLog = mapRecentGames(teamId, recentRows, scheduleByGameId);
         const recentGames = mergeUniqueRecentGames(recentGamesFromSchedule, recentGamesFromLog);

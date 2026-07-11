@@ -138,14 +138,19 @@ describe("teams service", () => {
           ]
         }
       }),
-      getTeamGameLog: async () =>
-        statsResponse(
-          ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
-          [
-            ["0022500001", "2025-10-22", "BOS @ NYK", "L", 102, -5],
-            ["0022500002", "2025-10-24", "BOS vs. LAL", "W", 115, 7]
-          ]
-        )
+      getTeamGameLog: async (_teamId, seasonType) =>
+        seasonType === "Playoffs"
+          ? statsResponse(
+              ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
+              []
+            )
+          : statsResponse(
+              ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
+              [
+                ["0022500001", "2025-10-22", "BOS @ NYK", "L", 102, -5],
+                ["0022500002", "2025-10-24", "BOS vs. LAL", "W", 115, 7]
+              ]
+            )
     });
 
     const service = createTeamsService({ client, cache: new MemoryCache() });
@@ -204,11 +209,13 @@ describe("teams service", () => {
           gameDates: []
         }
       }),
-      getTeamGameLog: async () =>
-        statsResponse(
-          ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
-          [["0022500003", "2025-10-26", "BOS vs. MIA", "W", 120, 9]]
-        )
+      getTeamGameLog: async (_teamId, seasonType) =>
+        seasonType === "Playoffs"
+          ? statsResponse(["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"], [])
+          : statsResponse(
+              ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
+              [["0022500003", "2025-10-26", "BOS vs. MIA", "W", 120, 9]]
+            )
     });
 
     const service = createTeamsService({ client, cache: new MemoryCache() });
@@ -324,11 +331,13 @@ describe("teams service", () => {
           ]
         }
       }),
-      getTeamGameLog: async () =>
-        statsResponse(
-          ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
-          [["0022500082", "2026-04-10", "OKC vs. UTA", "W", 121, 14]]
-        )
+      getTeamGameLog: async (_teamId, seasonType) =>
+        seasonType === "Playoffs"
+          ? statsResponse(["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"], [])
+          : statsResponse(
+              ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "PTS", "PLUS_MINUS"],
+              [["0022500082", "2026-04-10", "OKC vs. UTA", "W", 121, 14]]
+            )
     });
 
     const service = createTeamsService({ client, cache: new MemoryCache() });

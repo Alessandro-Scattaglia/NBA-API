@@ -5,7 +5,7 @@ import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } fr
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { StandingsTable } from "../../components/tables/StandingsTable";
 import { apiGet } from "../../lib/api";
-import { formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
+import { formatGameDateLabel, formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
 import type {
   GameSummary,
   PlayoffsResponse,
@@ -172,6 +172,22 @@ type ExtendedPostseasonConferenceSnapshot = PostseasonConferenceSnapshot & {
   conferenceFinalsSeries?: PostseasonSeries[];
 };
 
+type FinalsSummary = {
+  eastWinner: StandingsRow;
+  westWinner: StandingsRow;
+  champion: StandingsRow | null;
+  runnerUp: StandingsRow | null;
+  winsEast: number;
+  winsWest: number;
+  games: GameSummary[];
+  latestGame: GameSummary | null;
+  finished: boolean;
+};
+
+function hasVisibleSeriesData(series?: PostseasonSeries) {
+  return Boolean(series && (series.games.length > 0 || series.highSeedTeam || series.lowSeedTeam));
+}
+
 function btRecord(s?: PostseasonSeries) {
   if (!s?.highSeedTeam) return { winsHigh: 0, winsLow: 0 };
   let h = 0, l = 0;
@@ -182,6 +198,121 @@ function btRecord(s?: PostseasonSeries) {
   return { winsHigh: h, winsLow: l };
 }
 
+function getFinalsSummary(playoffGames: GameSummary[], east: PostseasonConferenceSnapshot, west: PostseasonConferenceSnapshot): FinalsSummary | null {
+  const eastWinner = getSeriesWinner((east as ExtendedPostseasonConferenceSnapshot).conferenceFinalsSeries?.[0]);
+  const westWinner = getSeriesWinner((west as ExtendedPostseasonConferenceSnapshot).conferenceFinalsSeries?.[0]);
+
+  if (!eastWinner || !westWinner) {
+    return null;
+  }
+
+  const finalists = new Set([eastWinner.teamId, westWinner.teamId]);
+  const games = playoffGames
+    .filter(
+      (game) =>
+        game.phase === "playoffs" &&
+        finalists.has(game.homeTeam.teamId) &&
+        finalists.has(game.awayTeam.teamId)
+    )
+    .sort((left, right) => Date.parse(left.dateTimeUtc) - Date.parse(right.dateTimeUtc));
+
+  const wins = new Map<number, number>([
+    [eastWinner.teamId, 0],
+    [westWinner.teamId, 0]
+  ]);
+
+  for (const game of games) {
+    if (game.status !== "final" || game.homeTeam.score === null || game.awayTeam.score === null) {
+      continue;
+    }
+
+    const winnerTeamId = game.homeTeam.score > game.awayTeam.score ? game.homeTeam.teamId : game.awayTeam.teamId;
+    wins.set(winnerTeamId, (wins.get(winnerTeamId) ?? 0) + 1);
+  }
+
+  const eastWins = wins.get(eastWinner.teamId) ?? 0;
+  const westWins = wins.get(westWinner.teamId) ?? 0;
+  const latestGame = games.at(-1) ?? null;
+  const finished = eastWins === 4 || westWins === 4;
+  const champion = eastWins === 4 ? eastWinner : westWins === 4 ? westWinner : null;
+  const runnerUp = champion?.teamId === eastWinner.teamId ? westWinner : champion?.teamId === westWinner.teamId ? eastWinner : null;
+
+  return {
+    eastWinner,
+    westWinner,
+    champion,
+    runnerUp,
+    winsEast: eastWins,
+    winsWest: westWins,
+    games,
+    latestGame,
+    finished
+  };
+}
+
+function formatFinalsSeriesText(summary: FinalsSummary) {
+  if (summary.champion && summary.runnerUp) {
+    const championWins = summary.champion.teamId === summary.eastWinner.teamId ? summary.winsEast : summary.winsWest;
+    const runnerUpWins = summary.runnerUp.teamId === summary.eastWinner.teamId ? summary.winsEast : summary.winsWest;
+    return `${summary.champion.code} batte ${summary.runnerUp.code} ${championWins}-${runnerUpWins}`;
+  }
+
+  return `${summary.westWinner.code} ${summary.winsWest}-${summary.winsEast} ${summary.eastWinner.code}`;
+}
+
+function FinalsOutcomeCard({ summary }: { summary: FinalsSummary }) {
+  const champion = summary.champion ?? (summary.winsWest >= summary.winsEast ? summary.westWinner : summary.eastWinner);
+  const runnerUp = summary.runnerUp ?? (champion.teamId === summary.eastWinner.teamId ? summary.westWinner : summary.eastWinner);
+  const seriesText = formatFinalsSeriesText(summary);
+
+  return (
+    <SurfaceCard
+      title="Finali NBA"
+      subtitle={summary.finished ? "Serie conclusa con il titolo assegnato" : "Serie finale in corso"}
+    >
+      <div className="playoffs-finals-summary">
+        <div className="playoffs-finals-badge-row">
+          <Badge tone={summary.finished ? "live" : "warning"}>{summary.finished ? "Campione NBA" : "Finali in corso"}</Badge>
+          <span className="playoffs-finals-series-text">{seriesText}</span>
+        </div>
+
+        <div className="playoffs-finals-matchup">
+          <Link to={`/teams/${summary.westWinner.teamId}`} className="playoffs-finals-team">
+            <img src={summary.westWinner.logo} alt="" className="mini-logo" />
+            <span>
+              <strong>{summary.westWinner.code}</strong>
+              <small>{summary.westWinner.name}</small>
+            </span>
+            <strong className="playoffs-finals-record">{summary.winsWest}</strong>
+          </Link>
+
+          <div className="playoffs-finals-center">
+            <span className="playoffs-finals-vs">vs</span>
+            <strong>{champion.code}</strong>
+            <small>{summary.finished ? "Titolo assegnato" : "Serie aperta"}</small>
+          </div>
+
+          <Link to={`/teams/${summary.eastWinner.teamId}`} className="playoffs-finals-team">
+            <img src={summary.eastWinner.logo} alt="" className="mini-logo" />
+            <span>
+              <strong>{summary.eastWinner.code}</strong>
+              <small>{summary.eastWinner.name}</small>
+            </span>
+            <strong className="playoffs-finals-record">{summary.winsEast}</strong>
+          </Link>
+        </div>
+
+        <div className="playoffs-finals-meta">
+          <span>
+            {summary.latestGame ? `Ultima gara: ${formatGameDateLabel(summary.latestGame)} · ${formatGameStatusText(summary.latestGame)}` : "Nessuna gara finale disponibile."}
+          </span>
+          <span>{summary.finished ? `${champion.code} campione NBA` : `Servono ancora ${4 - Math.max(summary.winsEast, summary.winsWest)} vittorie per chiudere la serie`}</span>
+        </div>
+      </div>
+    </SurfaceCard>
+  );
+}
+
 /** Restituisce la squadra vincente di una serie (se conclusa con 4 vittorie) */
 function getSeriesWinner(series?: PostseasonSeries): StandingsRow | null {
   if (!series?.highSeedTeam) return null;
@@ -189,6 +320,26 @@ function getSeriesWinner(series?: PostseasonSeries): StandingsRow | null {
   if (winsHigh === 4) return series.highSeedTeam;
   if (winsLow === 4) return series.lowSeedTeam;
   return null;
+}
+
+function buildBracketSeries(
+  topTeam: StandingsRow | null,
+  bottomTeam: StandingsRow | null,
+  winsHigh = 0,
+  winsLow = 0
+): BtSeries | null {
+  if (!topTeam && !bottomTeam) {
+    return null;
+  }
+
+  return {
+    seedHigh: topTeam?.seed ?? "?",
+    seedLow: bottomTeam?.seed ?? "?",
+    teamHigh: topTeam,
+    teamLow: bottomTeam,
+    winsHigh,
+    winsLow,
+  };
 }
 
 function btMatchups(snap: PostseasonConferenceSnapshot): BtSeries[] {
@@ -201,7 +352,7 @@ function btMatchups(snap: PostseasonConferenceSnapshot): BtSeries[] {
     return {
       seedHigh: h, seedLow: l,
       teamHigh: s?.highSeedTeam ?? findSeed(all, h) ?? null,
-      teamLow:  s?.lowSeedTeam  ?? findSeed(all, l) ?? null,
+      teamLow: s?.lowSeedTeam ?? findSeed(all, l) ?? null,
       winsHigh, winsLow,
     };
   });
@@ -231,12 +382,12 @@ function BtTeam({
 
 function BtCard({ s }: { s: BtSeries }) {
   const highLeads = s.winsHigh > s.winsLow;
-  const lowLeads  = s.winsLow  > s.winsHigh;
+  const lowLeads = s.winsLow > s.winsHigh;
   return (
     <div className="bt-card">
       <BtTeam seed={s.seedHigh} team={s.teamHigh} wins={s.winsHigh} isLeading={highLeads} />
       <div className="bt-sep" />
-      <BtTeam seed={s.seedLow}  team={s.teamLow}  wins={s.winsLow}  isLeading={lowLeads} />
+      <BtTeam seed={s.seedLow} team={s.teamLow} wins={s.winsLow} isLeading={lowLeads} />
     </div>
   );
 }
@@ -287,41 +438,34 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
   const snapExtended = snap as ExtendedPostseasonConferenceSnapshot;
 
   // Semifinali: API fornisce array di 2 serie (seed 1/8 vs 4/5 e 2/7 vs 3/6)
-  const semi1 = snapExtended.semifinalsSeries?.find((s) => 
-    (s.seedHigh === 1 && s.seedLow === 8) || (s.seedHigh === 4 && s.seedLow === 5) ||
-    (s.seedHigh === 1 && s.seedLow === 4) // eventuale riordino
-  );
-  const semi2 = snapExtended.semifinalsSeries?.find((s) => 
-    (s.seedHigh === 2 && s.seedLow === 7) || (s.seedHigh === 3 && s.seedLow === 6) ||
-    (s.seedHigh === 2 && s.seedLow === 3)
-  );
+  const semi1 = snapExtended.semifinalsSeries?.[0];
+  const semi2 = snapExtended.semifinalsSeries?.[1];
 
   const getSemiData = (
     semi?: PostseasonSeries,
     winnersFromFr?: [StandingsRow | null, StandingsRow | null],
     fallbackSeeds?: [number | "?", number | "?"]
   ): BtSeries | null => {
-    if (semi) {
+    if (hasVisibleSeriesData(semi)) {
       const rec = btRecord(semi);
       return {
-        seedHigh: semi.seedHigh,
-        seedLow: semi.seedLow,
-        teamHigh: semi.highSeedTeam,
-        teamLow: semi.lowSeedTeam,
+        seedHigh: semi!.seedHigh,
+        seedLow: semi!.seedLow,
+        teamHigh: semi!.highSeedTeam,
+        teamLow: semi!.lowSeedTeam,
         winsHigh: rec.winsHigh,
         winsLow: rec.winsLow,
       };
     }
-    // Se la serie non esiste ancora, mostra comunque le squadre gia qualificate.
+
+    // Se la serie non esiste ancora, mostra i vincitori gia qualificati
+    // rispettando il ramo alto/basso del bracket.
     if (winnersFromFr && (winnersFromFr[0] || winnersFromFr[1])) {
-      const knownTeams = winnersFromFr.filter((team): team is StandingsRow => team !== null).sort((a, b) => a.seed - b.seed);
-      const high = knownTeams[0] ?? null;
-      const low = knownTeams[1] ?? null;
       return {
-        seedHigh: high?.seed ?? fallbackSeeds?.[0] ?? "?",
-        seedLow: low?.seed ?? fallbackSeeds?.[1] ?? "?",
-        teamHigh: high,
-        teamLow: low,
+        seedHigh: winnersFromFr[0]?.seed ?? fallbackSeeds?.[0] ?? "?",
+        seedLow: winnersFromFr[1]?.seed ?? fallbackSeeds?.[1] ?? "?",
+        teamHigh: winnersFromFr[0] ?? null,
+        teamLow: winnersFromFr[1] ?? null,
         winsHigh: 0,
         winsLow: 0,
       };
@@ -343,31 +487,20 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
   // Conference Finals
   const cfSeries = snapExtended.conferenceFinalsSeries?.[0];
   let cfData: BtSeries | null = null;
-  if (cfSeries) {
+  if (hasVisibleSeriesData(cfSeries)) {
     const rec = btRecord(cfSeries);
     cfData = {
-      seedHigh: cfSeries.seedHigh,
-      seedLow: cfSeries.seedLow,
-      teamHigh: cfSeries.highSeedTeam,
-      teamLow: cfSeries.lowSeedTeam,
+      seedHigh: cfSeries!.seedHigh,
+      seedLow: cfSeries!.seedLow,
+      teamHigh: cfSeries!.highSeedTeam,
+      teamLow: cfSeries!.lowSeedTeam,
       winsHigh: rec.winsHigh,
       winsLow: rec.winsLow,
     };
   } else {
     const semi1Winner = semi1Data ? (semi1Data.winsHigh === 4 ? semi1Data.teamHigh : (semi1Data.winsLow === 4 ? semi1Data.teamLow : null)) : null;
     const semi2Winner = semi2Data ? (semi2Data.winsHigh === 4 ? semi2Data.teamHigh : (semi2Data.winsLow === 4 ? semi2Data.teamLow : null)) : null;
-    if (semi1Winner && semi2Winner) {
-      const high = semi1Winner.seed < semi2Winner.seed ? semi1Winner : semi2Winner;
-      const low  = semi1Winner.seed < semi2Winner.seed ? semi2Winner : semi1Winner;
-      cfData = {
-        seedHigh: high.seed,
-        seedLow: low.seed,
-        teamHigh: high,
-        teamLow: low,
-        winsHigh: 0,
-        winsLow: 0,
-      };
-    }
+    cfData = buildBracketSeries(semi1Winner, semi2Winner);
   }
 
   return (
@@ -419,17 +552,19 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
 
 function PlayoffBracketShowcase({
   east, west,
+  playoffGames = [],
 }: {
   east: PostseasonConferenceSnapshot;
   west: PostseasonConferenceSnapshot;
+  playoffGames?: GameSummary[];
 }) {
-  const westWinner = getSeriesWinner((west as ExtendedPostseasonConferenceSnapshot).conferenceFinalsSeries?.[0]);
-  const eastWinner = getSeriesWinner((east as ExtendedPostseasonConferenceSnapshot).conferenceFinalsSeries?.[0]);
+  const finalsSummary = getFinalsSummary(playoffGames, east, west);
+  const finalsChampion = finalsSummary?.finished ? finalsSummary.champion : null;
 
   return (
     <SurfaceCard
       title="Tabellone Playoff NBA 2026"
-      subtitle="Primo turno in corso · Conf. Semifinals, Finals e NBA Finals in attesa dei risultati"
+      subtitle={finalsChampion ? `Finali concluse: ${finalsChampion.code} campione NBA` : "Primo turno in corso · Conf. Semifinals, Finals e NBA Finals in attesa dei risultati"}
     >
       <div className="bt-bracket">
         <p className="bt-super-title">Playoffs 2026</p>
@@ -439,8 +574,8 @@ function PlayoffBracketShowcase({
         <div className="bt-finals-center">
           <p className="bt-finals-title">NBA Finals 2026</p>
           <div className="bt-card bt-finals-slot-card bt-finals-card">
-            {westWinner ? (
-              <BtTeam seed={westWinner.seed} team={westWinner} wins={0} isLeading={false} />
+            {finalsSummary ? (
+              <BtTeam seed={finalsSummary.westWinner.seed} team={finalsSummary.westWinner} wins={finalsSummary.winsWest} isLeading={finalsSummary.winsWest > finalsSummary.winsEast} />
             ) : (
               <div className="bt-team">
                 <span className="bt-seed">W</span>
@@ -454,8 +589,8 @@ function PlayoffBracketShowcase({
               <span className="bt-finals-mid-pill">VS</span>
             </div>
 
-            {eastWinner ? (
-              <BtTeam seed={eastWinner.seed} team={eastWinner} wins={0} isLeading={false} />
+            {finalsSummary ? (
+              <BtTeam seed={finalsSummary.eastWinner.seed} team={finalsSummary.eastWinner} wins={finalsSummary.winsEast} isLeading={finalsSummary.winsEast > finalsSummary.winsWest} />
             ) : (
               <div className="bt-team">
                 <span className="bt-seed">E</span>
@@ -631,7 +766,8 @@ export function PlayoffsPage() {
   const query = useQuery({
     queryKey: ["playoffs"],
     queryFn: () => apiGet<PlayoffsResponse>("/api/playoffs"),
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
     refetchIntervalInBackground: true,
   });
 
@@ -676,7 +812,11 @@ export function PlayoffsPage() {
             </div>
           </div>
 
-          <PlayoffBracketShowcase east={query.data.data.east} west={query.data.data.west} />
+          <PlayoffBracketShowcase east={query.data.data.east} west={query.data.data.west} playoffGames={query.data.data.playoffGames} />
+
+          {getFinalsSummary(query.data.data.playoffGames, query.data.data.east, query.data.data.west) ? (
+            <FinalsOutcomeCard summary={getFinalsSummary(query.data.data.playoffGames, query.data.data.east, query.data.data.west)!} />
+          ) : null}
 
           <div className="stats-grid">
             <div className="stat-box"><span>Già qualificate</span><strong>{query.data.data.overview.directQualifiedTeams}</strong></div>

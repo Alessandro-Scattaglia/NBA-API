@@ -9,6 +9,29 @@ import { GameList } from "../../components/tables/GameList";
 import { formatConference, formatGameDateLabel, formatGameStatusText } from "../../lib/format";
 import "./HomePage.css";
 
+const HERO_CONTENT = {
+  playoffs: {
+    title: "Playoff subito in primo piano",
+    copy:
+      "Vai direttamente alla pagina playoff per bracket, serie aperte, calendario della postseason e quadro completo di Est e Ovest.",
+    ctaLabel: "Vai alla pagina Playoff",
+    ctaTo: "/playoffs",
+    pills: ["Bracket completo", "Serie aggiornate", "Calendario postseason"],
+    className: "hero-card-playoffs",
+    eyebrow: "Home"
+  },
+  standings: {
+    title: "Classifica della stagione regolare",
+    copy:
+      "Controlla subito la corsa alle seed, le squadre in zona playoff e l'andamento delle conference prima del cambio di fase.",
+    ctaLabel: "Vai alla classifica",
+    ctaTo: "/standings",
+    pills: ["Seed aggiornate", "Play-in watch", "Corsa ai playoff"],
+    className: "hero-card-standings",
+    eyebrow: "Home"
+  }
+} as const;
+
 export function HomePage() {
   const query = useQuery({
     queryKey: ["home"],
@@ -28,32 +51,36 @@ export function HomePage() {
   }
 
   const { data, meta } = query.data;
+  const hero = HERO_CONTENT[data.homeSpotlightMode];
 
   return (
     <>
       <PageHeader
         title="Home"
-        description="Accesso rapido ai playoff e ai dati aggiornati della stagione NBA 2025-2026."
+        description={
+          data.homeSpotlightMode === "playoffs"
+            ? "Accesso rapido ai playoff e ai dati aggiornati della stagione NBA 2025-2026."
+            : "Accesso rapido alla classifica della stagione regolare e ai dati aggiornati della stagione NBA 2025-2026."
+        }
       />
 
-      <section className="hero-card hero-card-playoffs">
+      <section className={`hero-card ${hero.className}`}>
         <div className="hero-card-head">
           <div>
-            <p className="eyebrow">Home</p>
-            <h2 className="hero-title">Playoff subito in primo piano</h2>
-            <p className="hero-copy">
-              Vai direttamente alla pagina playoff per bracket, serie aperte, calendario della postseason e quadro completo
-              di Est e Ovest.
-            </p>
+            <p className="eyebrow">{hero.eyebrow}</p>
+            <h2 className="hero-title">{hero.title}</h2>
+            <p className="hero-copy">{hero.copy}</p>
           </div>
-          <Link to="/playoffs" className="hero-card-cta">
-            Vai alla pagina Playoff
+          <Link to={hero.ctaTo} className="hero-card-cta">
+            {hero.ctaLabel}
           </Link>
         </div>
         <div className="pill-row">
-          <span className="metric-pill">Bracket completo</span>
-          <span className="metric-pill">Serie aggiornate</span>
-          <span className="metric-pill">Calendario postseason</span>
+          {hero.pills.map((pill) => (
+            <span key={pill} className="metric-pill">
+              {pill}
+            </span>
+          ))}
         </div>
       </section>
 

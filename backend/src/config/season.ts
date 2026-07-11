@@ -5,6 +5,7 @@ export const SEASON_START_YEAR = Number(NBA_SEASON.slice(0, 4));
 export const SEASON_END_YEAR = 2000 + Number(NBA_SEASON.slice(5, 7));
 export const PLAYOFF_PICTURE_SEASON_ID = `2${SEASON_START_YEAR}`;
 export const REGULAR_SEASON_LABEL = "Regular Season";
+const PLAY_IN_START = new Date(Date.UTC(SEASON_END_YEAR, 3, 14));
 
 export const TTL = {
   live: 30_000,
@@ -24,4 +25,8 @@ export function getSeasonBounds() {
 export function isDateInsideSeason(date: Date) {
   const { start, end } = getSeasonBounds();
   return date >= start && date <= end;
+}
+
+export function getHomeSpotlightMode(date = new Date()) {
+  return date >= PLAY_IN_START ? "playoffs" : "standings";
 }

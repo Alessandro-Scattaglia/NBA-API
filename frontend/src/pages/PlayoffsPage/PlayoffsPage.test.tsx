@@ -776,4 +776,437 @@ describe("PlayoffsPage", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/playoffs");
     expect(screen.getAllByText("OKC").length).toBeGreaterThan(1);
   });
+
+  it("summarizes the finals outcome when the series is complete", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            season: "2025-26",
+            overview: {
+              directQualifiedTeams: 12,
+              playInTeams: 8,
+              confirmedFirstRoundSeries: 8,
+              playInGamesScheduled: 0,
+              playoffGamesScheduled: 6
+            },
+            keyDates: [],
+            finalsDates: [],
+            formatNotes: [],
+            east: {
+              conference: "East",
+              directSeeds: [],
+              playInSeeds: [],
+              outsidePicture: [],
+              playInSeries: [],
+              firstRoundSeries: [],
+              semifinalsSeries: [],
+              conferenceFinalsSeries: [
+                {
+                  conference: "East",
+                  round: "conference-finals",
+                  status: "confirmed",
+                  label: "(1) Celtics vs. (2) Knicks",
+                  seedHigh: 1,
+                  seedLow: 2,
+                  highSeedTeam: {
+                    teamId: 1610612738,
+                    city: "Boston",
+                    name: "Celtics",
+                    nickname: "Celtics",
+                    code: "BOS",
+                    slug: "boston-celtics",
+                    conference: "East",
+                    division: "Atlantic",
+                    logo: "https://example.com/bos.svg",
+                    wins: 64,
+                    losses: 18,
+                    winPct: 0.78,
+                    gamesBehind: 0,
+                    conferenceRank: 1,
+                    homeRecord: "35-6",
+                    awayRecord: "29-12",
+                    lastTen: "8-2",
+                    streak: "W2",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: true,
+                    clinchedConference: true,
+                    seed: 1,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  lowSeedTeam: {
+                    teamId: 1610612752,
+                    city: "New York",
+                    name: "Knicks",
+                    nickname: "Knicks",
+                    code: "NYK",
+                    slug: "new-york-knicks",
+                    conference: "East",
+                    division: "Atlantic",
+                    logo: "https://example.com/nyk.svg",
+                    wins: 54,
+                    losses: 28,
+                    winPct: 0.659,
+                    gamesBehind: 10,
+                    conferenceRank: 2,
+                    homeRecord: "30-11",
+                    awayRecord: "24-17",
+                    lastTen: "6-4",
+                    streak: "W1",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: false,
+                    clinchedConference: false,
+                    seed: 2,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  note: "Serie confermata.",
+                  games: [
+                    {
+                      gameId: "east-cf-1",
+                      gameCode: "20260601/BOSNYK",
+                      dateTimeUtc: "2026-06-01T00:30:00Z",
+                      dateLabel: "1 giu 2026, 00:30",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "TD Garden",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 117, record: "64-18" },
+                      awayTeam: { teamId: 1610612752, name: "Knicks", code: "NYK", logo: "https://example.com/nyk.svg", score: 111, record: "54-28" }
+                    },
+                    {
+                      gameId: "east-cf-2",
+                      gameCode: "20260603/NYKBOS",
+                      dateTimeUtc: "2026-06-03T00:30:00Z",
+                      dateLabel: "3 giu 2026, 00:30",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Madison Square Garden",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612752, name: "Knicks", code: "NYK", logo: "https://example.com/nyk.svg", score: 114, record: "54-28" },
+                      awayTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 106, record: "64-18" }
+                    },
+                    {
+                      gameId: "east-cf-3",
+                      gameCode: "20260605/BOSNYK",
+                      dateTimeUtc: "2026-06-05T00:30:00Z",
+                      dateLabel: "5 giu 2026, 00:30",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "TD Garden",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 120, record: "64-18" },
+                      awayTeam: { teamId: 1610612752, name: "Knicks", code: "NYK", logo: "https://example.com/nyk.svg", score: 112, record: "54-28" }
+                    },
+                    {
+                      gameId: "east-cf-4",
+                      gameCode: "20260607/NYKBOS",
+                      dateTimeUtc: "2026-06-07T00:30:00Z",
+                      dateLabel: "7 giu 2026, 00:30",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Madison Square Garden",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612752, name: "Knicks", code: "NYK", logo: "https://example.com/nyk.svg", score: 115, record: "54-28" },
+                      awayTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 122, record: "64-18" }
+                    },
+                    {
+                      gameId: "east-cf-5",
+                      gameCode: "20260609/BOSNYK",
+                      dateTimeUtc: "2026-06-09T00:30:00Z",
+                      dateLabel: "9 giu 2026, 00:30",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "TD Garden",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 109, record: "64-18" },
+                      awayTeam: { teamId: 1610612752, name: "Knicks", code: "NYK", logo: "https://example.com/nyk.svg", score: 101, record: "54-28" }
+                    }
+                  ]
+                }
+              ]
+            },
+            west: {
+              conference: "West",
+              directSeeds: [],
+              playInSeeds: [],
+              outsidePicture: [],
+              playInSeries: [],
+              firstRoundSeries: [],
+              semifinalsSeries: [],
+              conferenceFinalsSeries: [
+                {
+                  conference: "West",
+                  round: "conference-finals",
+                  status: "confirmed",
+                  label: "(1) Thunder vs. (4) Lakers",
+                  seedHigh: 1,
+                  seedLow: 4,
+                  highSeedTeam: {
+                    teamId: 1610612760,
+                    city: "Oklahoma City",
+                    name: "Thunder",
+                    nickname: "Thunder",
+                    code: "OKC",
+                    slug: "oklahoma-city-thunder",
+                    conference: "West",
+                    division: "Northwest",
+                    logo: "https://example.com/okc.svg",
+                    wins: 68,
+                    losses: 14,
+                    winPct: 0.829,
+                    gamesBehind: 0,
+                    conferenceRank: 1,
+                    homeRecord: "34-7",
+                    awayRecord: "34-7",
+                    lastTen: "8-2",
+                    streak: "W4",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: true,
+                    clinchedConference: true,
+                    seed: 1,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  lowSeedTeam: {
+                    teamId: 1610612747,
+                    city: "Los Angeles",
+                    name: "Lakers",
+                    nickname: "Lakers",
+                    code: "LAL",
+                    slug: "los-angeles-lakers",
+                    conference: "West",
+                    division: "Pacific",
+                    logo: "https://example.com/lal.svg",
+                    wins: 52,
+                    losses: 30,
+                    winPct: 0.634,
+                    gamesBehind: 16,
+                    conferenceRank: 4,
+                    homeRecord: "28-13",
+                    awayRecord: "24-17",
+                    lastTen: "7-3",
+                    streak: "W1",
+                    playoffStatus: "playoff",
+                    clinchedPlayoff: true,
+                    clinchedDivision: false,
+                    clinchedConference: false,
+                    seed: 4,
+                    gamesPlayed: 82,
+                    remainingGames: 0
+                  },
+                  note: "Serie confermata.",
+                  games: [
+                    {
+                      gameId: "west-cf-1",
+                      gameCode: "20260601/LALOKC",
+                      dateTimeUtc: "2026-06-01T03:00:00Z",
+                      dateLabel: "1 giu 2026, 03:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Paycom Center",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 121, record: "68-14" },
+                      awayTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 113, record: "52-30" }
+                    },
+                    {
+                      gameId: "west-cf-2",
+                      gameCode: "20260603/OKCLAL",
+                      dateTimeUtc: "2026-06-03T03:00:00Z",
+                      dateLabel: "3 giu 2026, 03:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Paycom Center",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 116, record: "68-14" },
+                      awayTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 108, record: "52-30" }
+                    },
+                    {
+                      gameId: "west-cf-3",
+                      gameCode: "20260605/LALOKC",
+                      dateTimeUtc: "2026-06-05T03:00:00Z",
+                      dateLabel: "5 giu 2026, 03:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Crypto.com Arena",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 117, record: "52-30" },
+                      awayTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 125, record: "68-14" }
+                    },
+                    {
+                      gameId: "west-cf-4",
+                      gameCode: "20260607/OKCLAL",
+                      dateTimeUtc: "2026-06-07T03:00:00Z",
+                      dateLabel: "7 giu 2026, 03:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Paycom Center",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 119, record: "68-14" },
+                      awayTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 104, record: "52-30" }
+                    },
+                    {
+                      gameId: "west-cf-5",
+                      gameCode: "20260609/LALOKC",
+                      dateTimeUtc: "2026-06-09T03:00:00Z",
+                      dateLabel: "9 giu 2026, 03:00",
+                      status: "final",
+                      statusText: "Final",
+                      phase: "playoffs",
+                      arena: "Crypto.com Arena",
+                      nationalTv: ["ABC"],
+                      clock: null,
+                      period: 4,
+                      homeTeam: { teamId: 1610612747, name: "Lakers", code: "LAL", logo: "https://example.com/lal.svg", score: 110, record: "52-30" },
+                      awayTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 123, record: "68-14" }
+                    }
+                  ]
+                }
+              ]
+            },
+            playInGames: [],
+            playoffGames: [
+              {
+                gameId: "final-1",
+                gameCode: "20260603/OKCBOS",
+                dateTimeUtc: "2026-06-03T00:30:00Z",
+                dateLabel: "3 giu 2026, 00:30",
+                status: "final",
+                statusText: "Final",
+                phase: "playoffs",
+                arena: "Paycom Center",
+                nationalTv: ["ABC"],
+                clock: null,
+                period: 4,
+                homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 118, record: "68-14" },
+                awayTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 112, record: "64-18" }
+              },
+              {
+                gameId: "final-2",
+                gameCode: "20260605/BOSOKC",
+                dateTimeUtc: "2026-06-05T00:30:00Z",
+                dateLabel: "5 giu 2026, 00:30",
+                status: "final",
+                statusText: "Final",
+                phase: "playoffs",
+                arena: "TD Garden",
+                nationalTv: ["ABC"],
+                clock: null,
+                period: 4,
+                homeTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 108, record: "64-18" },
+                awayTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 116, record: "68-14" }
+              },
+              {
+                gameId: "final-3",
+                gameCode: "20260608/OKCBOS",
+                dateTimeUtc: "2026-06-08T00:30:00Z",
+                dateLabel: "8 giu 2026, 00:30",
+                status: "final",
+                statusText: "Final",
+                phase: "playoffs",
+                arena: "Paycom Center",
+                nationalTv: ["ABC"],
+                clock: null,
+                period: 4,
+                homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 121, record: "68-14" },
+                awayTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 110, record: "64-18" }
+              },
+              {
+                gameId: "final-4",
+                gameCode: "20260610/BOSOKC",
+                dateTimeUtc: "2026-06-10T00:30:00Z",
+                dateLabel: "10 giu 2026, 00:30",
+                status: "final",
+                statusText: "Final",
+                phase: "playoffs",
+                arena: "TD Garden",
+                nationalTv: ["ABC"],
+                clock: null,
+                period: 4,
+                homeTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 107, record: "64-18" },
+                awayTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 119, record: "68-14" }
+              },
+              {
+                gameId: "final-5",
+                gameCode: "20260613/OKCBOS",
+                dateTimeUtc: "2026-06-13T00:30:00Z",
+                dateLabel: "13 giu 2026, 00:30",
+                status: "final",
+                statusText: "Final",
+                phase: "playoffs",
+                arena: "Paycom Center",
+                nationalTv: ["ABC"],
+                clock: null,
+                period: 4,
+                homeTeam: { teamId: 1610612760, name: "Thunder", code: "OKC", logo: "https://example.com/okc.svg", score: 124, record: "68-14" },
+                awayTeam: { teamId: 1610612738, name: "Celtics", code: "BOS", logo: "https://example.com/bos.svg", score: 109, record: "64-18" }
+              }
+            ]
+          },
+          meta: {
+            updatedAt: "2026-06-13T10:00:00.000Z",
+            stale: false,
+            source: ["https://www.nba.com/playoffs/2026"]
+          }
+        }),
+        { status: 200 }
+      )
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false
+        }
+      }
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/playoffs"]}>
+          <Routes>
+            <Route path="/playoffs" element={<PlayoffsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await screen.findByText("Tabellone Playoff NBA 2026");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/playoffs");
+    expect(screen.getByText("Finali NBA")).toBeInTheDocument();
+    expect(screen.getByText("OKC batte BOS 4-1")).toBeInTheDocument();
+    expect(screen.getByText("OKC campione NBA")).toBeInTheDocument();
+  });
 });

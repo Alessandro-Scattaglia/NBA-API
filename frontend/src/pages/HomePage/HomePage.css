@@ -33,6 +33,15 @@
   height: 4px;
 }
 
+.hero-card-standings {
+  background: linear-gradient(135deg, rgba(21, 128, 61, 0.14), rgba(var(--accent-2-rgb), 0.06) 58%, #ffffff 100%);
+  border-color: rgba(21, 128, 61, 0.18);
+}
+
+.hero-card-standings::before {
+  background: linear-gradient(90deg, #15803d, rgba(var(--accent-2-rgb), 0.82));
+}
+
 .hero-title {
   margin: 0;
   max-width: 16ch;

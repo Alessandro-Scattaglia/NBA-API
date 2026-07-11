@@ -6,6 +6,7 @@ import type {
   PlayoffsResponse,
   PostseasonConferenceSnapshot,
   PostseasonKeyDate,
+  PostseasonRound,
   PostseasonSeries,
   PostseasonSeriesStatus,
   StandingsRow
@@ -281,6 +282,112 @@ function buildFirstRoundSeries(
   });
 }
 
+function getSeriesWinner(series: PostseasonSeries): StandingsRow | null {
+  if (!series.highSeedTeam || !series.lowSeedTeam) return null;
+  let h = 0, l = 0;
+  for (const g of series.games) {
+    if (g.status !== "final") continue;
+    const homeId = g.homeTeam.teamId;
+    if (g.homeTeam.score === null || g.awayTeam.score === null) continue;
+    if (homeId === series.highSeedTeam.teamId) {
+      g.homeTeam.score > g.awayTeam.score ? h++ : l++;
+    } else {
+      g.awayTeam.score > g.homeTeam.score ? h++ : l++;
+    }
+  }
+  if (h === 4) return series.highSeedTeam;
+  if (l === 4) return series.lowSeedTeam;
+  return null;
+}
+
+function extractPlayedSeries(
+  conference: Conference,
+  round: PostseasonRound,
+  slotHigh: number,
+  slotLow: number,
+  seriesA: PostseasonSeries | null,
+  seriesB: PostseasonSeries | null,
+  playoffGames: GameSummary[]
+): PostseasonSeries {
+  const candidatesA = [seriesA?.highSeedTeam, seriesA?.lowSeedTeam].filter((t): t is StandingsRow => t !== null);
+  const candidatesB = [seriesB?.highSeedTeam, seriesB?.lowSeedTeam].filter((t): t is StandingsRow => t !== null);
+  const winnerA = seriesA ? getSeriesWinner(seriesA) : null;
+  const winnerB = seriesB ? getSeriesWinner(seriesB) : null;
+
+  let highSeedTeam: StandingsRow | null = null;
+  let lowSeedTeam: StandingsRow | null = null;
+  let games: GameSummary[] = [];
+
+  // Try to find if any team from A has played against any team from B
+  for (const teamA of candidatesA) {
+    for (const teamB of candidatesB) {
+      const matchupGames = findSeriesGames(playoffGames, teamA.teamId, [teamB.teamId]);
+      if (matchupGames.length > 0) {
+        games = matchupGames;
+        highSeedTeam = teamA.seed < teamB.seed ? teamA : teamB;
+        lowSeedTeam = teamA.seed < teamB.seed ? teamB : teamA;
+        break;
+      }
+    }
+    if (games.length > 0) break;
+  }
+
+  if (games.length === 0 && winnerA && winnerB) {
+    highSeedTeam = winnerA.seed < winnerB.seed ? winnerA : winnerB;
+    lowSeedTeam = winnerA.seed < winnerB.seed ? winnerB : winnerA;
+  }
+
+  const hasResolvedMatchup = games.length > 0 || (winnerA !== null && winnerB !== null);
+  const label = buildSeriesLabel(
+    hasResolvedMatchup ? (highSeedTeam?.seed ?? slotHigh) : slotHigh,
+    hasResolvedMatchup ? (lowSeedTeam?.seed ?? slotLow) : slotLow,
+    hasResolvedMatchup ? highSeedTeam : null,
+    hasResolvedMatchup ? lowSeedTeam : null
+  );
+
+  return {
+    conference,
+    round,
+    status: games.length > 0 ? "confirmed" : winnerA && winnerB ? "scheduled" : "awaiting-play-in",
+    label,
+    seedHigh: hasResolvedMatchup ? (highSeedTeam?.seed ?? slotHigh) : slotHigh,
+    seedLow: hasResolvedMatchup ? (lowSeedTeam?.seed ?? slotLow) : slotLow,
+    highSeedTeam: hasResolvedMatchup ? highSeedTeam : null,
+    lowSeedTeam: hasResolvedMatchup ? lowSeedTeam : null,
+    note: null,
+    games
+  };
+}
+
+function buildSemifinalsSeries(
+  conference: Conference,
+  firstRoundSeries: PostseasonSeries[],
+  playoffGames: GameSummary[]
+): PostseasonSeries[] {
+  const _1v8 = firstRoundSeries.find(s => s.seedHigh === 1) || null;
+  const _4v5 = firstRoundSeries.find(s => s.seedHigh === 4) || null;
+  const _2v7 = firstRoundSeries.find(s => s.seedHigh === 2) || null;
+  const _3v6 = firstRoundSeries.find(s => s.seedHigh === 3) || null;
+
+  return [
+    extractPlayedSeries(conference, "semifinals", 1, 4, _1v8, _4v5, playoffGames),
+    extractPlayedSeries(conference, "semifinals", 2, 3, _2v7, _3v6, playoffGames)
+  ];
+}
+
+function buildConferenceFinalsSeries(
+  conference: Conference,
+  semifinalsSeries: PostseasonSeries[],
+  playoffGames: GameSummary[]
+): PostseasonSeries[] {
+  const semi1 = semifinalsSeries[0] || null;
+  const semi2 = semifinalsSeries[1] || null;
+  
+  return [
+    extractPlayedSeries(conference, "conference-finals", 1, 2, semi1, semi2, playoffGames)
+  ];
+}
+
 function filterConferenceGames(games: GameSummary[], rows: StandingsRow[]) {
   const teamIds = new Set(rows.map((row) => row.teamId));
 
@@ -299,14 +406,21 @@ function buildConferenceSnapshot(
   const teamsBySeed = buildTeamsBySeed(sortedRows);
   const conferencePlayInGames = filterConferenceGames(playInGames, sortedRows);
   const conferencePlayoffGames = filterConferenceGames(playoffGames, sortedRows);
+  
+  const playInSeries = buildPlayInSeries(conference, teamsBySeed, conferencePlayInGames);
+  const firstRoundSeries = buildFirstRoundSeries(conference, sortedRows, teamsBySeed, conferencePlayoffGames);
+  const semifinalsSeries = buildSemifinalsSeries(conference, firstRoundSeries, conferencePlayoffGames);
+  const conferenceFinalsSeries = buildConferenceFinalsSeries(conference, semifinalsSeries, conferencePlayoffGames);
 
   return {
     conference,
     directSeeds: sortedRows.filter((row) => row.seed <= 6),
     playInSeeds: sortedRows.filter((row) => row.seed >= 7 && row.seed <= 10),
     outsidePicture: sortedRows.filter((row) => row.seed > 10),
-    playInSeries: buildPlayInSeries(conference, teamsBySeed, conferencePlayInGames),
-    firstRoundSeries: buildFirstRoundSeries(conference, sortedRows, teamsBySeed, conferencePlayoffGames)
+    playInSeries,
+    firstRoundSeries,
+    semifinalsSeries,
+    conferenceFinalsSeries
   };
 }
 

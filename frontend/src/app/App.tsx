@@ -26,15 +26,10 @@ const queryClient = new QueryClient({
   }
 });
 
-const routerBaseName =
-  import.meta.env.BASE_URL === "/"
-    ? undefined
-    : import.meta.env.BASE_URL.replace(/\/$/, "");
-
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={routerBaseName}>
+      <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
             <Route path="/" element={<HomePage />} />

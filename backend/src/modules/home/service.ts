@@ -1,4 +1,5 @@
 import type { ApiEnvelope, HomeResponse } from "../../types/dto.js";
+import { getHomeSpotlightMode } from "../../config/season.js";
 import { toIsoDate } from "../../utils/date.js";
 import { buildLeaderCategories } from "../leaders/service.js";
 import { loadCalendarRange, loadPlayerCatalog, loadStandings, loadTodayGames, splitByConference } from "../shared/datasets.js";
@@ -29,6 +30,7 @@ export function createHomeService(deps: ServiceDeps) {
       const todayGames = todayState?.value ?? [];
       const upcomingGames = (calendarState?.value ?? []).filter((game) => game.status === "scheduled").slice(0, 6);
       const featuredGame = todayGames.find((game) => game.status === "live") ?? upcomingGames[0] ?? todayGames[0] ?? null;
+      const homeSpotlightMode = getHomeSpotlightMode();
       const updatedAt = getLatestUpdatedAt(
         [todayState?.updatedAt, standingsState?.updatedAt, calendarState?.updatedAt, playersState?.updatedAt].filter(
           (value): value is string => Boolean(value)
@@ -38,6 +40,7 @@ export function createHomeService(deps: ServiceDeps) {
       return toEnvelope(
         {
           season: "2025-26",
+          homeSpotlightMode,
           todayGames,
           upcomingGames,
           featuredGame,

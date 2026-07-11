@@ -174,6 +174,8 @@ function buildFallbackConferenceSnapshot(
         games: []
       }
     ],
+    semifinalsSeries: [],
+    conferenceFinalsSeries: [],
     firstRoundSeries: [
       {
         conference,

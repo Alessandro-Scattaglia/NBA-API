@@ -60,13 +60,24 @@ export function createPlayersService(deps: ServiceDeps) {
           throw new Error(`Player ${playerId} not found`);
         }
 
-        const [infoResponse, gameLogsResponse] = await Promise.all([
+        const [infoResponse, gameLogsResponse, playoffGameLogsResponse] = await Promise.all([
           deps.client.getCommonPlayerInfo(playerId),
-          deps.client.getPlayerGameLogs(playerId)
+          deps.client.getPlayerGameLogs(playerId),
+          deps.client.getPlayerGameLogs(playerId, "Playoffs")
         ]);
 
         const info = mapStatsRows<StatsRow>(infoResponse)[0] ?? {};
-        const recentGames = mapStatsRows<StatsRow>(gameLogsResponse)
+        
+        const allGameLogs = [
+          ...mapStatsRows<StatsRow>(playoffGameLogsResponse),
+          ...mapStatsRows<StatsRow>(gameLogsResponse)
+        ].sort((a, b) => {
+          const dateA = new Date(String(a.GAME_DATE ?? 0)).getTime();
+          const dateB = new Date(String(b.GAME_DATE ?? 0)).getTime();
+          return dateB - dateA;
+        });
+
+        const recentGames = allGameLogs
           .slice(0, 5)
           .map((row) => ({
             gameId: String(row.GAME_ID ?? ""),

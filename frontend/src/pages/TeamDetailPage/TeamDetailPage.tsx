@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { DataStamp, EmptyState, ErrorState, LoadingState } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { GameList } from "../../components/tables/GameList";
 import { apiGet } from "../../lib/api";
@@ -32,6 +32,12 @@ export function TeamDetailPage() {
 
   return (
     <>
+      <PageHeader
+        title={data.name}
+        description="Profilo squadra con rendimento stagionale, rosa, statistiche aggregate e ultime partite."
+        showBackButton
+      />
+
       <SurfaceCard>
         <div className="team-detail-hero">
           <img src={data.logo} alt={`${data.name} logo`} className="team-logo-large" />

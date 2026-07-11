@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { DataStamp, EmptyState, ErrorState, LoadingState } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { formatDate, formatDraft, formatExperience, formatHeight, formatMatchup, formatNumber, formatPosition, formatWeight } from "../../lib/format";
@@ -31,6 +31,12 @@ export function PlayerDetailPage() {
 
   return (
     <>
+      <PageHeader
+        title={data.fullName}
+        description="Profilo giocatore con bio, squadra attuale, medie stagionali e ultime partite."
+        showBackButton
+      />
+
       <SurfaceCard>
         <div className="player-detail-hero">
           <img src={data.headshot} alt={data.fullName} className="player-headshot-large" />

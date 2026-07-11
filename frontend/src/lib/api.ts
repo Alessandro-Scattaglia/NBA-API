@@ -1,17 +1,31 @@
 import type { ApiEnvelope } from "./types";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+async function readJsonSafely<T>(response: Response): Promise<T | null> {
+  const raw = await response.text();
+
+  if (!raw) {
+    return null;
+  }
+
+  return JSON.parse(raw) as T;
+}
 
 export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const response = await fetch(`${API_BASE_URL}${normalizedPath}`);
+  let response: Response;
+
+  try {
+    response = await fetch(normalizedPath);
+  } catch {
+    throw new Error("Backend locale non raggiungibile su http://127.0.0.1:4001");
+  }
 
   if (!response.ok) {
     const fallbackMessage = `Errore API ${response.status}`;
 
     try {
-      const payload = (await response.json()) as { error?: string };
-      throw new Error(payload.error ?? fallbackMessage);
+      const payload = await readJsonSafely<{ error?: string }>(response);
+      throw new Error(payload?.error ?? fallbackMessage);
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -21,5 +35,11 @@ export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
     }
   }
 
-  return response.json() as Promise<ApiEnvelope<T>>;
+  const payload = await readJsonSafely<ApiEnvelope<T>>(response);
+
+  if (!payload) {
+    throw new Error("Risposta API vuota dal backend locale");
+  }
+
+  return payload;
 }

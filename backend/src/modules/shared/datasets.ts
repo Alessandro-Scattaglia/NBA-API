@@ -1,4 +1,5 @@
 import { cache } from "../../cache/memoryCache.js";
+import { env } from "../../config/env.js";
 import { TEAM_DIRECTORY, getTeamIdentity } from "../../config/teams.js";
 import { TTL } from "../../config/season.js";
 import type {
@@ -11,7 +12,7 @@ import type {
   TeamSeasonStats
 } from "../../types/dto.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
-import { clampToSeason, enumerateDates, round, safeNumber } from "../../utils/date.js";
+import { clampToSeason, enumerateDates, round, safeNumber, parseNbaDate } from "../../utils/date.js";
 import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
 import type { NbaApiClient } from "../../nba-client/client.js";
 import type { ServiceDeps } from "./types.js";
@@ -23,7 +24,7 @@ type TeamRecordSnapshot = {
   observedAt: string;
 };
 
-const STANDINGS_STATS_TIMEOUT_MS = 1500;
+const STANDINGS_LOAD_TIMEOUT_MS = Math.max(env.requestTimeoutMs + 1_000, 6_000);
 
 function getNumber(row: StatsRow, keys: string[], fallback = 0) {
   for (const key of keys) {
@@ -103,7 +104,7 @@ function mapStandingsRow(row: StatsRow, playoffRow?: StatsRow): StandingsRow | n
     return null;
   }
 
-  const conferenceRank = getNumber(row, ["PlayoffRank", "ConferenceRank", "CONF_RANK"], 99);
+  const conferenceRank = getNumber(row, ["PlayoffRank", "ConferenceRank", "CONF_RANK", "RANK"], 99);
   const wins = getNumber(row, ["WINS", "W", "Win"]);
   const losses = getNumber(row, ["LOSSES", "L", "Loss"]);
   const gamesPlayed = wins + losses;
@@ -118,19 +119,30 @@ function mapStandingsRow(row: StatsRow, playoffRow?: StatsRow): StandingsRow | n
     wins,
     losses,
     gamesPlayed,
-    remainingGames: Math.max(82 - gamesPlayed, 0),
-    winPct: round(getNumber(row, ["WinPCT", "WIN_PCT", "WINPCT"])),
+    remainingGames: getNumber(row, ["REMAINING_G"], Math.max(82 - gamesPlayed, 0)),
+    winPct: round(getNumber(row, ["WinPCT", "WIN_PCT", "WINPCT", "PCT"])),
     gamesBehind: round(getNumber(row, ["ConferenceGamesBack", "GB", "CONF_GB"]), 1),
     conferenceRank,
-    homeRecord: getString(row, ["HOME", "HomeRecord"]),
-    awayRecord: getString(row, ["ROAD", "RoadRecord"]),
-    lastTen: getString(row, ["L10", "LastTen"]),
-    streak: getString(row, ["strCurrentStreak", "CurrentStreak", "Streak"]),
+    homeRecord: getString(row, ["HOME", "HomeRecord"], "--"),
+    awayRecord: getString(row, ["ROAD", "AWAY", "RoadRecord"], "--"),
+    lastTen: getString(row, ["L10", "LastTen"], "--"),
+    streak: getString(row, ["strCurrentStreak", "CurrentStreak", "Streak"], "--"),
     playoffStatus,
     clinchedPlayoff: playoffFlags.clinchedPlayoff,
     clinchedDivision: playoffFlags.clinchedDivision,
     clinchedConference: playoffFlags.clinchedConference
   };
+}
+
+function extractPlayoffPictureStandingsRows(response: unknown) {
+  const eastStandings = mapStatsRows<StatsRow>(response, "EastConfStandings");
+  const westStandings = mapStatsRows<StatsRow>(response, "WestConfStandings");
+
+  if (eastStandings.length > 0 || westStandings.length > 0) {
+    return [...eastStandings, ...westStandings];
+  }
+
+  return mapAllStatsRows<StatsRow>(response).filter((row) => getNumber(row, ["TEAM_ID", "TeamID"]) > 0);
 }
 
 function parseTeamRecord(record: string | null) {
@@ -345,7 +357,9 @@ function mapScoreboardGame(row: StatsRow, teamsById = new Map<number, string>())
   const awayIdentity = getTeamIdentity(awayTeamId);
   const gameStatusText = getString(row, ["GAME_STATUS_TEXT", "gameStatusText"]);
   const gameStatusId = getNumber(row, ["GAME_STATUS_ID", "gameStatus"]);
-  const gameDate = getString(row, ["GAME_DATE_EST", "gameEt", "gameDateTimeEst"], new Date().toISOString());
+  // the api might return GAME_DATE_UTC in some cases, so let's check it first
+  const gameDate = getString(row, ["gameDateTimeUTC", "GAME_DATE_UTC", "GAME_DATE_EST", "gameEt", "gameDateTimeEst"], new Date().toISOString());
+  const parsedDate = parseNbaDate(gameDate);
   const arena = getString(row, ["ARENA_NAME", "arenaName"], "");
   const broadcasters = [
     getString(row, ["NATL_TV_BROADCASTER_ABBREVIATION", "natlTvBroadcaster"]),
@@ -356,8 +370,8 @@ function mapScoreboardGame(row: StatsRow, teamsById = new Map<number, string>())
   return {
     gameId: getString(row, ["GAME_ID", "gameId"]),
     gameCode: getString(row, ["GAMECODE", "gameCode"], null as unknown as string),
-    dateTimeUtc: new Date(gameDate).toISOString(),
-    dateLabel: new Date(gameDate).toLocaleString("it-IT", {
+    dateTimeUtc: parsedDate.toISOString(),
+    dateLabel: parsedDate.toLocaleString("it-IT", {
       dateStyle: "medium",
       timeStyle: "short"
     }),
@@ -399,15 +413,26 @@ function getCache(deps: ServiceDeps) {
 export async function loadStandings(deps: ServiceDeps) {
   return getCache(deps).getOrLoad("standings-dataset", TTL.standings, async () => {
     try {
-      const [standingsResponse, playoffPictureResponse] = await Promise.all([
-        withTimeout(deps.client.getLeagueStandings(), STANDINGS_STATS_TIMEOUT_MS, "league standings"),
-        withTimeout(deps.client.getPlayoffPicture(), STANDINGS_STATS_TIMEOUT_MS, "playoff picture")
+      const [standingsResponseResult, playoffPictureResponseResult] = await Promise.allSettled([
+        withTimeout(deps.client.getLeagueStandings(), STANDINGS_LOAD_TIMEOUT_MS, "league standings"),
+        withTimeout(deps.client.getPlayoffPicture(), STANDINGS_LOAD_TIMEOUT_MS, "playoff picture")
       ]);
 
-      const standingsRows = mapAllStatsRows<StatsRow>(standingsResponse);
-      const playoffRows = mapAllStatsRows<StatsRow>(playoffPictureResponse);
+      const standingsRows =
+        standingsResponseResult.status === "fulfilled" ? mapAllStatsRows<StatsRow>(standingsResponseResult.value) : [];
+      const playoffRows =
+        playoffPictureResponseResult.status === "fulfilled"
+          ? mapAllStatsRows<StatsRow>(playoffPictureResponseResult.value).filter(
+              (row) => getNumber(row, ["TEAM_ID", "TeamID"]) > 0
+            )
+          : [];
+      const playoffStandingsRows =
+        playoffPictureResponseResult.status === "fulfilled"
+          ? extractPlayoffPictureStandingsRows(playoffPictureResponseResult.value)
+          : [];
+      const sourceRows = standingsRows.length > 0 ? standingsRows : playoffStandingsRows;
       const playoffByTeamId = new Map(playoffRows.map((row) => [getNumber(row, ["TEAM_ID", "TeamID"]), row]));
-      const mappedRows = standingsRows
+      const mappedRows = sourceRows
         .map((row) => mapStandingsRow(row, playoffByTeamId.get(getNumber(row, ["TeamID", "TEAM_ID"]))))
         .filter((row): row is StandingsRow => row !== null);
 
@@ -421,7 +446,7 @@ export async function loadStandings(deps: ServiceDeps) {
     try {
       const scheduleState = await withTimeout(
         loadScheduleSnapshotGames(deps),
-        STANDINGS_STATS_TIMEOUT_MS,
+        STANDINGS_LOAD_TIMEOUT_MS,
         "standings schedule snapshot"
       );
 
@@ -637,12 +662,13 @@ function mapLiveGame(game: Record<string, unknown>): GameSummary {
   const period = safeNumber((game.period as number | undefined) ?? 0);
   const statusText = String(game.gameStatusText ?? game.gameStatus ?? "");
   const statusValue = safeNumber(game.gameStatus ?? 1);
+  const parsedDate = parseNbaDate(String(game.gameDateTimeUTC ?? game.gameEt ?? new Date().toISOString()));
 
   return {
     gameId: String(game.gameId ?? ""),
     gameCode: String(game.gameCode ?? ""),
-    dateTimeUtc: new Date(String(game.gameEt ?? game.gameDateTimeUTC ?? new Date().toISOString())).toISOString(),
-    dateLabel: new Date(String(game.gameEt ?? game.gameDateTimeUTC ?? new Date().toISOString())).toLocaleString("it-IT", {
+    dateTimeUtc: parsedDate.toISOString(),
+    dateLabel: parsedDate.toLocaleString("it-IT", {
       dateStyle: "medium",
       timeStyle: "short"
     }),
@@ -706,12 +732,13 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
     homeScoreRaw !== undefined && homeScoreRaw !== null && homeScoreRaw !== "" ? safeNumber(homeScoreRaw) : null;
   const awayScore =
     awayScoreRaw !== undefined && awayScoreRaw !== null && awayScoreRaw !== "" ? safeNumber(awayScoreRaw) : null;
+  const parsedDate = parseNbaDate(String(game.gameDateTimeUTC ?? game.gameDateEst ?? new Date().toISOString()));
 
   return {
     gameId: String(game.gameId ?? ""),
     gameCode: String(game.gameCode ?? "") || null,
-    dateTimeUtc: new Date(String(game.gameDateTimeUTC ?? game.gameDateEst ?? new Date().toISOString())).toISOString(),
-    dateLabel: new Date(String(game.gameDateTimeUTC ?? game.gameDateEst ?? new Date().toISOString())).toLocaleString("it-IT", {
+    dateTimeUtc: parsedDate.toISOString(),
+    dateLabel: parsedDate.toLocaleString("it-IT", {
       dateStyle: "medium",
       timeStyle: "short"
     }),

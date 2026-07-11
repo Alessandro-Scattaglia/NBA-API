@@ -1,0 +1,152 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "test-backend-home-mode",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"test",
+				"--workspace",
+				"backend"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-frontend-home-mode",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"test",
+				"--workspace",
+				"frontend"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-backend-home-mode",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"test",
+				"--workspace",
+				"backend"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-frontend-home-mode",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"test",
+				"--workspace",
+				"frontend"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-homepage-only-root",
+			"type": "shell",
+			"command": "npx",
+			"args": [
+				"vitest",
+				"run",
+				"frontend/src/pages/HomePage/HomePage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-homepage-jsdom",
+			"type": "shell",
+			"command": "npx",
+			"args": [
+				"vitest",
+				"run",
+				"--config",
+				"frontend/vitest.config.ts",
+				"frontend/src/pages/HomePage/HomePage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-homepage-jsdom-relative-root",
+			"type": "shell",
+			"command": "npx",
+			"args": [
+				"vitest",
+				"run",
+				"--config",
+				"frontend/vitest.config.ts",
+				"src/pages/HomePage/HomePage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-homepage-in-frontend-cwd",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d frontend && npx vitest run src/pages/HomePage/HomePage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-homepage-in-frontend-cwd-2",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d frontend && npx vitest run src/pages/HomePage/HomePage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-playoffs-page-finals",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d frontend && npx vitest run src/pages/PlayoffsPage/PlayoffsPage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-playoffs-page-finals-2",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d frontend && npx vitest run src/pages/PlayoffsPage/PlayoffsPage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "test-playoffs-page-finals-3",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d frontend && npx vitest run src/pages/PlayoffsPage/PlayoffsPage.test.tsx"
+			],
+			"isBackground": false,
+			"group": "test"
+		}
+	]
+}

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
@@ -242,10 +242,12 @@ function LeaderSection({
             const tooltip = [summary, ...highlights.map((highlight) => `${highlight.label}: ${highlight.description}`)].join("\n");
 
             return (
-              <div
+              <Link
                 key={leader.playerId}
+                to={`/players/${leader.playerId}`}
                 className={`game-leader-card game-leader-card-${tone} ${primaryHighlight ? `game-leader-card-highlight-${primaryHighlight.tone}` : ""}`}
                 title={tooltip}
+                style={{ textDecoration: "none", color: "inherit" }}
               >
                 <span className="game-leader-rank">{index + 1}</span>
                 <img
@@ -284,7 +286,7 @@ function LeaderSection({
                     </div>
                   ) : null}
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -334,7 +336,9 @@ function PlayerTable({
                 <tr key={player.playerId} className={player.starter ? "detail-row-starter" : ""}>
                   <td data-label="Giocatore">
                     <div className="detail-player-copy">
-                      <strong>{player.fullName}</strong>
+                      <Link to={`/players/${player.playerId}`}>
+                        <strong>{player.fullName}</strong>
+                      </Link>
                     </div>
                   </td>
                   <td data-label="Minuti">

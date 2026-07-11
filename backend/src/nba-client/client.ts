@@ -10,16 +10,27 @@ export interface NbaApiClient {
   getLeagueDashPlayerStats(): Promise<unknown>;
   getLeagueLeaders?(statCategory?: string): Promise<unknown>;
   getCommonPlayerInfo(playerId: number): Promise<unknown>;
-  getPlayerGameLogs(playerId: number): Promise<unknown>;
+  getPlayerGameLogs(playerId: number, seasonType?: string): Promise<unknown>;
   getTeamInfoCommon(teamId: number): Promise<unknown>;
   getCommonTeamRoster(teamId: number): Promise<unknown>;
   getLeagueDashTeamStats(): Promise<unknown>;
-  getTeamGameLog(teamId: number): Promise<unknown>;
+  getTeamGameLog(teamId: number, seasonType?: string): Promise<unknown>;
   getLeagueStandings(): Promise<unknown>;
   getPlayoffPicture(): Promise<unknown>;
 }
 
 type FetchImpl = typeof fetch;
+
+const CERTIFICATE_ERROR_CODES = new Set([
+  "CERT_HAS_EXPIRED",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_GET_ISSUER_CERT",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE"
+]);
+
+let insecureTlsApplied = false;
 
 const STATS_HEADERS: Record<string, string> = {
   Accept: "application/json, text/plain, */*",
@@ -37,6 +48,11 @@ const STATS_HEADERS: Record<string, string> = {
 
 const DEFAULT_HEADERS = {
   Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Cache-Control": "no-cache",
+  Origin: "https://www.nba.com",
+  Pragma: "no-cache",
+  Referer: "https://www.nba.com/",
   "User-Agent":
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 };
@@ -45,6 +61,85 @@ function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function applyInsecureTls(reason: "env" | "cert-error", details?: { url: string; code: string | null }) {
+  if (insecureTlsApplied) {
+    return false;
+  }
+
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  insecureTlsApplied = true;
+
+  if (reason === "env") {
+    console.warn(
+      "[nba-client] NBA_ALLOW_INSECURE_TLS=1 attivo: la verifica TLS e disabilitata solo per sbloccare ambienti con ispezione certificati."
+    );
+  } else {
+    console.warn(
+      `[nba-client] TLS certificate verification failed for ${details?.url ?? "NBA endpoint"} (${details?.code ?? "unknown"}). ` +
+        "Retrying once with certificate verification disabled for this local session."
+    );
+  }
+
+  return true;
+}
+
+function ensureTlsConfig() {
+  if (!env.allowInsecureTls || insecureTlsApplied) {
+    return;
+  }
+
+  applyInsecureTls("env");
+}
+
+function getCertificateErrorCode(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+
+  if ("code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+
+  if ("cause" in error && typeof error.cause === "object" && error.cause !== null) {
+    const nestedCause = error.cause as { code?: unknown };
+    if (typeof nestedCause.code === "string") {
+      return nestedCause.code;
+    }
+  }
+
+  return null;
+}
+
+function shouldRetryWithInsecureTls(error: unknown, url: string) {
+  const certificateErrorCode = getCertificateErrorCode(error);
+
+  if (!certificateErrorCode || !CERTIFICATE_ERROR_CODES.has(certificateErrorCode) || env.allowInsecureTls) {
+    return false;
+  }
+
+  return applyInsecureTls("cert-error", {
+    url,
+    code: certificateErrorCode
+  });
+}
+
+function normalizeRequestError(error: unknown, url: string) {
+  const certificateErrorCode = getCertificateErrorCode(error);
+
+  if (certificateErrorCode && CERTIFICATE_ERROR_CODES.has(certificateErrorCode) && !env.allowInsecureTls) {
+    return new Error(
+      `TLS certificate verification failed for ${url} (${certificateErrorCode}). ` +
+        "If this machine uses antivirus/proxy TLS inspection, set NBA_ALLOW_INSECURE_TLS=1 for local debugging."
+    );
+  }
+
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(`Unknown NBA API error for ${url}`);
 }
 
 function buildUrl(baseUrl: string, path: string, params?: Record<string, string | number>) {
@@ -60,9 +155,12 @@ function buildUrl(baseUrl: string, path: string, params?: Record<string, string 
 }
 
 async function requestJson(fetchImpl: FetchImpl, url: string, headers: Record<string, string>) {
-  let lastError: unknown = null;
+  ensureTlsConfig();
 
-  for (let attempt = 0; attempt <= env.requestRetries; attempt += 1) {
+  let lastError: unknown = null;
+  let requestAttempts = 0;
+
+  while (requestAttempts <= env.requestRetries) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), env.requestTimeoutMs);
 
@@ -80,15 +178,22 @@ async function requestJson(fetchImpl: FetchImpl, url: string, headers: Record<st
     } catch (error) {
       lastError = error;
 
-      if (attempt < env.requestRetries) {
-        await delay(300 * (attempt + 1));
+      if (shouldRetryWithInsecureTls(error, url)) {
+        continue;
+      }
+
+      if (requestAttempts < env.requestRetries) {
+        requestAttempts += 1;
+        await delay(300 * requestAttempts);
+      } else {
+        break;
       }
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error(`Unknown NBA API error for ${url}`);
+  throw normalizeRequestError(lastError, url);
 }
 
 function buildLeagueDashPlayerStatsParams() {
@@ -239,12 +344,12 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
       return requestJson(fetchImpl, url, STATS_HEADERS);
     },
 
-    getPlayerGameLogs(playerId: number) {
+    getPlayerGameLogs(playerId: number, seasonType: string = REGULAR_SEASON_LABEL) {
       const url = buildUrl(env.statsBaseUrl, "playergamelog", {
         LeagueID: "00",
         PlayerID: playerId,
         Season: NBA_SEASON,
-        SeasonType: REGULAR_SEASON_LABEL
+        SeasonType: seasonType
       });
       return requestJson(fetchImpl, url, STATS_HEADERS);
     },
@@ -272,11 +377,11 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
       return requestJson(fetchImpl, url, STATS_HEADERS);
     },
 
-    getTeamGameLog(teamId: number) {
+    getTeamGameLog(teamId: number, seasonType: string = REGULAR_SEASON_LABEL) {
       const url = buildUrl(env.statsBaseUrl, "teamgamelog", {
         LeagueID: "00",
         Season: NBA_SEASON,
-        SeasonType: REGULAR_SEASON_LABEL,
+        SeasonType: seasonType,
         TeamID: teamId
       });
       return requestJson(fetchImpl, url, STATS_HEADERS);

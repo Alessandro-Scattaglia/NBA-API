@@ -219,6 +219,7 @@ export interface LeaderCategory {
 
 export interface HomeResponse {
   season: string;
+  homeSpotlightMode: "playoffs" | "standings";
   todayGames: GameSummary[];
   upcomingGames: GameSummary[];
   featuredGame: GameSummary | null;
@@ -258,7 +259,7 @@ export interface PostseasonKeyDate {
   note: string | null;
 }
 
-export type PostseasonRound = "play-in" | "first-round";
+export type PostseasonRound = "play-in" | "first-round" | "semifinals" | "conference-finals" | "finals";
 export type PostseasonSeriesStatus = "scheduled" | "confirmed" | "awaiting-play-in";
 
 export interface PostseasonSeries {
@@ -281,6 +282,8 @@ export interface PostseasonConferenceSnapshot {
   outsidePicture: StandingsRow[];
   playInSeries: PostseasonSeries[];
   firstRoundSeries: PostseasonSeries[];
+  semifinalsSeries: PostseasonSeries[];
+  conferenceFinalsSeries: PostseasonSeries[];
 }
 
 export interface PlayoffsOverview {

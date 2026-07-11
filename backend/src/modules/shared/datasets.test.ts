@@ -15,6 +15,112 @@ function statsResponse(headers: string[], rows: unknown[][]) {
   };
 }
 
+function leagueStandingsRow(teamId: number, rank: number, wins: number, losses: number) {
+  return [
+    teamId,
+    rank,
+    rank === 1 ? 0 : Number((rank - 1) * 1.5).toFixed(1),
+    wins,
+    losses,
+    Number((wins / (wins + losses)).toFixed(3)),
+    `${Math.ceil(wins / 2)}-${Math.floor(losses / 2)}`,
+    `${Math.floor(wins / 2)}-${Math.ceil(losses / 2)}`,
+    "8-2",
+    rank % 2 === 0 ? "W2" : "L1"
+  ];
+}
+
+function playoffPictureStandingsRow(
+  conference: "East" | "West",
+  teamId: number,
+  rank: number,
+  wins: number,
+  losses: number,
+  team: string
+) {
+  return [
+    conference,
+    rank,
+    team,
+    team.toLowerCase().replace(/\s+/g, "-"),
+    teamId,
+    wins,
+    losses,
+    Number((wins / (wins + losses)).toFixed(3)),
+    "10-6",
+    "35-17",
+    "30-11",
+    "28-13",
+    rank === 1 ? 0 : Number((rank - 1) * 1.5).toFixed(1),
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ];
+}
+
+function playoffPictureStandingsResponse(eastRows: unknown[][], westRows: unknown[][]) {
+  return {
+    resultSets: [
+      {
+        name: "EastConfStandings",
+        headers: [
+          "CONFERENCE",
+          "RANK",
+          "TEAM",
+          "TEAM_SLUG",
+          "TEAM_ID",
+          "WINS",
+          "LOSSES",
+          "PCT",
+          "DIV",
+          "CONF",
+          "HOME",
+          "AWAY",
+          "GB",
+          "GR_OVER_500",
+          "GR_OVER_500_HOME",
+          "GR_OVER_500_AWAY",
+          "GR_UNDER_500",
+          "GR_UNDER_500_HOME",
+          "GR_UNDER_500_AWAY",
+          "RANKING_CRITERIA"
+        ],
+        rowSet: eastRows
+      },
+      {
+        name: "WestConfStandings",
+        headers: [
+          "CONFERENCE",
+          "RANK",
+          "TEAM",
+          "TEAM_SLUG",
+          "TEAM_ID",
+          "WINS",
+          "LOSSES",
+          "PCT",
+          "DIV",
+          "CONF",
+          "HOME",
+          "AWAY",
+          "GB",
+          "GR_OVER_500",
+          "GR_OVER_500_HOME",
+          "GR_OVER_500_AWAY",
+          "GR_UNDER_500",
+          "GR_UNDER_500_HOME",
+          "GR_UNDER_500_AWAY",
+          "RANKING_CRITERIA"
+        ],
+        rowSet: westRows
+      }
+    ]
+  };
+}
+
 function createClient(overrides: Partial<NbaApiClient>): NbaApiClient {
   const notImplemented = async () => {
     throw new Error("Not implemented in test");
@@ -58,9 +164,26 @@ describe("shared datasets", () => {
             "strCurrentStreak"
           ],
           [
-            [1610612738, 1, 0, 58, 24, 0.707, "32-9", "26-15", "8-2", "W3"],
-            [1610612751, 8, 12.5, 40, 42, 0.488, "22-19", "18-23", "4-6", "L1"],
-            [1610612756, 11, 18.0, 34, 48, 0.415, "18-23", "16-25", "3-7", "L2"]
+            leagueStandingsRow(1610612738, 1, 58, 24),
+            leagueStandingsRow(1610612751, 8, 40, 42),
+            leagueStandingsRow(1610612748, 2, 55, 27),
+            leagueStandingsRow(1610612752, 3, 53, 29),
+            leagueStandingsRow(1610612739, 4, 51, 31),
+            leagueStandingsRow(1610612761, 5, 49, 33),
+            leagueStandingsRow(1610612737, 6, 47, 35),
+            leagueStandingsRow(1610612755, 7, 45, 37),
+            leagueStandingsRow(1610612753, 9, 39, 43),
+            leagueStandingsRow(1610612766, 10, 38, 44),
+            leagueStandingsRow(1610612760, 1, 61, 21),
+            leagueStandingsRow(1610612759, 2, 56, 26),
+            leagueStandingsRow(1610612743, 3, 54, 28),
+            leagueStandingsRow(1610612747, 4, 50, 32),
+            leagueStandingsRow(1610612745, 5, 48, 34),
+            leagueStandingsRow(1610612750, 6, 47, 35),
+            leagueStandingsRow(1610612756, 11, 34, 48),
+            leagueStandingsRow(1610612757, 8, 45, 37),
+            leagueStandingsRow(1610612746, 9, 42, 40),
+            leagueStandingsRow(1610612744, 10, 41, 41)
           ]
         ),
       getPlayoffPicture: async () =>
@@ -68,11 +191,14 @@ describe("shared datasets", () => {
     });
 
     const state = await loadStandings({ client, cache });
+    const celtics = state.value.find((team) => team.teamId === 1610612738);
+    const nets = state.value.find((team) => team.teamId === 1610612751);
+    const suns = state.value.find((team) => team.teamId === 1610612756);
 
-    expect(state.value).toHaveLength(3);
-    expect(state.value[0].playoffStatus).toBe("playoff");
-    expect(state.value[1].playoffStatus).toBe("play-in");
-    expect(state.value[2].playoffStatus).toBe("eliminated");
+    expect(state.value).toHaveLength(20);
+    expect(celtics?.playoffStatus).toBe("playoff");
+    expect(nets?.playoffStatus).toBe("play-in");
+    expect(suns?.playoffStatus).toBe("eliminated");
   });
 
   it("falls back to schedule snapshot standings when stats endpoints fail", async () => {
@@ -134,6 +260,55 @@ describe("shared datasets", () => {
     expect(celtics?.seed).toBe(1);
     expect(celtics?.playoffStatus).toBe("playoff");
     expect(celtics?.homeRecord).toBe("--");
+  });
+
+  it("uses playoff picture conference standings when league standings is unavailable", async () => {
+    const cache = new MemoryCache();
+    const client = createClient({
+      getLeagueStandings: async () => {
+        throw new Error("League standings timed out");
+      },
+      getPlayoffPicture: async () =>
+        playoffPictureStandingsResponse(
+          [
+            playoffPictureStandingsRow("East", 1610612765, 1, 60, 22, "Detroit"),
+            playoffPictureStandingsRow("East", 1610612738, 2, 58, 24, "Boston"),
+            playoffPictureStandingsRow("East", 1610612752, 3, 56, 26, "New York"),
+            playoffPictureStandingsRow("East", 1610612739, 4, 54, 28, "Cleveland"),
+            playoffPictureStandingsRow("East", 1610612761, 5, 50, 32, "Toronto"),
+            playoffPictureStandingsRow("East", 1610612737, 6, 47, 35, "Atlanta"),
+            playoffPictureStandingsRow("East", 1610612755, 7, 45, 37, "Philadelphia"),
+            playoffPictureStandingsRow("East", 1610612753, 8, 44, 38, "Orlando"),
+            playoffPictureStandingsRow("East", 1610612766, 9, 40, 42, "Charlotte"),
+            playoffPictureStandingsRow("East", 1610612748, 10, 39, 43, "Miami")
+          ],
+          [
+            playoffPictureStandingsRow("West", 1610612760, 1, 64, 18, "Oklahoma City"),
+            playoffPictureStandingsRow("West", 1610612759, 2, 57, 25, "San Antonio"),
+            playoffPictureStandingsRow("West", 1610612743, 3, 54, 28, "Denver"),
+            playoffPictureStandingsRow("West", 1610612747, 4, 50, 32, "Los Angeles"),
+            playoffPictureStandingsRow("West", 1610612745, 5, 48, 34, "Houston"),
+            playoffPictureStandingsRow("West", 1610612750, 6, 47, 35, "Minnesota"),
+            playoffPictureStandingsRow("West", 1610612756, 7, 46, 36, "Phoenix"),
+            playoffPictureStandingsRow("West", 1610612757, 8, 45, 37, "Portland"),
+            playoffPictureStandingsRow("West", 1610612746, 9, 42, 40, "LA Clippers"),
+            playoffPictureStandingsRow("West", 1610612744, 10, 41, 41, "Golden State")
+          ]
+        )
+    });
+
+    const state = await loadStandings({ client, cache });
+    const pistons = state.value.find((team) => team.teamId === 1610612765);
+    const thunder = state.value.find((team) => team.teamId === 1610612760);
+
+    expect(state.stale).toBe(false);
+    expect(state.value).toHaveLength(20);
+    expect(pistons?.conferenceRank).toBe(1);
+    expect(pistons?.wins).toBe(60);
+    expect(pistons?.awayRecord).toBe("28-13");
+    expect(pistons?.lastTen).toBe("--");
+    expect(thunder?.conferenceRank).toBe(1);
+    expect(thunder?.playoffStatus).toBe("playoff");
   });
 
   it("returns directory fallback standings when both stats and schedule fail", async () => {

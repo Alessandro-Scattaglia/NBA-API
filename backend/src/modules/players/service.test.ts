@@ -83,11 +83,16 @@ describe("players service", () => {
           ["BIRTHDATE", "COUNTRY", "SCHOOL", "SEASON_EXP", "DRAFT_YEAR", "DRAFT_ROUND", "DRAFT_NUMBER"],
           [["1998-03-03", "USA", "Duke", "7", "2017", "1", "3"]]
         ),
-      getPlayerGameLogs: async () =>
-        statsResponse(
-          ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "MIN", "PTS", "REB", "AST", "STL", "BLK"],
-          [["0022500001", "2025-10-22", "BOS vs. NYK", "W", 35, 31, 9, 5, 1, 1]]
-        )
+      getPlayerGameLogs: async (_playerId, seasonType) =>
+        seasonType === "Playoffs"
+          ? statsResponse(
+              ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "MIN", "PTS", "REB", "AST", "STL", "BLK"],
+              []
+            )
+          : statsResponse(
+              ["GAME_ID", "GAME_DATE", "MATCHUP", "WL", "MIN", "PTS", "REB", "AST", "STL", "BLK"],
+              [["0022500001", "2025-10-22", "BOS vs. NYK", "W", 35, 31, 9, 5, 1, 1]]
+            )
     });
 
     const service = createPlayersService({ client, cache: new MemoryCache() });
