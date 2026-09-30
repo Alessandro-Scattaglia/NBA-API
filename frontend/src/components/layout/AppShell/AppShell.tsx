@@ -140,7 +140,7 @@ export function AppShell() {
             <span className="brand-logo" aria-hidden="true">
               <img src={NBA_WIKIPEDIA_LOGO} alt="" className="brand-logo-image" />
             </span>
-            <strong className="brand-title">NBA 2025-2026</strong>
+            <strong className="brand-title">NBA Dashboard</strong>
           </Link>
         </div>
 
@@ -180,7 +180,7 @@ export function AppShell() {
             </button>
           </div>
           <Link to="/" className="mobile-brand">
-            NBA 2025-2026
+            NBA Dashboard
           </Link>
         </header>
         <main className="page-shell">

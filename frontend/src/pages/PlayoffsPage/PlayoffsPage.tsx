@@ -6,13 +6,20 @@ import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { StandingsTable } from "../../components/tables/StandingsTable";
 import { apiGet } from "../../lib/api";
 import { formatGameDateLabel, formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
+import {
+  btRecord,
+  getFinalsSummary,
+  hasVisibleSeriesData,
+  toPlayoffConferenceStandings,
+  type ExtendedPostseasonConferenceSnapshot,
+  type FinalsSummary
+} from "./playoffStats";
 import type {
   GameSummary,
   PlayoffsResponse,
   PostseasonConferenceSnapshot,
   PostseasonSeries,
-  StandingsRow,
-  TeamSummary,
+  StandingsRow
 } from "../../lib/types";
 import "../CalendarPage/CalendarPage.css";
 import "./PlayoffsPage.css";
@@ -26,76 +33,8 @@ function hasPlayoffsStarted(payload: PlayoffsResponse) {
   return !Number.isNaN(ts) && Date.now() >= ts;
 }
 
-function getTeamGameOutcome(game: GameSummary, teamId: number): "W" | "L" | null {
-  const { homeTeam, awayTeam } = game;
-  if (homeTeam.score === null || awayTeam.score === null || homeTeam.score === awayTeam.score) return null;
-  const isHome = homeTeam.teamId === teamId;
-  const isAway = awayTeam.teamId === teamId;
-  if (!isHome && !isAway) return null;
-  return isHome ? (homeTeam.score > awayTeam.score ? "W" : "L") : awayTeam.score > homeTeam.score ? "W" : "L";
-}
-
 function findSeed(teams: StandingsRow[], seed: number) {
   return teams.find((t) => t.seed === seed);
-}
-
-function toPlayoffConferenceStandings(
-  snapshot: PostseasonConferenceSnapshot,
-  playoffGames: GameSummary[],
-  playoffsStarted: boolean
-): TeamSummary[] {
-  const teams = [...snapshot.directSeeds, ...snapshot.playInSeeds].filter((t) => t.seed <= 8);
-  if (!playoffsStarted) {
-    return teams
-      .slice()
-      .sort((a, b) => (a.seed || a.conferenceRank) - (b.seed || b.conferenceRank))
-      .map((t) => ({
-        ...t, wins: 0, losses: 0, winPct: 0, gamesBehind: 0,
-        conferenceRank: t.seed || t.conferenceRank,
-        homeRecord: "0-0", awayRecord: "0-0", lastTen: "0-0", streak: "-",
-        playoffStatus: "playoff" as const, clinchedPlayoff: false, clinchedDivision: false, clinchedConference: false,
-      }));
-  }
-  const teamIds = new Set(teams.map((t) => t.teamId));
-  const games = playoffGames
-    .filter((g) => teamIds.has(g.homeTeam.teamId) && teamIds.has(g.awayTeam.teamId) && g.status === "final" && g.homeTeam.score !== null)
-    .sort((a, b) => Date.parse(a.dateTimeUtc) - Date.parse(b.dateTimeUtc));
-  const rec = new Map(teams.map((t) => [t.teamId, { wins: 0, losses: 0, hw: 0, hl: 0, aw: 0, al: 0 }]));
-  for (const g of games) {
-    const home = rec.get(g.homeTeam.teamId);
-    const away = rec.get(g.awayTeam.teamId);
-    if (!home || !away || g.homeTeam.score === null || g.awayTeam.score === null) continue;
-    if (g.homeTeam.score > g.awayTeam.score) { home.wins++; home.hw++; away.losses++; away.al++; }
-    else { away.wins++; away.aw++; home.losses++; home.hl++; }
-  }
-  const streaks = new Map<number, string>();
-  for (const t of teams) {
-    const tg = [...games].filter((g) => g.homeTeam.teamId === t.teamId || g.awayTeam.teamId === t.teamId).reverse();
-    let type: "W" | "L" | null = null, n = 0;
-    for (const g of tg) {
-      const r = getTeamGameOutcome(g, t.teamId);
-      if (!r) continue;
-      if (!type) { type = r; n = 1; } else if (r === type) { n++; } else break;
-    }
-    streaks.set(t.teamId, type ? `${type}${n}` : "-");
-  }
-  const ranked = teams.slice().sort((a, b) => {
-    const ra = rec.get(a.teamId)!, rb = rec.get(b.teamId)!;
-    return rb.wins - ra.wins || ra.losses - rb.losses || a.seed - b.seed;
-  });
-  const leader = rec.get(ranked[0]?.teamId ?? -1);
-  return ranked.map((t, i) => {
-    const r = rec.get(t.teamId)!;
-    const gp = r.wins + r.losses;
-    return {
-      ...t, wins: r.wins, losses: r.losses, winPct: gp ? r.wins / gp : 0,
-      gamesBehind: ((leader?.wins ?? 0) - r.wins + (r.losses - (leader?.losses ?? 0))) / 2,
-      conferenceRank: i + 1,
-      homeRecord: `${r.hw}-${r.hl}`, awayRecord: `${r.aw}-${r.al}`,
-      lastTen: `${r.wins}-${r.losses}`, streak: streaks.get(t.teamId) ?? "-",
-      playoffStatus: "playoff" as const, clinchedPlayoff: false, clinchedDivision: false, clinchedConference: false,
-    };
-  });
 }
 
 function formatCalendarPill(date: string) {
@@ -167,89 +106,6 @@ type BtSeries = {
   winsLow: number;
 };
 
-type ExtendedPostseasonConferenceSnapshot = PostseasonConferenceSnapshot & {
-  semifinalsSeries?: PostseasonSeries[];
-  conferenceFinalsSeries?: PostseasonSeries[];
-};
-
-type FinalsSummary = {
-  eastWinner: StandingsRow;
-  westWinner: StandingsRow;
-  champion: StandingsRow | null;
-  runnerUp: StandingsRow | null;
-  winsEast: number;
-  winsWest: number;
-  games: GameSummary[];
-  latestGame: GameSummary | null;
-  finished: boolean;
-};
-
-function hasVisibleSeriesData(series?: PostseasonSeries) {
-  return Boolean(series && (series.games.length > 0 || series.highSeedTeam || series.lowSeedTeam));
-}
-
-function btRecord(s?: PostseasonSeries) {
-  if (!s?.highSeedTeam) return { winsHigh: 0, winsLow: 0 };
-  let h = 0, l = 0;
-  for (const g of s.games) {
-    if (g.status !== "final") continue;
-    getTeamGameOutcome(g, s.highSeedTeam.teamId) === "W" ? h++ : l++;
-  }
-  return { winsHigh: h, winsLow: l };
-}
-
-function getFinalsSummary(playoffGames: GameSummary[], east: PostseasonConferenceSnapshot, west: PostseasonConferenceSnapshot): FinalsSummary | null {
-  const eastWinner = getSeriesWinner((east as ExtendedPostseasonConferenceSnapshot).conferenceFinalsSeries?.[0]);
-  const westWinner = getSeriesWinner((west as ExtendedPostseasonConferenceSnapshot).conferenceFinalsSeries?.[0]);
-
-  if (!eastWinner || !westWinner) {
-    return null;
-  }
-
-  const finalists = new Set([eastWinner.teamId, westWinner.teamId]);
-  const games = playoffGames
-    .filter(
-      (game) =>
-        game.phase === "playoffs" &&
-        finalists.has(game.homeTeam.teamId) &&
-        finalists.has(game.awayTeam.teamId)
-    )
-    .sort((left, right) => Date.parse(left.dateTimeUtc) - Date.parse(right.dateTimeUtc));
-
-  const wins = new Map<number, number>([
-    [eastWinner.teamId, 0],
-    [westWinner.teamId, 0]
-  ]);
-
-  for (const game of games) {
-    if (game.status !== "final" || game.homeTeam.score === null || game.awayTeam.score === null) {
-      continue;
-    }
-
-    const winnerTeamId = game.homeTeam.score > game.awayTeam.score ? game.homeTeam.teamId : game.awayTeam.teamId;
-    wins.set(winnerTeamId, (wins.get(winnerTeamId) ?? 0) + 1);
-  }
-
-  const eastWins = wins.get(eastWinner.teamId) ?? 0;
-  const westWins = wins.get(westWinner.teamId) ?? 0;
-  const latestGame = games.at(-1) ?? null;
-  const finished = eastWins === 4 || westWins === 4;
-  const champion = eastWins === 4 ? eastWinner : westWins === 4 ? westWinner : null;
-  const runnerUp = champion?.teamId === eastWinner.teamId ? westWinner : champion?.teamId === westWinner.teamId ? eastWinner : null;
-
-  return {
-    eastWinner,
-    westWinner,
-    champion,
-    runnerUp,
-    winsEast: eastWins,
-    winsWest: westWins,
-    games,
-    latestGame,
-    finished
-  };
-}
-
 function formatFinalsSeriesText(summary: FinalsSummary) {
   if (summary.champion && summary.runnerUp) {
     const championWins = summary.champion.teamId === summary.eastWinner.teamId ? summary.winsEast : summary.winsWest;
@@ -311,15 +167,6 @@ function FinalsOutcomeCard({ summary }: { summary: FinalsSummary }) {
       </div>
     </SurfaceCard>
   );
-}
-
-/** Restituisce la squadra vincente di una serie (se conclusa con 4 vittorie) */
-function getSeriesWinner(series?: PostseasonSeries): StandingsRow | null {
-  if (!series?.highSeedTeam) return null;
-  const { winsHigh, winsLow } = btRecord(series);
-  if (winsHigh === 4) return series.highSeedTeam;
-  if (winsLow === 4) return series.lowSeedTeam;
-  return null;
 }
 
 function buildBracketSeries(
@@ -551,9 +398,10 @@ function BtConference({ snap, side }: { snap: PostseasonConferenceSnapshot; side
 }
 
 function PlayoffBracketShowcase({
-  east, west,
+  season, east, west,
   playoffGames = [],
 }: {
+  season: string;
   east: PostseasonConferenceSnapshot;
   west: PostseasonConferenceSnapshot;
   playoffGames?: GameSummary[];
@@ -563,16 +411,16 @@ function PlayoffBracketShowcase({
 
   return (
     <SurfaceCard
-      title="Tabellone Playoff NBA 2026"
+      title={`Tabellone Playoff NBA ${season}`}
       subtitle={finalsChampion ? `Finali concluse: ${finalsChampion.code} campione NBA` : "Primo turno in corso · Conf. Semifinals, Finals e NBA Finals in attesa dei risultati"}
     >
       <div className="bt-bracket">
-        <p className="bt-super-title">Playoffs 2026</p>
+        <p className="bt-super-title">Playoffs {season}</p>
 
         <BtConference snap={west} side="west" />
 
         <div className="bt-finals-center">
-          <p className="bt-finals-title">NBA Finals 2026</p>
+          <p className="bt-finals-title">NBA Finals {season}</p>
           <div className="bt-card bt-finals-slot-card bt-finals-card">
             {finalsSummary ? (
               <BtTeam seed={finalsSummary.westWinner.seed} team={finalsSummary.westWinner} wins={finalsSummary.winsWest} isLeading={finalsSummary.winsWest > finalsSummary.winsEast} />
@@ -783,7 +631,7 @@ export function PlayoffsPage() {
     <>
       <PageHeader
         title="Playoff"
-        description="Quadro della postseason NBA 2025-2026: classifiche playoff Est/Ovest, tabellone e calendario partite."
+        description="Quadro della postseason NBA: classifiche playoff Est/Ovest, tabellone e calendario partite."
       />
 
       {query.isLoading ? <LoadingState label="Sto caricando il quadro playoff..." /> : null}
@@ -812,7 +660,7 @@ export function PlayoffsPage() {
             </div>
           </div>
 
-          <PlayoffBracketShowcase east={query.data.data.east} west={query.data.data.west} playoffGames={query.data.data.playoffGames} />
+          <PlayoffBracketShowcase season={query.data.data.season} east={query.data.data.east} west={query.data.data.west} playoffGames={query.data.data.playoffGames} />
 
           {getFinalsSummary(query.data.data.playoffGames, query.data.data.east, query.data.data.west) ? (
             <FinalsOutcomeCard summary={getFinalsSummary(query.data.data.playoffGames, query.data.data.east, query.data.data.west)!} />

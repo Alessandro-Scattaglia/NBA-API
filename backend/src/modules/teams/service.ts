@@ -1,6 +1,6 @@
 import { mapStatsRows } from "../../utils/stats.js";
-import type { ApiEnvelope, GameSummary, TeamDetail, TeamsResponse } from "../../types/dto.js";
-import { TTL } from "../../config/season.js";
+import type { ApiEnvelope, GameSummary, TeamDetail, TeamsResponse } from "../../types/dto/index.js";
+import { NBA_SEASON, TTL } from "../../config/season.js";
 import { cache } from "../../cache/memoryCache.js";
 import { getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
@@ -157,7 +157,7 @@ export function createTeamsService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: "2025-26",
+          season: NBA_SEASON,
           east: split.east,
           west: split.west
         },

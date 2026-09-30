@@ -1,7 +1,7 @@
 import { cache } from "../../cache/memoryCache.js";
 import { env } from "../../config/env.js";
-import { TEAM_DIRECTORY, getTeamIdentity } from "../../config/teams.js";
-import { TTL } from "../../config/season.js";
+import { TEAM_DIRECTORY, getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
+import { NBA_SEASON, SEASON_END_YEAR, TTL } from "../../config/season.js";
 import type {
   GamePhase,
   GameSummary,
@@ -10,7 +10,7 @@ import type {
   StandingsRow,
   TeamReference,
   TeamSeasonStats
-} from "../../types/dto.js";
+} from "../../types/dto/index.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
 import { clampToSeason, enumerateDates, round, safeNumber, parseNbaDate } from "../../utils/date.js";
 import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
@@ -273,6 +273,59 @@ function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
   return [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
 }
 
+function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-season"): GameSummary[] {
+  const events = (response as { events?: Array<Record<string, unknown>> }).events ?? [];
+
+  return events.flatMap((event) => {
+    const competition = (event.competitions as Array<Record<string, unknown>> | undefined)?.[0];
+    const competitors = competition?.competitors as Array<Record<string, unknown>> | undefined;
+    if (!competition || !competitors || competitors.length < 2) return [];
+
+    const home = competitors.find((competitor) => competitor.homeAway === "home") ?? competitors[0];
+    const away = competitors.find((competitor) => competitor.homeAway === "away") ?? competitors[1];
+    const homeData = home.team as Record<string, unknown>;
+    const awayData = away.team as Record<string, unknown>;
+    const homeIdentity = getTeamIdentityByCode(String(homeData.abbreviation ?? ""));
+    const awayIdentity = getTeamIdentityByCode(String(awayData.abbreviation ?? ""));
+    if (!homeIdentity || !awayIdentity) return [];
+
+    const dateTimeUtc = String(competition.date ?? event.date ?? new Date().toISOString());
+    const statusType = (competition.status as Record<string, unknown> | undefined)?.type as Record<string, unknown> | undefined;
+    const homeRecord = (home.records as Array<Record<string, unknown>> | undefined)?.find((record) => record.type === "total");
+    const awayRecord = (away.records as Array<Record<string, unknown>> | undefined)?.find((record) => record.type === "total");
+
+    return [{
+      gameId: String(event.id ?? ""),
+      gameCode: null,
+      dateTimeUtc: new Date(dateTimeUtc).toISOString(),
+      dateLabel: new Date(dateTimeUtc).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }),
+      status: String(statusType?.description ?? "").toLowerCase().includes("final") ? "final" : "scheduled",
+      statusText: String(statusType?.description ?? "Final"),
+      phase,
+      arena: null,
+      nationalTv: [],
+      clock: null,
+      period: null,
+      homeTeam: {
+        teamId: homeIdentity.teamId,
+        name: homeIdentity.name,
+        code: homeIdentity.code,
+        logo: homeIdentity.logo,
+        score: home.score !== undefined ? safeNumber(home.score) : null,
+        record: String(homeRecord?.summary ?? "") || null
+      },
+      awayTeam: {
+        teamId: awayIdentity.teamId,
+        name: awayIdentity.name,
+        code: awayIdentity.code,
+        logo: awayIdentity.logo,
+        score: away.score !== undefined ? safeNumber(away.score) : null,
+        record: String(awayRecord?.summary ?? "") || null
+      }
+    } satisfies GameSummary];
+  });
+}
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -411,7 +464,7 @@ function getCache(deps: ServiceDeps) {
 }
 
 export async function loadStandings(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("standings-dataset", TTL.standings, async () => {
+  return getCache(deps).getOrLoad("standings-dataset:v4-espn-fallback", TTL.standings, async () => {
     try {
       const [standingsResponseResult, playoffPictureResponseResult] = await Promise.allSettled([
         withTimeout(deps.client.getLeagueStandings(), STANDINGS_LOAD_TIMEOUT_MS, "league standings"),
@@ -436,7 +489,7 @@ export async function loadStandings(deps: ServiceDeps) {
         .map((row) => mapStandingsRow(row, playoffByTeamId.get(getNumber(row, ["TeamID", "TEAM_ID"]))))
         .filter((row): row is StandingsRow => row !== null);
 
-      if (mappedRows.length >= 20) {
+      if (mappedRows.length >= 20 && mappedRows.some((row) => row.gamesPlayed > 0)) {
         return mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
       }
     } catch {
@@ -450,16 +503,50 @@ export async function loadStandings(deps: ServiceDeps) {
         "standings schedule snapshot"
       );
 
-      return buildStandingsFromScheduleSnapshot(scheduleState.value);
+      const hasScheduleRecords = scheduleState.value.some(
+        (game) => {
+          const homeRecord = parseTeamRecord(game.homeTeam.record);
+          const awayRecord = parseTeamRecord(game.awayTeam.record);
+          return Boolean(
+            (homeRecord && homeRecord.wins + homeRecord.losses > 0) ||
+              (awayRecord && awayRecord.wins + awayRecord.losses > 0)
+          );
+        }
+      );
+      if (hasScheduleRecords) return buildStandingsFromScheduleSnapshot(scheduleState.value);
+
+      if (deps.client.getEspnScoreboardByDate) {
+        try {
+          const espnGames = mapEspnScoreboardGames(
+            await deps.client.getEspnScoreboardByDate(`${SEASON_END_YEAR}-04-12`)
+          );
+          if (espnGames.length > 0) return buildStandingsFromScheduleSnapshot(espnGames);
+          console.warn("[standings] ESPN fallback returned no mappable games");
+        } catch (error) {
+          console.warn("[standings] ESPN fallback failed", error instanceof Error ? error.message : error);
+        }
+      }
+
+      return buildStandingsFromScheduleSnapshot([]);
     } catch {
-      // Last-resort fallback that still keeps API responsive.
+      if (deps.client.getEspnScoreboardByDate) {
+        try {
+          const espnGames = mapEspnScoreboardGames(
+            await deps.client.getEspnScoreboardByDate(`${SEASON_END_YEAR}-04-12`)
+          );
+          if (espnGames.length > 0) return buildStandingsFromScheduleSnapshot(espnGames);
+        } catch {
+          // Continue with the directory fallback below.
+        }
+      }
+
       return buildStandingsFromScheduleSnapshot([]);
     }
   });
 }
 
 export async function loadPlayerCatalog(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("players-catalog", TTL.stats, async () => {
+  return getCache(deps).getOrLoad(`players-catalog:${NBA_SEASON}`, TTL.stats, async () => {
     const leagueLeadersRequest = deps.client.getLeagueLeaders
       ? deps.client.getLeagueLeaders("PTS")
       : Promise.reject(new Error("leagueleaders endpoint not available"));
@@ -475,7 +562,37 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
       playerStatsResult.status === "rejected" &&
       leagueLeadersResult.status === "rejected"
     ) {
-      throw new Error("Unable to load player index, player stats, and league leaders");
+      if (deps.client.getEspnRoster) {
+        const rosterResults = await Promise.allSettled(
+          TEAM_DIRECTORY.map((team) => deps.client.getEspnRoster!(team.teamId))
+        );
+        const rosterPlayers = rosterResults.flatMap((result, index) => {
+          if (result.status !== "fulfilled") return [];
+          const team = TEAM_DIRECTORY[index];
+          const athletes = (result.value as { athletes?: Array<Record<string, unknown>> }).athletes ?? [];
+          return athletes.map((athlete) => {
+            const position = athlete.position as Record<string, unknown> | undefined;
+            const headshot = athlete.headshot as Record<string, unknown> | undefined;
+            return {
+              playerId: safeNumber(athlete.id),
+              firstName: String(athlete.firstName ?? ""),
+              lastName: String(athlete.lastName ?? ""),
+              fullName: String(athlete.fullName ?? athlete.displayName ?? "Player"),
+              headshot: String(headshot?.href ?? ""),
+              team: resolveTeamReference(team.teamId, team.code),
+              jersey: String(athlete.jersey ?? "") || null,
+              position: String(position?.abbreviation ?? "") || null,
+              height: String(athlete.displayHeight ?? "") || null,
+              weight: String(athlete.displayWeight ?? "") || null,
+              averages: null
+            } satisfies PlayerSummary;
+          });
+        }).filter((player) => player.playerId > 0);
+
+        if (rosterPlayers.length > 0) return rosterPlayers.sort((left, right) => left.fullName.localeCompare(right.fullName));
+      }
+
+      throw new Error("Unable to load player index, player stats, league leaders, and ESPN rosters");
     }
 
     const playerRows = playerIndexResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playerIndexResult.value) : [];
@@ -803,7 +920,7 @@ export async function loadScheduleSnapshotGames(deps: ServiceDeps) {
 
 export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string) {
   const range = clampToSeason(from, to);
-  const key = `calendar:${range.from}:${range.to}`;
+  const key = `calendar:v2:${range.from}:${range.to}`;
 
   return getCache(deps).getOrLoad(key, TTL.calendar, async () => {
     const scheduleState = await loadScheduleSnapshotGames(deps);
@@ -815,6 +932,17 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
     }
 
     const dates = enumerateDates(range.from, range.to);
+    if (deps.client.getEspnScoreboardByDate) {
+      const phase: GamePhase = range.from.includes("-04-") ? "playoffs" : "regular-season";
+      const espnResults = await Promise.allSettled(
+        dates.map((date) => deps.client.getEspnScoreboardByDate!(date))
+      );
+      const espnGames = espnResults.flatMap((result) =>
+        result.status === "fulfilled" ? mapEspnScoreboardGames(result.value, phase) : []
+      );
+      if (espnGames.length > 0) return espnGames.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
+    }
+
     const results = await Promise.all(dates.map((date) => deps.client.getScoreboardByDate(date)));
 
     return results

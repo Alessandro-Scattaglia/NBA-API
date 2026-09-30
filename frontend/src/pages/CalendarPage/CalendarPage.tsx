@@ -152,7 +152,7 @@ export function CalendarPage() {
     <>
       <PageHeader
         title="Calendario"
-        description="Calendario giornaliero della stagione 2025-2026 con navigazione rapida tra oggi, giorni vicini e mese precedente o successivo."
+        description="Calendario giornaliero NBA con navigazione rapida tra oggi, giorni vicini e l'intera stagione."
       />
 
       <SurfaceCard>

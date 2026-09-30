@@ -41,7 +41,7 @@ export function PlayerDetailPage() {
         <div className="player-detail-hero">
           <img src={data.headshot} alt={data.fullName} className="player-headshot-large" />
           <div className="player-detail-hero-copy">
-            <span className="eyebrow">NBA 2025-2026</span>
+            <span className="eyebrow">NBA Player Profile</span>
             <h1>{data.fullName}</h1>
             <p className="detail-subtitle">Bio, squadra attuale, misure, medie stagionali e ultime partite.</p>
             <p className="player-detail-hero-meta">

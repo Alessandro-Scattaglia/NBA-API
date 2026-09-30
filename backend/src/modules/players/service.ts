@@ -1,6 +1,6 @@
 import { cache } from "../../cache/memoryCache.js";
-import { TTL } from "../../config/season.js";
-import type { ApiEnvelope, PlayerDetail, PlayersResponse } from "../../types/dto.js";
+import { NBA_SEASON, TTL } from "../../config/season.js";
+import type { ApiEnvelope, PlayerDetail, PlayersResponse } from "../../types/dto/index.js";
 import { calculateAge, round, safeNumber } from "../../utils/date.js";
 import { mapStatsRows } from "../../utils/stats.js";
 import { loadPlayerCatalog } from "../shared/datasets.js";
@@ -40,7 +40,7 @@ export function createPlayersService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: "2025-26",
+          season: NBA_SEASON,
           total: filtered.length,
           page,
           pageSize,
@@ -53,24 +53,23 @@ export function createPlayersService(deps: ServiceDeps) {
     },
 
     async getPlayerDetail(playerId: number): Promise<ApiEnvelope<PlayerDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:${NBA_SEASON}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
         const base = catalogState.value.find((player) => player.playerId === playerId);
         if (!base) {
           throw new Error(`Player ${playerId} not found`);
         }
 
-        const [infoResponse, gameLogsResponse, playoffGameLogsResponse] = await Promise.all([
+        const [infoResult, gameLogsResult, playoffGameLogsResult] = await Promise.allSettled([
           deps.client.getCommonPlayerInfo(playerId),
           deps.client.getPlayerGameLogs(playerId),
           deps.client.getPlayerGameLogs(playerId, "Playoffs")
         ]);
 
-        const info = mapStatsRows<StatsRow>(infoResponse)[0] ?? {};
-        
+        const info = infoResult.status === "fulfilled" ? mapStatsRows<StatsRow>(infoResult.value)[0] ?? {} : {};
         const allGameLogs = [
-          ...mapStatsRows<StatsRow>(playoffGameLogsResponse),
-          ...mapStatsRows<StatsRow>(gameLogsResponse)
+          ...(playoffGameLogsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playoffGameLogsResult.value) : []),
+          ...(gameLogsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(gameLogsResult.value) : [])
         ].sort((a, b) => {
           const dateA = new Date(String(a.GAME_DATE ?? 0)).getTime();
           const dateB = new Date(String(b.GAME_DATE ?? 0)).getTime();

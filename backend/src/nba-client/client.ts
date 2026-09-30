@@ -17,6 +17,8 @@ export interface NbaApiClient {
   getTeamGameLog(teamId: number, seasonType?: string): Promise<unknown>;
   getLeagueStandings(): Promise<unknown>;
   getPlayoffPicture(): Promise<unknown>;
+  getEspnScoreboardByDate?(gameDateIso: string): Promise<unknown>;
+  getEspnRoster?(teamId: number): Promise<unknown>;
 }
 
 type FetchImpl = typeof fetch;
@@ -55,6 +57,39 @@ const DEFAULT_HEADERS = {
   Referer: "https://www.nba.com/",
   "User-Agent":
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+};
+
+const ESPN_TEAM_IDS: Record<string, number> = {
+  ATL: 1,
+  BOS: 2,
+  BKN: 17,
+  CHA: 30,
+  CHI: 4,
+  CLE: 5,
+  DAL: 6,
+  DEN: 7,
+  DET: 8,
+  GSW: 9,
+  HOU: 10,
+  IND: 11,
+  LAC: 12,
+  LAL: 13,
+  MEM: 29,
+  MIA: 14,
+  MIL: 15,
+  MIN: 16,
+  NOP: 3,
+  NYK: 18,
+  OKC: 25,
+  ORL: 19,
+  PHI: 20,
+  PHX: 21,
+  POR: 22,
+  SAC: 23,
+  SAS: 24,
+  TOR: 28,
+  UTA: 26,
+  WAS: 27
 };
 
 function delay(ms: number) {
@@ -154,7 +189,12 @@ function buildUrl(baseUrl: string, path: string, params?: Record<string, string 
   return url.toString();
 }
 
-async function requestJson(fetchImpl: FetchImpl, url: string, headers: Record<string, string>) {
+async function requestJson(
+  fetchImpl: FetchImpl,
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs = env.requestTimeoutMs
+) {
   ensureTlsConfig();
 
   let lastError: unknown = null;
@@ -162,7 +202,7 @@ async function requestJson(fetchImpl: FetchImpl, url: string, headers: Record<st
 
   while (requestAttempts <= env.requestRetries) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), env.requestTimeoutMs);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetchImpl(url, {
@@ -402,8 +442,40 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
         SeasonID: PLAYOFF_PICTURE_SEASON_ID
       });
       return requestJson(fetchImpl, url, STATS_HEADERS);
+    },
+
+    getEspnScoreboardByDate(gameDateIso: string) {
+      const url = buildUrl("https://site.api.espn.com/apis/site/v2/sports/basketball/nba", "scoreboard", {
+        dates: gameDateIso.replaceAll("-", "")
+      });
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, Math.max(env.requestTimeoutMs, 12_000));
+    },
+
+    getEspnRoster(teamId: number) {
+      const team = Object.entries(ESPN_TEAM_IDS).find(([code]) => code === getTeamCode(teamId));
+      if (!team) {
+        return Promise.reject(new Error(`No ESPN team mapping for NBA team ${teamId}`));
+      }
+
+      const url = buildUrl(
+        "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
+        `teams/${team[1]}/roster`
+      );
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS);
     }
   };
 }
 
 export const nbaApiClient = createNbaApiClient();
+
+function getTeamCode(teamId: number) {
+  const codes: Record<number, string> = {
+    1610612737: "ATL", 1610612738: "BOS", 1610612751: "BKN", 1610612766: "CHA", 1610612741: "CHI",
+    1610612739: "CLE", 1610612742: "DAL", 1610612743: "DEN", 1610612765: "DET", 1610612744: "GSW",
+    1610612745: "HOU", 1610612754: "IND", 1610612746: "LAC", 1610612747: "LAL", 1610612763: "MEM",
+    1610612748: "MIA", 1610612749: "MIL", 1610612750: "MIN", 1610612740: "NOP", 1610612752: "NYK",
+    1610612760: "OKC", 1610612753: "ORL", 1610612755: "PHI", 1610612756: "PHX", 1610612757: "POR",
+    1610612758: "SAC", 1610612759: "SAS", 1610612761: "TOR", 1610612762: "UTA", 1610612764: "WAS"
+  };
+  return codes[teamId] ?? "";
+}

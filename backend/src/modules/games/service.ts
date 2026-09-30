@@ -9,7 +9,7 @@ import type {
   GameLeader,
   GamePlayerLine,
   GameSummary
-} from "../../types/dto.js";
+} from "../../types/dto/index.js";
 import { safeNumber } from "../../utils/date.js";
 import { loadScheduleSnapshotGames } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";

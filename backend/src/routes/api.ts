@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { NBA_SEASON } from "../config/season.js";
 import { TEAM_DIRECTORY } from "../config/teams.js";
 import type { AppServices } from "../modules/services.js";
 import type {
@@ -7,14 +8,13 @@ import type {
   LeaderCategoryKey,
   LeadersResponse,
   PlayoffsResponse,
-  PlayerDetail,
   PlayersResponse,
   PostseasonConferenceSnapshot,
   StandingsResponse,
   StandingsRow,
   TeamDetail,
   TeamsResponse
-} from "../types/dto.js";
+} from "../types/dto/index.js";
 
 const idParamSchema = z.coerce.number().int().positive();
 const playersQuerySchema = z.object({
@@ -115,7 +115,7 @@ function buildFallbackTeamsEnvelope(): ApiEnvelope<TeamsResponse> {
 
   return {
     data: {
-      season: "2025-26",
+        season: NBA_SEASON,
       east: split.east,
       west: split.west
     },
@@ -128,7 +128,7 @@ function buildFallbackStandingsEnvelope(): ApiEnvelope<StandingsResponse> {
 
   return {
     data: {
-      season: "2025-26",
+        season: NBA_SEASON,
       east: split.east,
       west: split.west,
       playInNotes: PLAY_IN_NOTES
@@ -236,7 +236,7 @@ function buildFallbackPlayoffsEnvelope(): ApiEnvelope<PlayoffsResponse> {
 
   return {
     data: {
-      season: "2025-26",
+        season: NBA_SEASON,
       overview: {
         directQualifiedTeams: east.directSeeds.length + west.directSeeds.length,
         playInTeams: east.playInSeeds.length + west.playInSeeds.length,
@@ -283,7 +283,7 @@ function buildFallbackTeamDetailEnvelope(teamId: number): ApiEnvelope<TeamDetail
 function buildFallbackPlayersEnvelope(page = 1, pageSize = 30): ApiEnvelope<PlayersResponse> {
   return {
     data: {
-      season: "2025-26",
+        season: NBA_SEASON,
       total: 0,
       page,
       pageSize,
@@ -293,36 +293,10 @@ function buildFallbackPlayersEnvelope(page = 1, pageSize = 30): ApiEnvelope<Play
   };
 }
 
-function buildFallbackPlayerDetailEnvelope(playerId: number): ApiEnvelope<PlayerDetail> {
-  return {
-    data: {
-      playerId,
-      firstName: "",
-      lastName: "",
-      fullName: `Player ${playerId}`,
-      headshot: "",
-      team: null,
-      jersey: null,
-      position: null,
-      height: null,
-      weight: null,
-      averages: null,
-      birthDate: null,
-      age: null,
-      country: null,
-      school: null,
-      experience: null,
-      draft: null,
-      recentGames: []
-    },
-    meta: getFallbackMeta()
-  };
-}
-
 function buildFallbackLeadersEnvelope(): ApiEnvelope<LeadersResponse> {
   return {
     data: {
-      season: "2025-26",
+        season: NBA_SEASON,
       categories: Object.entries(LEADER_CATEGORY_LABELS).map(([key, label]) => ({
         key: key as LeaderCategoryKey,
         label,
@@ -360,7 +334,7 @@ export function createApiRouter(services: AppServices) {
   router.get("/health", (_request, response) => {
     response.json({
       ok: true,
-      season: "2025-26"
+      season: NBA_SEASON
     });
   });
 
@@ -422,13 +396,7 @@ export function createApiRouter(services: AppServices) {
       playerId = parseWithSchema(idParamSchema, request.params.playerId);
       response.json(await services.players.getPlayerDetail(playerId));
     } catch (error) {
-      if (isClientError(error) || playerId === undefined) {
-        next(error);
-        return;
-      }
-
-      logFallback("/players/:playerId", error);
-      response.json(buildFallbackPlayerDetailEnvelope(playerId));
+      next(error);
     }
   });
 

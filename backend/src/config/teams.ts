@@ -1,4 +1,4 @@
-import type { Conference, TeamIdentity } from "../types/dto.js";
+import type { Conference, TeamIdentity } from "../types/dto/index.js";
 import { buildTeamLogoUrl } from "../utils/assets.js";
 
 interface TeamSeed {

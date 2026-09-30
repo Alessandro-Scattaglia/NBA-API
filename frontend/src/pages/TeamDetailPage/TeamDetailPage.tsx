@@ -42,7 +42,7 @@ export function TeamDetailPage() {
         <div className="team-detail-hero">
           <img src={data.logo} alt={`${data.name} logo`} className="team-logo-large" />
           <div className="team-detail-hero-copy">
-            <span className="eyebrow">NBA 2025-2026</span>
+            <span className="eyebrow">NBA Team Profile</span>
             <h1>{data.name}</h1>
             <p className="detail-subtitle">
               Profilo squadra, rosa, rendimento stagionale e ultime partite.

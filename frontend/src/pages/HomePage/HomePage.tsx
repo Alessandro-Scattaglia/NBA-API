@@ -59,8 +59,8 @@ export function HomePage() {
         title="Home"
         description={
           data.homeSpotlightMode === "playoffs"
-            ? "Accesso rapido ai playoff e ai dati aggiornati della stagione NBA 2025-2026."
-            : "Accesso rapido alla classifica della stagione regolare e ai dati aggiornati della stagione NBA 2025-2026."
+            ? "Accesso rapido ai playoff e ai dati NBA aggiornati."
+            : "Accesso rapido alla classifica e ai dati NBA aggiornati."
         }
       />
 
@@ -171,7 +171,7 @@ export function HomePage() {
 
       <section className="hero-card hero-card-secondary">
         <p className="eyebrow">Home</p>
-        <h2 className="hero-title">Panoramica rapida della stagione NBA 2025-2026</h2>
+        <h2 className="hero-title">Panoramica rapida della stagione NBA {data.season}</h2>
         <p className="hero-copy">
           Dalla home puoi passare subito ai playoff, controllare squadre e giocatori, consultare il calendario e vedere
           i leader statistici in un'unica interfaccia.

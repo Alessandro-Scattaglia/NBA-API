@@ -1,4 +1,5 @@
-import type { ApiEnvelope, CalendarResponse, GameSummary } from "../../types/dto.js";
+import type { ApiEnvelope, CalendarResponse, GameSummary } from "../../types/dto/index.js";
+import { NBA_SEASON, SEASON_END_DATE, SEASON_START_DATE } from "../../config/season.js";
 import { loadCalendarRange } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
@@ -27,12 +28,12 @@ export function createCalendarService(deps: ServiceDeps) {
         return matchesTeam && matchesStatus && matchesPhase;
       });
 
-      const rangeStart = items[0]?.dateTimeUtc.slice(0, 10) ?? filters.from ?? "2025-10-01";
-      const rangeEnd = items.at(-1)?.dateTimeUtc.slice(0, 10) ?? filters.to ?? "2026-07-31";
+      const rangeStart = items[0]?.dateTimeUtc.slice(0, 10) ?? filters.from ?? SEASON_START_DATE;
+      const rangeEnd = items.at(-1)?.dateTimeUtc.slice(0, 10) ?? filters.to ?? SEASON_END_DATE;
 
       return toEnvelope(
         {
-          season: "2025-26",
+          season: NBA_SEASON,
           from: rangeStart,
           to: rangeEnd,
           total: items.length,

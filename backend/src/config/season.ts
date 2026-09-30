@@ -5,6 +5,8 @@ export const SEASON_START_YEAR = Number(NBA_SEASON.slice(0, 4));
 export const SEASON_END_YEAR = 2000 + Number(NBA_SEASON.slice(5, 7));
 export const PLAYOFF_PICTURE_SEASON_ID = `2${SEASON_START_YEAR}`;
 export const REGULAR_SEASON_LABEL = "Regular Season";
+export const SEASON_START_DATE = `${SEASON_START_YEAR}-10-01`;
+export const SEASON_END_DATE = `${SEASON_END_YEAR}-07-31`;
 const PLAY_IN_START = new Date(Date.UTC(SEASON_END_YEAR, 3, 14));
 
 export const TTL = {

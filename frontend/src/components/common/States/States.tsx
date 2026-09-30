@@ -55,7 +55,7 @@ export function PageHeader({
             <span>Indietro</span>
           </button>
         ) : null}
-        <p className="eyebrow">NBA 2025-2026</p>
+        <p className="eyebrow">NBA Dashboard</p>
         <h1>{title}</h1>
         <p className="page-description">{description}</p>
       </div>

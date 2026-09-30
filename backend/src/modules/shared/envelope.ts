@@ -1,4 +1,4 @@
-import type { ApiEnvelope } from "../../types/dto.js";
+import type { ApiEnvelope } from "../../types/dto/index.js";
 
 export function toEnvelope<T>(data: T, updatedAt: string, stale: boolean, source: string[]): ApiEnvelope<T> {
   return {

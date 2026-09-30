@@ -1,4 +1,4 @@
-import { SEASON_END_YEAR } from "../../config/season.js";
+import { NBA_SEASON, SEASON_END_YEAR } from "../../config/season.js";
 import type {
   ApiEnvelope,
   Conference,
@@ -10,7 +10,7 @@ import type {
   PostseasonSeries,
   PostseasonSeriesStatus,
   StandingsRow
-} from "../../types/dto.js";
+} from "../../types/dto/index.js";
 import { loadCalendarRange, loadStandings, loadTodayGames, splitByConference } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
@@ -52,49 +52,49 @@ const KEY_DATES: PostseasonKeyDate[] = [
 const FINALS_DATES: PostseasonKeyDate[] = [
   {
     key: "finals-game-1",
-    label: "Finals 2026 - Gara 1",
+    label: `Finals ${SEASON_END_YEAR} - Gara 1`,
     startDate: `${SEASON_END_YEAR}-06-03`,
     endDate: null,
     note: "ABC, 20:30 ET"
   },
   {
     key: "finals-game-2",
-    label: "Finals 2026 - Gara 2",
+    label: `Finals ${SEASON_END_YEAR} - Gara 2`,
     startDate: `${SEASON_END_YEAR}-06-05`,
     endDate: null,
     note: "ABC, 20:30 ET"
   },
   {
     key: "finals-game-3",
-    label: "Finals 2026 - Gara 3",
+    label: `Finals ${SEASON_END_YEAR} - Gara 3`,
     startDate: `${SEASON_END_YEAR}-06-08`,
     endDate: null,
     note: "ABC, 20:30 ET"
   },
   {
     key: "finals-game-4",
-    label: "Finals 2026 - Gara 4",
+    label: `Finals ${SEASON_END_YEAR} - Gara 4`,
     startDate: `${SEASON_END_YEAR}-06-10`,
     endDate: null,
     note: "ABC, 20:30 ET"
   },
   {
     key: "finals-game-5",
-    label: "Finals 2026 - Gara 5",
+    label: `Finals ${SEASON_END_YEAR} - Gara 5`,
     startDate: `${SEASON_END_YEAR}-06-13`,
     endDate: null,
     note: "Se necessaria, ABC, 20:30 ET"
   },
   {
     key: "finals-game-6",
-    label: "Finals 2026 - Gara 6",
+    label: `Finals ${SEASON_END_YEAR} - Gara 6`,
     startDate: `${SEASON_END_YEAR}-06-16`,
     endDate: null,
     note: "Se necessaria, ABC, 20:30 ET"
   },
   {
     key: "finals-game-7",
-    label: "Finals 2026 - Gara 7",
+    label: `Finals ${SEASON_END_YEAR} - Gara 7`,
     startDate: `${SEASON_END_YEAR}-06-19`,
     endDate: null,
     note: "Se necessaria, ABC, 20:30 ET"
@@ -474,7 +474,7 @@ export function createPlayoffsService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: "2025-26",
+          season: NBA_SEASON,
           overview: {
             directQualifiedTeams: east.directSeeds.length + west.directSeeds.length,
             playInTeams: east.playInSeeds.length + west.playInSeeds.length,

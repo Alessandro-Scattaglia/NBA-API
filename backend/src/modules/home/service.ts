@@ -1,5 +1,5 @@
-import type { ApiEnvelope, HomeResponse } from "../../types/dto.js";
-import { getHomeSpotlightMode } from "../../config/season.js";
+import type { ApiEnvelope, HomeResponse } from "../../types/dto/index.js";
+import { getHomeSpotlightMode, NBA_SEASON } from "../../config/season.js";
 import { toIsoDate } from "../../utils/date.js";
 import { buildLeaderCategories } from "../leaders/service.js";
 import { loadCalendarRange, loadPlayerCatalog, loadStandings, loadTodayGames, splitByConference } from "../shared/datasets.js";
@@ -39,7 +39,7 @@ export function createHomeService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: "2025-26",
+          season: NBA_SEASON,
           homeSpotlightMode,
           todayGames,
           upcomingGames,
