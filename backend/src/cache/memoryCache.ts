@@ -14,6 +14,14 @@ export class MemoryCache {
   private readonly store = new Map<string, CacheEntry<unknown>>();
   private readonly refreshInFlight = new Map<string, Promise<void>>();
 
+  getStats() {
+    return {
+      entries: this.store.size,
+      refreshInFlight: this.refreshInFlight.size,
+      keys: Array.from(this.store.keys())
+    };
+  }
+
   private async loadFreshValue<T>(key: string, ttlMs: number, loader: () => Promise<T>) {
     const value = await loader();
     const entry: CacheEntry<T> = {

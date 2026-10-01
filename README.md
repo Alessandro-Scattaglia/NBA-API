@@ -1,68 +1,109 @@
 # NBA Dashboard
 
-Monorepo con:
+Monorepo locale per una web app NBA moderna composta da backend Express e frontend React/Vite. L’obiettivo del progetto è offrire dati NBA in locale, senza autenticazione, senza servizi cloud e con una sola procedura di avvio.
 
-- `backend/`: API proxy in Node + TypeScript verso endpoint NBA pubblici senza token
-- `frontend/`: web app React + TypeScript + CSS con sidebar e pagine dedicate alla stagione NBA configurata
+## Requisiti
 
-## Stack
+- Node.js 22+
+- npm 10+
+- accesso locale alla rete del PC per le chiamate a endpoint NBA pubblici
 
-- Frontend: React, Vite, TypeScript, React Router, TanStack Query, CSS
-- Backend: Express, TypeScript, Zod, fetch nativo Node 22
-- Type checking: TypeScript
-
-## Avvio rapido
+## Installazione
 
 ```bash
 npm install
+```
+
+## Avvio completo
+
+```bash
 npm run dev
 ```
 
-App previste:
+L’avvio avvia in parallelo:
 
-- frontend su `http://localhost:5173`
-- backend su `http://localhost:4001`
+- Frontend: http://127.0.0.1:5173
+- Backend: http://127.0.0.1:4001
 
-## Pagine principali
+Lo script root usa `concurrently` con chiusura automatica dei worker se uno dei due processi fallisce.
 
-- Home
-- Teams
-- Players
-- Classifica
-- Calendario
-- Leaders
+## Struttura del progetto
 
-## Nota dati
+- `backend/`: API Express, cache, client NBA, servizi e validazione
+- `frontend/`: app React, pagine, componenti, query TanStack, stile locale
+- `docs/`: documentazione architetturale e fonti dati
 
-Il backend usa solo fonti gratuite e pubbliche NBA. Le chiamate verso `stats.nba.com` passano dal server per evitare problemi di CORS e per gestire cache, retry e mapping dei payload.
+## Rilevamento automatico della stagione
 
-## Configurazione locale
+La stagione non è fissa nel codice. Il backend determina la stagione in modo centralizzato in `backend/src/config/season.ts`:
 
-Il progetto e configurato per funzionare solo in locale:
+1. usa `NBA_SEASON` come override locale se impostata;
+2. altrimenti infiere la stagione dal calendario NBA corrente;
+3. valida sempre il formato `YYYY-YY` come `2026-27`;
+4. estrae la fase della stagione (`preseason`, `regular-season`, `play-in`, `playoffs`, `offseason`).
 
-- frontend su `http://localhost:5173`
-- backend su `http://localhost:4001`
-- richieste frontend sempre relative a `/api`, inoltrate da Vite al backend locale
+Questo mantiene il comportamento locale, senza necessità di aggiornare costanti manualmente ogni anno.
 
-Variabili ambiente backend utili in locale:
+## Selezione stagioni storiche
 
-- `NBA_SEASON=2025-26` opzionale: se assente, il backend passa alla nuova stagione da settembre, così il calendario di ottobre include anche le partite gia pubblicate. Puoi impostare qualsiasi stagione, ad esempio `2024-25` o `2026-27`.
-- `NBA_REQUEST_TIMEOUT_MS=6000`
-- `NBA_REQUEST_RETRIES=1`
-- `NBA_ALLOW_INSECURE_TLS=1` solo se il PC usa antivirus/proxy con ispezione TLS e il backend fallisce con errori certificato
+Il frontend mostra un selettore di stagione con valore persistito in `localStorage` e pulsante per tornare alla stagione corrente. Tutte le richieste aggiungono automaticamente il parametro `season` all’API locale, e l’API valida il formato.
 
-Note:
+## Fonti dati
 
-- la cache backend usa strategia stale-while-revalidate per rispondere piu velocemente ai refresh
-- al boot del server parte un warmup automatico e un refresh periodico dei dataset principali
-- per verificare il backend, apri `http://localhost:4001/api/health`
+Il backend usa endpoint pubblici NBA già esistenti e li gestisce attraverso il client dedicato. Le chiamate sono centralizzate in `backend/src/nba-client/` e validano payload esterni con Zod, con fallback locale in caso di errore o payload vuoto.
 
-## Cache backend
+## Cache locale
 
-La cache e in memoria e non contiene dati permanenti: si svuota quando il processo backend viene riavviato. Serve a limitare le chiamate agli endpoint NBA, ridurre i tempi di caricamento e restituire l'ultimo dato valido mentre un aggiornamento viene eseguito in background.
+La cache in memoria è gestita da `backend/src/cache/memoryCache.ts`:
 
-Non e indispensabile per il funzionamento logico dell'applicazione, ma e fortemente consigliata in produzione. Senza cache aumentano timeout, rate limit e risposte vuote quando gli endpoint NBA sono lenti o temporaneamente indisponibili.
+- chiavi per dataset e stagione;
+- TTL differenziati;
+- refresh in background;
+- dato stale mantenuto fino al refresh;
+- deduplicazione delle richieste concorrenti;
+- statistiche di health check via `/api/health`.
 
-## Stagioni
+## Gestione errori
 
-La stagione non e fissata nel frontend. Tutte le risposte API espongono `data.season` e la UI usa quel valore per titoli e tabelloni. Per cambiare stagione in modo esplicito, avvia il backend con `NBA_SEASON=2026-27`.
+Il backend:
+
+- valida input, query param e payload esterni;
+- espone errori leggibili senza stack trace nel JSON;
+- usa fallback locale per dataset temporaneamente non disponibili;
+- segnala metadati `stale` quando serve l’ultimo dato valido disponibile.
+
+## Comandi disponibili
+
+```bash
+npm run dev
+npm run build
+npm run typecheck
+npm run test
+npm run test --workspace backend
+npm run test --workspace frontend
+```
+
+## Test e build
+
+Il progetto include test con Vitest per backend e frontend. Il comando root esegue entrambe le suite e controlla le fondamenta di stagione, cache e selezione stagione.
+
+## Risoluzione problemi
+
+- Backend non raggiungibile: verificare che l’app sia stata avviata con `npm run dev`.
+- Frontend non raggiungibile: controllare la porta 5173 e la presenza del proxy `/api` in Vite.
+- Dati vuoti: il backend usa fallback locale e non trasforma dati mancanti in zero.
+- TLS: per problemi locali con certificati, usare `NBA_ALLOW_INSECURE_TLS=1` solo come workaround temporaneo.
+
+## Pulizia cache locale
+
+La cache è in memoria e viene svuotata con il restart del backend. Se si vuole azzerare stato locale, riavviare il processo con:
+
+```bash
+npm run dev
+```
+
+## Limiti noti
+
+- il backend usa dati pubblici NBA senza autenticazione e senza garantire SLA;
+- alcune sezioni storiche o in tempo reale possono essere incomplete se la fonte non restituisce i campi richiesti;
+- il frontend mostra correttamente i dati realmente disponibili, senza inventare statistiche mancanti.

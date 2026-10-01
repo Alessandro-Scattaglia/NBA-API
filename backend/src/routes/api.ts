@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
+import { cache } from "../cache/memoryCache.js";
 import { NBA_SEASON } from "../config/season.js";
+import { buildApiMeta, requireValidSeason, seasonQuerySchema } from "./season.js";
 import { TEAM_DIRECTORY } from "../config/teams.js";
 import type { AppServices } from "../modules/services.js";
 import type {
@@ -334,7 +336,44 @@ export function createApiRouter(services: AppServices) {
   router.get("/health", (_request, response) => {
     response.json({
       ok: true,
-      season: NBA_SEASON
+      app: "nba-api-local",
+      version: "1.0.0",
+      timestamp: new Date().toISOString(),
+      uptime: Math.round(process.uptime()),
+      season: NBA_SEASON,
+      seasonPhase: "regular-season",
+      status: "online",
+      cache: cache.getStats(),
+      source: "local-nba-data"
+    });
+  });
+
+  router.get("/seasons", (_request, response) => {
+    const currentYear = Number(NBA_SEASON.slice(0, 4));
+    const seasons = Array.from({ length: 6 }, (_, index) => {
+      const startYear = currentYear - index;
+      return `${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`;
+    });
+
+    response.json({
+      data: {
+        current: NBA_SEASON,
+        supported: seasons,
+        phase: "regular-season",
+        timestamp: new Date().toISOString()
+      },
+      meta: buildApiMeta(NBA_SEASON, false)
+    });
+  });
+
+  router.get("/seasons/current", (_request, response) => {
+    response.json({
+      data: {
+        season: NBA_SEASON,
+        phase: "regular-season",
+        timestamp: new Date().toISOString()
+      },
+      meta: buildApiMeta(NBA_SEASON, false)
     });
   });
 
@@ -346,8 +385,12 @@ export function createApiRouter(services: AppServices) {
     }
   });
 
-  router.get("/teams", async (_request, response, next) => {
+  router.get("/teams", async (request, response, next) => {
     try {
+      const seasonValue = requireValidSeason(request.query.season);
+      if (seasonValue) {
+        void seasonValue;
+      }
       response.json(await services.teams.getTeams());
     } catch (error) {
       logFallback("/teams", error);
@@ -376,6 +419,7 @@ export function createApiRouter(services: AppServices) {
     let filters: z.infer<typeof playersQuerySchema> | undefined;
 
     try {
+      requireValidSeason(request.query.season);
       filters = parseWithSchema(playersQuerySchema, request.query);
       response.json(await services.players.getPlayers(filters));
     } catch (error) {
@@ -400,8 +444,9 @@ export function createApiRouter(services: AppServices) {
     }
   });
 
-  router.get("/standings", async (_request, response, next) => {
+  router.get("/standings", async (request, response, next) => {
     try {
+      requireValidSeason(request.query.season);
       response.json(await services.standings.getStandings());
     } catch (error) {
       logFallback("/standings", error);
@@ -409,8 +454,9 @@ export function createApiRouter(services: AppServices) {
     }
   });
 
-  router.get("/playoffs", async (_request, response, next) => {
+  router.get("/playoffs", async (request, response, next) => {
     try {
+      requireValidSeason(request.query.season);
       response.json(await services.playoffs.getPlayoffs());
     } catch (error) {
       logFallback("/playoffs", error);
@@ -420,6 +466,7 @@ export function createApiRouter(services: AppServices) {
 
   router.get("/calendar", async (request, response, next) => {
     try {
+      requireValidSeason(request.query.season);
       const filters = parseWithSchema(calendarQuerySchema, request.query);
       response.json(await services.calendar.getCalendar(filters));
     } catch (error) {
@@ -439,6 +486,7 @@ export function createApiRouter(services: AppServices) {
     let query: z.infer<typeof leadersQuerySchema> | undefined;
 
     try {
+      requireValidSeason(request.query.season);
       query = parseWithSchema(leadersQuerySchema, request.query);
       response.json(await services.leaders.getLeaders(query.limit));
     } catch (error) {

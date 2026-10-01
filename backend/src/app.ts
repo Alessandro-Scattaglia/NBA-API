@@ -18,8 +18,8 @@ function inferStatus(error: unknown) {
 export function createApp(services: AppServices = createServices()) {
   const app = express();
 
-  app.use(cors());
-  app.use(express.json());
+  app.use(cors({ origin: true }));
+  app.use(express.json({ limit: "1mb" }));
   app.use("/api", createApiRouter(services));
 
   app.use((_request, response) => {

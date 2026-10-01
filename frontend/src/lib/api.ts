@@ -10,12 +10,29 @@ async function readJsonSafely<T>(response: Response): Promise<T | null> {
   return JSON.parse(raw) as T;
 }
 
-export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
+function appendSeasonQuery(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (typeof window === "undefined") {
+    return normalizedPath;
+  }
+
+  const selectedSeason = window.localStorage.getItem("nba-selected-season");
+
+  if (!selectedSeason) {
+    return normalizedPath;
+  }
+
+  const separator = normalizedPath.includes("?") ? "&" : "?";
+  return `${normalizedPath}${separator}season=${encodeURIComponent(selectedSeason)}`;
+}
+
+export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
+  const finalPath = appendSeasonQuery(path);
   let response: Response;
 
   try {
-    response = await fetch(normalizedPath);
+    response = await fetch(finalPath);
   } catch {
     throw new Error("Backend locale non raggiungibile su http://127.0.0.1:4001");
   }

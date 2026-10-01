@@ -6,85 +6,66 @@ import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { LeaderPanel } from "../../components/cards/LeaderPanel";
 import { GameList } from "../../components/tables/GameList";
+import { StandingsTable } from "../../components/tables/StandingsTable";
 import { formatConference, formatGameDateLabel, formatGameStatusText } from "../../lib/format";
+import type { StandingsResponse } from "../../lib/types";
 import "./HomePage.css";
 
-const HERO_CONTENT = {
-  playoffs: {
-    title: "Playoff subito in primo piano",
-    copy:
-      "Vai direttamente alla pagina playoff per bracket, serie aperte, calendario della postseason e quadro completo di Est e Ovest.",
-    ctaLabel: "Vai alla pagina Playoff",
-    ctaTo: "/playoffs",
-    pills: ["Bracket completo", "Serie aggiornate", "Calendario postseason"],
-    className: "hero-card-playoffs",
-    eyebrow: "Home"
-  },
-  standings: {
-    title: "Classifica della stagione regolare",
-    copy:
-      "Controlla subito la corsa alle seed, le squadre in zona playoff e l'andamento delle conference prima del cambio di fase.",
-    ctaLabel: "Vai alla classifica",
-    ctaTo: "/standings",
-    pills: ["Seed aggiornate", "Play-in watch", "Corsa ai playoff"],
-    className: "hero-card-standings",
-    eyebrow: "Home"
-  }
-} as const;
-
 export function HomePage() {
-  const query = useQuery({
+  const homeQuery = useQuery({
     queryKey: ["home"],
     queryFn: () => apiGet<HomeResponse>("/api/home")
   });
+  const standingsQuery = useQuery({
+    queryKey: ["standings"],
+    queryFn: () => apiGet<StandingsResponse>("/api/standings")
+  });
 
-  if (query.isLoading) {
+  if (homeQuery.isLoading) {
     return <LoadingState label="Sto caricando la home..." />;
   }
 
-  if (query.error) {
-    return <ErrorState message={query.error.message} />;
+  if (homeQuery.error) {
+    return <ErrorState message={homeQuery.error.message} />;
   }
 
-  if (!query.data) {
+  if (!homeQuery.data) {
     return <EmptyState label="Nessun dato home disponibile." />;
   }
 
-  const { data, meta } = query.data;
-  const hero = HERO_CONTENT[data.homeSpotlightMode];
-
+  const { data, meta } = homeQuery.data;
   return (
     <>
       <PageHeader
         title="Home"
-        description={
-          data.homeSpotlightMode === "playoffs"
-            ? "Accesso rapido ai playoff e ai dati NBA aggiornati."
-            : "Accesso rapido alla classifica e ai dati NBA aggiornati."
-        }
+        description="Dati NBA aggiornati, classifica e partite in un'unica vista."
       />
 
-      <section className={`hero-card ${hero.className}`}>
-        <div className="hero-card-head">
+      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
+
+      <section className="home-standings-section">
+        <div className="home-section-heading">
           <div>
-            <p className="eyebrow">{hero.eyebrow}</p>
-            <h2 className="hero-title">{hero.title}</h2>
-            <p className="hero-copy">{hero.copy}</p>
+            <p className="eyebrow">Stagione regolare</p>
+            <h2>Classifica aggiornata</h2>
           </div>
-          <Link to={hero.ctaTo} className="hero-card-cta">
-            {hero.ctaLabel}
+          <Link to="/standings" className="home-section-link">
+            Vista completa
           </Link>
         </div>
-        <div className="pill-row">
-          {hero.pills.map((pill) => (
-            <span key={pill} className="metric-pill">
-              {pill}
-            </span>
-          ))}
-        </div>
+        {standingsQuery.isLoading ? <LoadingState label="Sto caricando la classifica..." /> : null}
+        {standingsQuery.error ? <ErrorState message={standingsQuery.error.message} /> : null}
+        {standingsQuery.data ? (
+          <div className="grid-2 home-standings-grid">
+            <SurfaceCard title="Conference Est">
+              <StandingsTable teams={standingsQuery.data.data.east} />
+            </SurfaceCard>
+            <SurfaceCard title="Conference Ovest">
+              <StandingsTable teams={standingsQuery.data.data.west} />
+            </SurfaceCard>
+          </div>
+        ) : null}
       </section>
-
-      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
 
       {data.featuredGame ? (
         <SurfaceCard title="Partita in evidenza" subtitle="La sfida piu` rilevante del momento">

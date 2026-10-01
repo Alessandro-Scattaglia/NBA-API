@@ -38,7 +38,7 @@
 }
 
 .game-hero-chip-muted {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface-strong);
   color: var(--ink-soft);
   border-color: var(--line);
 }
@@ -213,122 +213,46 @@
 }
 
 .game-leader-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-soft);
+  border-color: #3a3a3a;
 }
 
 .game-leader-card:hover::before {
-  opacity: 0.85;
+  opacity: 0;
 }
 
 .game-leader-card-highlight-triple {
-  border-color: rgba(59, 130, 246, 0.34);
-  box-shadow: 0 18px 32px rgba(59, 130, 246, 0.14);
-  background: linear-gradient(
-    135deg,
-    rgba(239, 246, 255, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-triple::before {
-  background: radial-gradient(
-    circle,
-    rgba(59, 130, 246, 0.22),
-    transparent 70%
-  );
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-card-highlight-double {
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 18px 30px rgba(16, 185, 129, 0.12);
-  background: linear-gradient(
-    135deg,
-    rgba(236, 253, 245, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-double::before {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.2), transparent 70%);
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-card-highlight-thirty {
-  border-color: rgba(245, 158, 11, 0.28);
-  box-shadow: 0 16px 28px rgba(245, 158, 11, 0.1);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 251, 235, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-thirty::before {
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.2), transparent 70%);
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-card-highlight-forty {
-  border-color: rgba(249, 115, 22, 0.3);
-  box-shadow: 0 18px 30px rgba(249, 115, 22, 0.12);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 247, 237, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-forty::before {
-  background: radial-gradient(
-    circle,
-    rgba(249, 115, 22, 0.22),
-    transparent 70%
-  );
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-card-highlight-fifty {
-  border-color: rgba(124, 58, 237, 0.34);
-  box-shadow: 0 22px 34px rgba(124, 58, 237, 0.16);
-  background: linear-gradient(
-    135deg,
-    rgba(245, 243, 255, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-fifty::before {
-  background: radial-gradient(
-    circle,
-    rgba(124, 58, 237, 0.24),
-    transparent 70%
-  );
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-card-highlight-record {
-  border-color: rgba(234, 179, 8, 0.36);
-  box-shadow: 0 24px 36px rgba(234, 179, 8, 0.14);
-  background: linear-gradient(
-    135deg,
-    rgba(254, 252, 232, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-record::before {
-  background: radial-gradient(circle, rgba(234, 179, 8, 0.22), transparent 70%);
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-card-highlight-clutch {
-  border-color: rgba(239, 68, 68, 0.32);
-  box-shadow: 0 20px 32px rgba(239, 68, 68, 0.14);
-  background: linear-gradient(
-    135deg,
-    rgba(254, 242, 242, 0.98),
-    rgba(255, 255, 255, 0.95)
-  );
-}
-
-.game-leader-card-highlight-clutch::before {
-  background: radial-gradient(circle, rgba(239, 68, 68, 0.22), transparent 70%);
+  border-color: var(--accent);
+  background: var(--surface-strong);
 }
 
 .game-leader-rank {
@@ -337,7 +261,7 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: #0c0c0c;
   border: 1px solid rgba(var(--accent-rgb), 0.14);
   color: var(--accent);
   font-weight: 800;
@@ -348,7 +272,7 @@
   height: 52px;
   border-radius: 16px;
   object-fit: cover;
-  background: rgba(255, 255, 255, 0.92);
+  background: #0c0c0c;
   border: 1px solid var(--line);
 }
 
@@ -437,51 +361,51 @@
   min-width: 1.5rem;
   height: 1.5rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.75);
+  background: #242424;
   font-size: 0.6rem;
   font-weight: 900;
 }
 
 .game-highlight-badge-triple {
-  color: #1d4ed8;
-  background: rgba(219, 234, 254, 0.94);
-  border-color: rgba(59, 130, 246, 0.22);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-highlight-badge-double {
-  color: #047857;
-  background: rgba(209, 250, 229, 0.94);
-  border-color: rgba(16, 185, 129, 0.22);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-highlight-badge-thirty {
-  color: #b45309;
-  background: rgba(254, 243, 199, 0.94);
-  border-color: rgba(245, 158, 11, 0.24);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-highlight-badge-forty {
-  color: #c2410c;
-  background: rgba(255, 237, 213, 0.94);
-  border-color: rgba(249, 115, 22, 0.22);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-highlight-badge-fifty {
-  color: #6d28d9;
-  background: rgba(237, 233, 254, 0.96);
-  border-color: rgba(124, 58, 237, 0.24);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-highlight-badge-record {
-  color: #a16207;
-  background: rgba(254, 249, 195, 0.96);
-  border-color: rgba(234, 179, 8, 0.28);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-highlight-badge-clutch {
-  color: #b91c1c;
-  background: rgba(254, 226, 226, 0.96);
-  border-color: rgba(239, 68, 68, 0.24);
+  color: var(--accent);
+  background: #171717;
+  border-color: var(--accent);
 }
 
 .game-leader-pill,
@@ -576,15 +500,15 @@
 }
 
 .game-table-wrap .detail-table tbody td {
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--surface);
 }
 
 .game-table-wrap .detail-table tbody tr:nth-child(even) td {
-  background: rgba(255, 252, 246, 0.96);
+  background: var(--surface-tint);
 }
 
 .game-table-wrap .detail-table tbody tr:hover td {
-  background: rgba(var(--accent-rgb), 0.08);
+  background: #1d1d1d;
 }
 
 .game-table-wrap .detail-row-starter td:first-child {

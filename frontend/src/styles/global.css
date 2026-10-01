@@ -1,29 +1,29 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap");
 
 :root {
-  color-scheme: light;
-  --bg: #fffcf6;
-  --bg-strong: #fff2cc;
-  --surface: #ffffff;
-  --surface-strong: #fffdf7;
-  --surface-tint: #fff6dd;
-  --ink: #261a0f;
-  --ink-soft: #6f614a;
-  --ink-faint: #b19d7e;
-  --line: #efe0b6;
-  --line-strong: #e6c96c;
-  --accent: #ca8a04;
-  --accent-rgb: 202, 138, 4;
-  --accent-2: #f0c24c;
-  --accent-2-rgb: 240, 194, 76;
-  --accent-soft: rgba(202, 138, 4, 0.11);
-  --accent-soft-strong: rgba(202, 138, 4, 0.19);
-  --success: #15803d;
-  --warning: #b7791f;
-  --danger: #b6441e;
-  --shadow: 0 22px 42px rgba(38, 26, 15, 0.1), 0 8px 18px rgba(202, 138, 4, 0.12);
-  --shadow-soft: 0 12px 26px rgba(38, 26, 15, 0.07), 0 4px 10px rgba(202, 138, 4, 0.08);
-  --shadow-xs: 0 6px 14px rgba(38, 26, 15, 0.05), 0 2px 6px rgba(202, 138, 4, 0.06);
+  color-scheme: dark;
+  --bg: #050505;
+  --bg-strong: #0a0a0a;
+  --surface: #101010;
+  --surface-strong: #141414;
+  --surface-tint: #1b1b1b;
+  --ink: #f5f5f5;
+  --ink-soft: #a6a6a6;
+  --ink-faint: #707070;
+  --line: #1f1f1f;
+  --line-strong: #ffd400;
+  --accent: #ffd400;
+  --accent-rgb: 255, 212, 0;
+  --accent-2: #ffe066;
+  --accent-2-rgb: 255, 224, 102;
+  --accent-soft: rgba(255, 212, 0, 0.1);
+  --accent-soft-strong: rgba(255, 212, 0, 0.16);
+  --success: #bdbdbd;
+  --warning: #ffd400;
+  --danger: #ff7d72;
+  --shadow: none;
+  --shadow-soft: none;
+  --shadow-xs: none;
 }
 
 *,
@@ -44,10 +44,7 @@ body {
   color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
-  background:
-    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.11), transparent 24rem),
-    radial-gradient(circle at bottom left, rgba(var(--accent-2-rgb), 0.08), transparent 20rem),
-    linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
+  background: #050505;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

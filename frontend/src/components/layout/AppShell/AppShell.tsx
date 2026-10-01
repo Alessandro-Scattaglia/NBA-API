@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { SeasonSelector } from "../../common/SeasonSelector";
 import "./AppShell.css";
 
 function SidebarIcon({ children }: { children: ReactNode }) {
@@ -91,6 +92,18 @@ const navItems = [
 ];
 
 export function AppShell() {
+  const currentSeason = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "2026-27";
+    }
+
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth() + 1;
+    const startYear = month >= 9 ? year : year - 1;
+    return `${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`;
+  }, []);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") {
@@ -98,6 +111,13 @@ export function AppShell() {
     }
 
     return window.localStorage.getItem("nba-sidebar-collapsed") === "true";
+  });
+  const [selectedSeason, setSelectedSeason] = useState<string>(() => {
+    if (typeof window === "undefined") {
+      return currentSeason;
+    }
+
+    return window.localStorage.getItem("nba-selected-season") ?? currentSeason;
   });
   const location = useLocation();
 
@@ -108,6 +128,19 @@ export function AppShell() {
   useEffect(() => {
     window.localStorage.setItem("nba-sidebar-collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    window.localStorage.setItem("nba-selected-season", selectedSeason);
+  }, [selectedSeason]);
+
+  const seasons = useMemo(() => {
+    const values = [currentSeason];
+    for (let offset = 1; offset <= 5; offset += 1) {
+      const startYear = Number(currentSeason.slice(0, 4)) - offset;
+      values.push(`${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`);
+    }
+    return Array.from(new Set(values));
+  }, [currentSeason]);
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? "app-shell-collapsed" : ""}`}>
@@ -183,6 +216,16 @@ export function AppShell() {
             NBA Dashboard
           </Link>
         </header>
+
+        <div className="season-toolbar">
+          <SeasonSelector
+            seasons={seasons}
+            value={selectedSeason}
+            currentSeason={currentSeason}
+            onChange={setSelectedSeason}
+          />
+        </div>
+
         <main className="page-shell">
           <Outlet />
         </main>

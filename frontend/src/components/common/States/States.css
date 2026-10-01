@@ -24,7 +24,7 @@
   border: 1px solid var(--line);
   padding: 10px 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface-strong);
   color: var(--ink);
   display: inline-flex;
   align-items: center;
@@ -40,7 +40,7 @@
 .page-back-button:hover {
   transform: translateX(-1px);
   border-color: var(--line-strong);
-  background: var(--surface);
+  background: var(--accent-soft);
 }
 
 .page-back-button:focus-visible {
@@ -125,8 +125,8 @@
 }
 
 .badge-warning {
-  background: rgba(183, 121, 31, 0.14);
-  color: var(--warning);
+  background: var(--accent);
+  color: #090909;
 }
 
 .badge-danger {
