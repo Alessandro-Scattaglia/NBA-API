@@ -7,6 +7,7 @@ import { TEAM_DIRECTORY } from "../config/teams.js";
 import type { AppServices } from "../modules/services.js";
 import type {
   ApiEnvelope,
+  CalendarResponse,
   LeaderCategoryKey,
   LeadersResponse,
   PlayoffsResponse,
@@ -309,6 +310,25 @@ function buildFallbackLeadersEnvelope(): ApiEnvelope<LeadersResponse> {
   };
 }
 
+function buildFallbackCalendarEnvelope(from?: string, to?: string): ApiEnvelope<CalendarResponse> {
+  const season = getCurrentSeason();
+
+  return {
+    data: {
+      season,
+      from: from ?? "",
+      to: to ?? "",
+      total: 0,
+      items: []
+    },
+    meta: {
+      updatedAt: new Date().toISOString(),
+      stale: true,
+      source: ["fallback"]
+    }
+  };
+}
+
 function isClientError(error: unknown) {
   const status = (error as { status?: number } | null)?.status;
   return typeof status === "number" && status >= 400 && status < 500;
@@ -467,12 +487,19 @@ export function createApiRouter(services: AppServices) {
   });
 
   router.get("/calendar", async (c) => {
+    let filters: z.infer<typeof calendarQuerySchema> | undefined;
+
     try {
       requireValidSeason(c.req.query("season"));
-      const filters = parseWithSchema(calendarQuerySchema, c.req.query());
+      filters = parseWithSchema(calendarQuerySchema, c.req.query());
       return c.json(await services.calendar.getCalendar(filters));
     } catch (error) {
-      throw error;
+      if (isClientError(error)) {
+        throw error;
+      }
+
+      logFallback("/calendar", error);
+      return c.json(buildFallbackCalendarEnvelope(filters?.from, filters?.to));
     }
   });
 

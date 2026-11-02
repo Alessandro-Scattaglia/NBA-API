@@ -1,5 +1,5 @@
 import { createRuntimeEnv, type RuntimeEnv } from "../config/env.js";
-import { REGULAR_SEASON_LABEL } from "../config/season.js";
+import { getCurrentSeason, REGULAR_SEASON_LABEL } from "../config/season.js";
 
 export interface NbaApiClient {
   getLiveScoreboard(): Promise<unknown>;
@@ -322,8 +322,11 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
     },
 
     getScheduleSnapshot() {
-      const url = buildUrl(runtimeEnv.cdnBaseUrl, "static/json/staticData/scheduleLeagueV2_1.json");
-      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "scheduleleaguev2", {
+        LeagueID: "00",
+        Season: getCurrentSeason()
+      });
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getPlayerIndex() {
