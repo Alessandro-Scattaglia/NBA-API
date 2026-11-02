@@ -1,7 +1,7 @@
-import { Router } from "express";
+import { Hono } from "hono";
 import { z } from "zod";
 import { cache } from "../cache/memoryCache.js";
-import { NBA_SEASON } from "../config/season.js";
+import { getCurrentSeason } from "../config/season.js";
 import { buildApiMeta, requireValidSeason, seasonQuerySchema } from "./season.js";
 import { TEAM_DIRECTORY } from "../config/teams.js";
 import type { AppServices } from "../modules/services.js";
@@ -117,7 +117,7 @@ function buildFallbackTeamsEnvelope(): ApiEnvelope<TeamsResponse> {
 
   return {
     data: {
-        season: NBA_SEASON,
+        season: getCurrentSeason(),
       east: split.east,
       west: split.west
     },
@@ -130,7 +130,7 @@ function buildFallbackStandingsEnvelope(): ApiEnvelope<StandingsResponse> {
 
   return {
     data: {
-        season: NBA_SEASON,
+        season: getCurrentSeason(),
       east: split.east,
       west: split.west,
       playInNotes: PLAY_IN_NOTES
@@ -238,7 +238,7 @@ function buildFallbackPlayoffsEnvelope(): ApiEnvelope<PlayoffsResponse> {
 
   return {
     data: {
-        season: NBA_SEASON,
+        season: getCurrentSeason(),
       overview: {
         directQualifiedTeams: east.directSeeds.length + west.directSeeds.length,
         playInTeams: east.playInSeeds.length + west.playInSeeds.length,
@@ -285,7 +285,7 @@ function buildFallbackTeamDetailEnvelope(teamId: number): ApiEnvelope<TeamDetail
 function buildFallbackPlayersEnvelope(page = 1, pageSize = 30): ApiEnvelope<PlayersResponse> {
   return {
     data: {
-        season: NBA_SEASON,
+        season: getCurrentSeason(),
       total: 0,
       page,
       pageSize,
@@ -298,7 +298,7 @@ function buildFallbackPlayersEnvelope(page = 1, pageSize = 30): ApiEnvelope<Play
 function buildFallbackLeadersEnvelope(): ApiEnvelope<LeadersResponse> {
   return {
     data: {
-        season: NBA_SEASON,
+        season: getCurrentSeason(),
       categories: Object.entries(LEADER_CATEGORY_LABELS).map(([key, label]) => ({
         key: key as LeaderCategoryKey,
         label,
@@ -331,16 +331,17 @@ function parseWithSchema<T>(schema: z.ZodType<T>, value: unknown) {
 }
 
 export function createApiRouter(services: AppServices) {
-  const router = Router();
+  const router = new Hono();
 
-  router.get("/health", (_request, response) => {
-    response.json({
+  router.get("/health", (c) => {
+    const season = getCurrentSeason();
+
+    return c.json({
       ok: true,
       app: "nba-api-local",
       version: "1.0.0",
       timestamp: new Date().toISOString(),
-      uptime: Math.round(process.uptime()),
-      season: NBA_SEASON,
+      season,
       seasonPhase: "regular-season",
       status: "online",
       cache: cache.getStats(),
@@ -348,155 +349,155 @@ export function createApiRouter(services: AppServices) {
     });
   });
 
-  router.get("/seasons", (_request, response) => {
-    const currentYear = Number(NBA_SEASON.slice(0, 4));
+  router.get("/seasons", (c) => {
+    const season = getCurrentSeason();
+    const currentYear = Number(season.slice(0, 4));
     const seasons = Array.from({ length: 6 }, (_, index) => {
       const startYear = currentYear - index;
       return `${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`;
     });
 
-    response.json({
+    return c.json({
       data: {
-        current: NBA_SEASON,
+        current: season,
         supported: seasons,
         phase: "regular-season",
         timestamp: new Date().toISOString()
       },
-      meta: buildApiMeta(NBA_SEASON, false)
+      meta: buildApiMeta(season, false)
     });
   });
 
-  router.get("/seasons/current", (_request, response) => {
-    response.json({
+  router.get("/seasons/current", (c) => {
+    const season = getCurrentSeason();
+
+    return c.json({
       data: {
-        season: NBA_SEASON,
+        season,
         phase: "regular-season",
         timestamp: new Date().toISOString()
       },
-      meta: buildApiMeta(NBA_SEASON, false)
+      meta: buildApiMeta(season, false)
     });
   });
 
-  router.get("/home", async (_request, response, next) => {
+  router.get("/home", async (c) => {
     try {
-      response.json(await services.home.getHome());
+      return c.json(await services.home.getHome());
     } catch (error) {
-      next(error);
+      throw error;
     }
   });
 
-  router.get("/teams", async (request, response, next) => {
+  router.get("/teams", async (c) => {
     try {
-      const seasonValue = requireValidSeason(request.query.season);
+      const seasonValue = requireValidSeason(c.req.query("season"));
       if (seasonValue) {
         void seasonValue;
       }
-      response.json(await services.teams.getTeams());
+      return c.json(await services.teams.getTeams());
     } catch (error) {
       logFallback("/teams", error);
-      response.json(buildFallbackTeamsEnvelope());
+      return c.json(buildFallbackTeamsEnvelope());
     }
   });
 
-  router.get("/teams/:teamId", async (request, response, next) => {
+  router.get("/teams/:teamId", async (c) => {
     let teamId: number | undefined;
 
     try {
-      teamId = parseWithSchema(idParamSchema, request.params.teamId);
-      response.json(await services.teams.getTeamDetail(teamId));
+      teamId = parseWithSchema(idParamSchema, c.req.param("teamId"));
+      return c.json(await services.teams.getTeamDetail(teamId));
     } catch (error) {
       if (isClientError(error) || teamId === undefined) {
-        next(error);
-        return;
+        throw error;
       }
 
       logFallback("/teams/:teamId", error);
-      response.json(buildFallbackTeamDetailEnvelope(teamId));
+      return c.json(buildFallbackTeamDetailEnvelope(teamId));
     }
   });
 
-  router.get("/players", async (request, response, next) => {
+  router.get("/players", async (c) => {
     let filters: z.infer<typeof playersQuerySchema> | undefined;
 
     try {
-      requireValidSeason(request.query.season);
-      filters = parseWithSchema(playersQuerySchema, request.query);
-      response.json(await services.players.getPlayers(filters));
+      requireValidSeason(c.req.query("season"));
+      filters = parseWithSchema(playersQuerySchema, c.req.query());
+      return c.json(await services.players.getPlayers(filters));
     } catch (error) {
       if (isClientError(error)) {
-        next(error);
-        return;
+        throw error;
       }
 
       logFallback("/players", error);
-      response.json(buildFallbackPlayersEnvelope(filters?.page ?? 1, filters?.pageSize ?? 30));
+      return c.json(buildFallbackPlayersEnvelope(filters?.page ?? 1, filters?.pageSize ?? 30));
     }
   });
 
-  router.get("/players/:playerId", async (request, response, next) => {
+  router.get("/players/:playerId", async (c) => {
     let playerId: number | undefined;
 
     try {
-      playerId = parseWithSchema(idParamSchema, request.params.playerId);
-      response.json(await services.players.getPlayerDetail(playerId));
+      playerId = parseWithSchema(idParamSchema, c.req.param("playerId"));
+      return c.json(await services.players.getPlayerDetail(playerId));
     } catch (error) {
-      next(error);
+      throw error;
     }
   });
 
-  router.get("/standings", async (request, response, next) => {
+  router.get("/standings", async (c) => {
     try {
-      requireValidSeason(request.query.season);
-      response.json(await services.standings.getStandings());
+      requireValidSeason(c.req.query("season"));
+      return c.json(await services.standings.getStandings());
     } catch (error) {
       logFallback("/standings", error);
-      response.json(buildFallbackStandingsEnvelope());
+      return c.json(buildFallbackStandingsEnvelope());
     }
   });
 
-  router.get("/playoffs", async (request, response, next) => {
+  router.get("/playoffs", async (c) => {
     try {
-      requireValidSeason(request.query.season);
-      response.json(await services.playoffs.getPlayoffs());
+      requireValidSeason(c.req.query("season"));
+      return c.json(await services.playoffs.getPlayoffs());
     } catch (error) {
       logFallback("/playoffs", error);
-      response.json(buildFallbackPlayoffsEnvelope());
+      return c.json(buildFallbackPlayoffsEnvelope());
     }
   });
 
-  router.get("/calendar", async (request, response, next) => {
+  router.get("/calendar", async (c) => {
     try {
-      requireValidSeason(request.query.season);
-      const filters = parseWithSchema(calendarQuerySchema, request.query);
-      response.json(await services.calendar.getCalendar(filters));
+      requireValidSeason(c.req.query("season"));
+      const filters = parseWithSchema(calendarQuerySchema, c.req.query());
+      return c.json(await services.calendar.getCalendar(filters));
     } catch (error) {
-      next(error);
+      throw error;
     }
   });
 
-  router.get("/games/:gameId", async (request, response, next) => {
+  router.get("/games/:gameId", async (c) => {
     try {
-      response.json(await services.games.getGameDetail(request.params.gameId));
+      return c.json(await services.games.getGameDetail(c.req.param("gameId")));
     } catch (error) {
-      next(error);
+      throw error;
     }
   });
 
-  router.get("/leaders", async (request, response, next) => {
+  router.get("/leaders", async (c) => {
     let query: z.infer<typeof leadersQuerySchema> | undefined;
 
     try {
-      requireValidSeason(request.query.season);
-      query = parseWithSchema(leadersQuerySchema, request.query);
-      response.json(await services.leaders.getLeaders(query.limit));
+      requireValidSeason(c.req.query("season"));
+      query = parseWithSchema(leadersQuerySchema, c.req.query());
+      return c.json(await services.leaders.getLeaders(query.limit));
     } catch (error) {
       if (isClientError(error)) {
-        next(error);
-        return;
+        throw error;
       }
 
       logFallback("/leaders", error);
-      response.json(buildFallbackLeadersEnvelope());
+      return c.json(buildFallbackLeadersEnvelope());
     }
   });
 

@@ -1,6 +1,6 @@
 # NBA Dashboard
 
-Monorepo locale per una web app NBA moderna composta da backend Express e frontend React/Vite. L’obiettivo del progetto è offrire dati NBA in locale, senza autenticazione, senza servizi cloud e con una sola procedura di avvio.
+Monorepo locale per una web app NBA moderna composta da backend Hono su Cloudflare Workers e frontend React/Vite. Il backend espone un proxy CORS verso gli endpoint pubblici NBA.
 
 ## Requisiti
 
@@ -29,7 +29,7 @@ Lo script root usa `concurrently` con chiusura automatica dei worker se uno dei 
 
 ## Struttura del progetto
 
-- `backend/`: API Express, cache, client NBA, servizi e validazione
+- `backend/`: API Hono/Workers, cache, client NBA, servizi e validazione
 - `frontend/`: app React, pagine, componenti, query TanStack, stile locale
 - `docs/`: documentazione architetturale e fonti dati
 
@@ -81,6 +81,21 @@ npm run typecheck
 npm run test
 npm run test --workspace backend
 npm run test --workspace frontend
+```
+
+## Deploy del backend
+
+Il backend usa Wrangler e legge la configurazione dai binding definiti in
+`backend/wrangler.toml`. Per lo sviluppo locale:
+
+```bash
+npm run dev --workspace backend
+```
+
+Per pubblicare il Worker:
+
+```bash
+npm run deploy --workspace backend
 ```
 
 ## Test e build

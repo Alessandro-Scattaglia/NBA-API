@@ -1,5 +1,5 @@
 import { cache } from "../../cache/memoryCache.js";
-import { NBA_SEASON, TTL } from "../../config/season.js";
+import { getCurrentSeason, TTL } from "../../config/season.js";
 import type { ApiEnvelope, PlayerDetail, PlayersResponse } from "../../types/dto/index.js";
 import { calculateAge, round, safeNumber } from "../../utils/date.js";
 import { mapStatsRows } from "../../utils/stats.js";
@@ -40,7 +40,7 @@ export function createPlayersService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: NBA_SEASON,
+          season: getCurrentSeason(),
           total: filtered.length,
           page,
           pageSize,
@@ -53,7 +53,7 @@ export function createPlayersService(deps: ServiceDeps) {
     },
 
     async getPlayerDetail(playerId: number): Promise<ApiEnvelope<PlayerDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:${NBA_SEASON}:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
         const base = catalogState.value.find((player) => player.playerId === playerId);
         if (!base) {

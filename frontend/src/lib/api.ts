@@ -1,5 +1,7 @@
 import type { ApiEnvelope } from "./types";
 
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+
 async function readJsonSafely<T>(response: Response): Promise<T | null> {
   const raw = await response.text();
 
@@ -28,7 +30,7 @@ function appendSeasonQuery(path: string): string {
 }
 
 export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
-  const finalPath = appendSeasonQuery(path);
+  const finalPath = `${apiBaseUrl}${appendSeasonQuery(path)}`;
   let response: Response;
 
   try {

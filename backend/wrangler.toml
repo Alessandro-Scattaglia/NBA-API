@@ -1,0 +1,11 @@
+name = "nba-api"
+main = "src/index.ts"
+compatibility_date = "2026-11-02"
+
+[vars]
+NBA_STATS_BASE_URL = "https://stats.nba.com/stats"
+NBA_CDN_BASE_URL = "https://cdn.nba.com"
+NBA_LIVE_BASE_URL = "https://cdn.nba.com/static/json/liveData"
+NBA_REQUEST_TIMEOUT_MS = "6000"
+NBA_REQUEST_RETRIES = "1"
+FRONTEND_ORIGIN = "https://alessandro-scattaglia.github.io"

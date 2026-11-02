@@ -1,5 +1,5 @@
-import { env } from "../config/env.js";
-import { NBA_SEASON, PLAYOFF_PICTURE_SEASON_ID, REGULAR_SEASON_LABEL } from "../config/season.js";
+import { createRuntimeEnv, type RuntimeEnv } from "../config/env.js";
+import { REGULAR_SEASON_LABEL } from "../config/season.js";
 
 export interface NbaApiClient {
   getLiveScoreboard(): Promise<unknown>;
@@ -31,8 +31,6 @@ const CERTIFICATE_ERROR_CODES = new Set([
   "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
   "UNABLE_TO_VERIFY_LEAF_SIGNATURE"
 ]);
-
-let insecureTlsApplied = false;
 
 const STATS_HEADERS: Record<string, string> = {
   Accept: "application/json, text/plain, */*",
@@ -98,36 +96,6 @@ function delay(ms: number) {
   });
 }
 
-function applyInsecureTls(reason: "env" | "cert-error", details?: { url: string; code: string | null }) {
-  if (insecureTlsApplied) {
-    return false;
-  }
-
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  insecureTlsApplied = true;
-
-  if (reason === "env") {
-    console.warn(
-      "[nba-client] NBA_ALLOW_INSECURE_TLS=1 attivo: la verifica TLS e disabilitata solo per sbloccare ambienti con ispezione certificati."
-    );
-  } else {
-    console.warn(
-      `[nba-client] TLS certificate verification failed for ${details?.url ?? "NBA endpoint"} (${details?.code ?? "unknown"}). ` +
-        "Retrying once with certificate verification disabled for this local session."
-    );
-  }
-
-  return true;
-}
-
-function ensureTlsConfig() {
-  if (!env.allowInsecureTls || insecureTlsApplied) {
-    return;
-  }
-
-  applyInsecureTls("env");
-}
-
 function getCertificateErrorCode(error: unknown) {
   if (typeof error !== "object" || error === null) {
     return null;
@@ -147,23 +115,21 @@ function getCertificateErrorCode(error: unknown) {
   return null;
 }
 
-function shouldRetryWithInsecureTls(error: unknown, url: string) {
+function shouldRetryWithInsecureTls(error: unknown, url: string, runtimeEnv: RuntimeEnv) {
   const certificateErrorCode = getCertificateErrorCode(error);
 
-  if (!certificateErrorCode || !CERTIFICATE_ERROR_CODES.has(certificateErrorCode) || env.allowInsecureTls) {
+  if (!certificateErrorCode || !CERTIFICATE_ERROR_CODES.has(certificateErrorCode) || runtimeEnv.allowInsecureTls) {
     return false;
   }
 
-  return applyInsecureTls("cert-error", {
-    url,
-    code: certificateErrorCode
-  });
+  console.warn(`[nba-client] TLS certificate verification failed for ${url} (${certificateErrorCode}).`);
+  return false;
 }
 
-function normalizeRequestError(error: unknown, url: string) {
+function normalizeRequestError(error: unknown, url: string, runtimeEnv: RuntimeEnv) {
   const certificateErrorCode = getCertificateErrorCode(error);
 
-  if (certificateErrorCode && CERTIFICATE_ERROR_CODES.has(certificateErrorCode) && !env.allowInsecureTls) {
+  if (certificateErrorCode && CERTIFICATE_ERROR_CODES.has(certificateErrorCode) && !runtimeEnv.allowInsecureTls) {
     return new Error(
       `TLS certificate verification failed for ${url} (${certificateErrorCode}). ` +
         "If this machine uses antivirus/proxy TLS inspection, set NBA_ALLOW_INSECURE_TLS=1 for local debugging."
@@ -193,14 +159,13 @@ async function requestJson(
   fetchImpl: FetchImpl,
   url: string,
   headers: Record<string, string>,
-  timeoutMs = env.requestTimeoutMs
+  runtimeEnv: RuntimeEnv,
+  timeoutMs = runtimeEnv.requestTimeoutMs
 ) {
-  ensureTlsConfig();
-
   let lastError: unknown = null;
   let requestAttempts = 0;
 
-  while (requestAttempts <= env.requestRetries) {
+  while (requestAttempts <= runtimeEnv.requestRetries) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -218,11 +183,11 @@ async function requestJson(
     } catch (error) {
       lastError = error;
 
-      if (shouldRetryWithInsecureTls(error, url)) {
+      if (shouldRetryWithInsecureTls(error, url, runtimeEnv)) {
         continue;
       }
 
-      if (requestAttempts < env.requestRetries) {
+      if (requestAttempts < runtimeEnv.requestRetries) {
         requestAttempts += 1;
         await delay(300 * requestAttempts);
       } else {
@@ -233,10 +198,10 @@ async function requestJson(
     }
   }
 
-  throw normalizeRequestError(lastError, url);
+  throw normalizeRequestError(lastError, url, runtimeEnv);
 }
 
-function buildLeagueDashPlayerStatsParams() {
+function buildLeagueDashPlayerStatsParams(season: string) {
   return {
     College: "",
     Conference: "",
@@ -262,7 +227,7 @@ function buildLeagueDashPlayerStatsParams() {
     PlayerPosition: "",
     PlusMinus: "N",
     Rank: "N",
-    Season: NBA_SEASON,
+    Season: season,
     SeasonSegment: "",
     SeasonType: REGULAR_SEASON_LABEL,
     ShotClockRange: "",
@@ -275,7 +240,7 @@ function buildLeagueDashPlayerStatsParams() {
   };
 }
 
-function buildLeagueDashTeamStatsParams() {
+function buildLeagueDashTeamStatsParams(season: string) {
   return {
     Conference: "",
     DateFrom: "",
@@ -294,7 +259,7 @@ function buildLeagueDashTeamStatsParams() {
     Period: 0,
     PlusMinus: "N",
     Rank: "N",
-    Season: NBA_SEASON,
+    Season: season,
     SeasonSegment: "",
     SeasonType: REGULAR_SEASON_LABEL,
     ShotClockRange: "",
@@ -305,7 +270,7 @@ function buildLeagueDashTeamStatsParams() {
   };
 }
 
-function buildPlayerIndexParams() {
+function buildPlayerIndexParams(season: string) {
   return {
     Active: 1,
     AllStar: 0,
@@ -316,139 +281,139 @@ function buildPlayerIndexParams() {
     Height: "",
     Historical: 0,
     LeagueID: "00",
-    Season: NBA_SEASON,
+    Season: season,
     TeamID: 0,
     Weight: ""
   };
 }
 
-function buildLeagueLeadersParams(statCategory: string) {
+function buildLeagueLeadersParams(statCategory: string, season: string) {
   return {
     LeagueID: "00",
     PerMode: "PerGame",
     Scope: "S",
-    Season: NBA_SEASON,
+    Season: season,
     SeasonType: REGULAR_SEASON_LABEL,
     StatCategory: statCategory
   };
 }
 
-export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
+export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = createRuntimeEnv()): NbaApiClient {
   return {
     getLiveScoreboard() {
-      const url = buildUrl(env.liveBaseUrl, "scoreboard/todaysScoreboard_00.json");
-      return requestJson(fetchImpl, url, DEFAULT_HEADERS);
+      const url = buildUrl(runtimeEnv.liveBaseUrl, "scoreboard/todaysScoreboard_00.json");
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
     },
 
     getLiveBoxscore(gameId: string) {
-      const url = buildUrl(env.liveBaseUrl, `boxscore/boxscore_${gameId}.json`);
-      return requestJson(fetchImpl, url, DEFAULT_HEADERS);
+      const url = buildUrl(runtimeEnv.liveBaseUrl, `boxscore/boxscore_${gameId}.json`);
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
     },
 
     getScoreboardByDate(gameDateIso: string) {
       const [year, month, day] = gameDateIso.split("-");
       const gameDate = `${month}/${day}/${year}`;
-      const url = buildUrl(env.statsBaseUrl, "scoreboardv2", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "scoreboardv2", {
         DayOffset: 0,
         GameDate: gameDate,
         LeagueID: "00"
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getScheduleSnapshot() {
-      const url = buildUrl(env.cdnBaseUrl, "static/json/staticData/scheduleLeagueV2_1.json");
-      return requestJson(fetchImpl, url, DEFAULT_HEADERS);
+      const url = buildUrl(runtimeEnv.cdnBaseUrl, "static/json/staticData/scheduleLeagueV2_1.json");
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
     },
 
     getPlayerIndex() {
-      const url = buildUrl(env.statsBaseUrl, "playerindex", buildPlayerIndexParams());
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "playerindex", buildPlayerIndexParams(runtimeEnv.nbaSeason));
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getLeagueDashPlayerStats() {
-      const url = buildUrl(env.statsBaseUrl, "leaguedashplayerstats", buildLeagueDashPlayerStatsParams());
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "leaguedashplayerstats", buildLeagueDashPlayerStatsParams(runtimeEnv.nbaSeason));
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getLeagueLeaders(statCategory = "PTS") {
-      const url = buildUrl(env.statsBaseUrl, "leagueleaders", buildLeagueLeadersParams(statCategory));
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "leagueleaders", buildLeagueLeadersParams(statCategory, runtimeEnv.nbaSeason));
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getCommonPlayerInfo(playerId: number) {
-      const url = buildUrl(env.statsBaseUrl, "commonplayerinfo", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "commonplayerinfo", {
         LeagueID: "00",
         PlayerID: playerId
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getPlayerGameLogs(playerId: number, seasonType: string = REGULAR_SEASON_LABEL) {
-      const url = buildUrl(env.statsBaseUrl, "playergamelog", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "playergamelog", {
         LeagueID: "00",
         PlayerID: playerId,
-        Season: NBA_SEASON,
+        Season: runtimeEnv.nbaSeason,
         SeasonType: seasonType
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getTeamInfoCommon(teamId: number) {
-      const url = buildUrl(env.statsBaseUrl, "teaminfocommon", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "teaminfocommon", {
         LeagueIDNullable: "00",
-        SeasonNullable: NBA_SEASON,
+        SeasonNullable: runtimeEnv.nbaSeason,
         TeamID: teamId
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getCommonTeamRoster(teamId: number) {
-      const url = buildUrl(env.statsBaseUrl, "commonteamroster", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "commonteamroster", {
         LeagueID: "00",
-        Season: NBA_SEASON,
+        Season: runtimeEnv.nbaSeason,
         TeamID: teamId
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getLeagueDashTeamStats() {
-      const url = buildUrl(env.statsBaseUrl, "leaguedashteamstats", buildLeagueDashTeamStatsParams());
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "leaguedashteamstats", buildLeagueDashTeamStatsParams(runtimeEnv.nbaSeason));
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getTeamGameLog(teamId: number, seasonType: string = REGULAR_SEASON_LABEL) {
-      const url = buildUrl(env.statsBaseUrl, "teamgamelog", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "teamgamelog", {
         LeagueID: "00",
-        Season: NBA_SEASON,
+        Season: runtimeEnv.nbaSeason,
         SeasonType: seasonType,
         TeamID: teamId
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getLeagueStandings() {
-      const url = buildUrl(env.statsBaseUrl, "leaguestandings", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "leaguestandings", {
         LeagueID: "00",
-        Season: NBA_SEASON,
+        Season: runtimeEnv.nbaSeason,
         SeasonType: REGULAR_SEASON_LABEL
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getPlayoffPicture() {
-      const url = buildUrl(env.statsBaseUrl, "playoffpicture", {
+      const url = buildUrl(runtimeEnv.statsBaseUrl, "playoffpicture", {
         LeagueID: "00",
-        SeasonID: PLAYOFF_PICTURE_SEASON_ID
+        SeasonID: `2${runtimeEnv.nbaSeason.slice(0, 4)}`
       });
-      return requestJson(fetchImpl, url, STATS_HEADERS);
+      return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
     getEspnScoreboardByDate(gameDateIso: string) {
       const url = buildUrl("https://site.api.espn.com/apis/site/v2/sports/basketball/nba", "scoreboard", {
         dates: gameDateIso.replaceAll("-", "")
       });
-      return requestJson(fetchImpl, url, DEFAULT_HEADERS, Math.max(env.requestTimeoutMs, 12_000));
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv, Math.max(runtimeEnv.requestTimeoutMs, 12_000));
     },
 
     getEspnRoster(teamId: number) {
@@ -461,7 +426,7 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch): NbaApiClient {
         "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
         `teams/${team[1]}/roster`
       );
-      return requestJson(fetchImpl, url, DEFAULT_HEADERS);
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
     }
   };
 }

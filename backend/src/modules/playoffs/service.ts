@@ -1,4 +1,4 @@
-import { NBA_SEASON, SEASON_END_YEAR } from "../../config/season.js";
+import { getCurrentSeason, SEASON_END_YEAR } from "../../config/season.js";
 import type {
   ApiEnvelope,
   Conference,
@@ -474,7 +474,7 @@ export function createPlayoffsService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: NBA_SEASON,
+          season: getCurrentSeason(),
           overview: {
             directQualifiedTeams: east.directSeeds.length + west.directSeeds.length,
             playInTeams: east.playInSeeds.length + west.playInSeeds.length,

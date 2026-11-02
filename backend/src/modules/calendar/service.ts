@@ -1,5 +1,5 @@
 import type { ApiEnvelope, CalendarResponse, GameSummary } from "../../types/dto/index.js";
-import { NBA_SEASON, SEASON_END_DATE, SEASON_START_DATE } from "../../config/season.js";
+import { getCurrentSeason, SEASON_END_DATE, SEASON_START_DATE } from "../../config/season.js";
 import { loadCalendarRange } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
@@ -33,7 +33,7 @@ export function createCalendarService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: NBA_SEASON,
+          season: getCurrentSeason(),
           from: rangeStart,
           to: rangeEnd,
           total: items.length,

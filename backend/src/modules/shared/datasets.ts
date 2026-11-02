@@ -1,7 +1,7 @@
 import { cache } from "../../cache/memoryCache.js";
-import { env } from "../../config/env.js";
+import { createRuntimeEnv } from "../../config/env.js";
 import { TEAM_DIRECTORY, getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
-import { NBA_SEASON, SEASON_END_YEAR, TTL } from "../../config/season.js";
+import { getCurrentSeason, SEASON_END_YEAR, TTL } from "../../config/season.js";
 import type {
   GamePhase,
   GameSummary,
@@ -24,7 +24,7 @@ type TeamRecordSnapshot = {
   observedAt: string;
 };
 
-const STANDINGS_LOAD_TIMEOUT_MS = Math.max(env.requestTimeoutMs + 1_000, 6_000);
+const STANDINGS_LOAD_TIMEOUT_MS = Math.max(createRuntimeEnv().requestTimeoutMs + 1_000, 6_000);
 
 function getNumber(row: StatsRow, keys: string[], fallback = 0) {
   for (const key of keys) {
@@ -546,7 +546,7 @@ export async function loadStandings(deps: ServiceDeps) {
 }
 
 export async function loadPlayerCatalog(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad(`players-catalog:${NBA_SEASON}`, TTL.stats, async () => {
+  return getCache(deps).getOrLoad(`players-catalog:${getCurrentSeason()}`, TTL.stats, async () => {
     const leagueLeadersRequest = deps.client.getLeagueLeaders
       ? deps.client.getLeagueLeaders("PTS")
       : Promise.reject(new Error("leagueleaders endpoint not available"));

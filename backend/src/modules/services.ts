@@ -1,5 +1,6 @@
 import { cache } from "../cache/memoryCache.js";
-import { nbaApiClient, type NbaApiClient } from "../nba-client/client.js";
+import { createNbaApiClient, type NbaApiClient } from "../nba-client/client.js";
+import type { RuntimeEnv } from "../config/env.js";
 import { createCalendarService } from "./calendar/service.js";
 import { createGamesService } from "./games/service.js";
 import { createHomeService } from "./home/service.js";
@@ -20,7 +21,7 @@ export interface AppServices {
   leaders: ReturnType<typeof createLeadersService>;
 }
 
-export function createServices(client: NbaApiClient = nbaApiClient): AppServices {
+export function createServices(runtimeEnv?: RuntimeEnv, client: NbaApiClient = createNbaApiClient(fetch, runtimeEnv)): AppServices {
   const deps = {
     client,
     cache

@@ -9,6 +9,7 @@ describe("season detection", () => {
 
   it("detects a season from a date using the NBA calendar", () => {
     expect(resolveSeason(new Date("2026-10-01T00:00:00Z"))).toBe("2026-27");
+    expect(resolveSeason(new Date("2026-09-30T23:59:59Z"))).toBe("2025-26");
   });
 
   it("reports the season phase from the date", () => {

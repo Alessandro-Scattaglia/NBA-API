@@ -1,5 +1,3 @@
-import { env } from "./env.js";
-
 export type SeasonPhase = "preseason" | "regular-season" | "nba-cup" | "play-in" | "playoffs" | "offseason";
 
 const seasonPattern = /^(\d{4})-(\d{2})$/;
@@ -32,12 +30,12 @@ export function inferSeasonFromDate(date = new Date()): string {
   const currentDate = new Date(date);
   const year = currentDate.getUTCFullYear();
   const month = currentDate.getUTCMonth() + 1;
-  const startYear = month >= 9 ? year : year - 1;
+  const startYear = month >= 10 ? year : year - 1;
 
   return `${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`;
 }
 
-export function resolveSeason(date = new Date(), override = process.env.NBA_SEASON): string {
+export function resolveSeason(date = new Date(), override?: string): string {
   if (override && override.trim()) {
     return validateSeason(override);
   }
@@ -78,9 +76,13 @@ export function getSeasonPhase(date = new Date(), season = resolveSeason(date)):
   return "offseason";
 }
 
-export const NBA_SEASON = resolveSeason();
-export const SEASON_START_YEAR = Number(NBA_SEASON.slice(0, 4));
-export const SEASON_END_YEAR = Number(NBA_SEASON.slice(5, 7)) + 2000;
+export function getCurrentSeason(): string {
+  return resolveSeason(new Date());
+}
+
+const INITIAL_SEASON = getCurrentSeason();
+export const SEASON_START_YEAR = Number(INITIAL_SEASON.slice(0, 4));
+export const SEASON_END_YEAR = Number(INITIAL_SEASON.slice(5, 7)) + 2000;
 export const PLAYOFF_PICTURE_SEASON_ID = `2${SEASON_START_YEAR}`;
 export const REGULAR_SEASON_LABEL = "Regular Season";
 export const SEASON_START_DATE = `${SEASON_START_YEAR}-10-01`;

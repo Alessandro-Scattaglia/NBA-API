@@ -1,5 +1,5 @@
 import type { ApiEnvelope, LeaderCategory, LeaderCategoryKey, LeadersResponse, PlayerSummary } from "../../types/dto/index.js";
-import { NBA_SEASON } from "../../config/season.js";
+import { getCurrentSeason } from "../../config/season.js";
 import { loadPlayerCatalog } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
@@ -86,7 +86,7 @@ export function createLeadersService(deps: ServiceDeps) {
 
       return toEnvelope(
         {
-          season: NBA_SEASON,
+          season: getCurrentSeason(),
           categories
         },
         playersState.updatedAt,
