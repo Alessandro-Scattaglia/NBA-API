@@ -105,5 +105,7 @@ npm run dev
 ## Limiti noti
 
 - il backend usa dati pubblici NBA senza autenticazione e senza garantire SLA;
+- le emittenti mostrate nel calendario sono solo quelle comunicate dalla fonte NBA;
+  se il payload non le contiene viene mostrato esplicitamente che il dato non è disponibile;
 - alcune sezioni storiche o in tempo reale possono essere incomplete se la fonte non restituisce i campi richiesti;
 - il frontend mostra correttamente i dati realmente disponibili, senza inventare statistiche mancanti.

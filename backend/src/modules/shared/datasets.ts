@@ -828,12 +828,18 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
   const homeTeam = getTeamIdentity(homeTeamId);
   const awayTeam = getTeamIdentity(awayTeamId);
   const broadcasters = (game.broadcasters as Record<string, unknown> | undefined) ?? {};
-  const nationalTv =
-    ((broadcasters.nationalTvBroadcasters as Array<Record<string, unknown>> | undefined) ??
-      (broadcasters.nationalBroadcasters as Array<Record<string, unknown>> | undefined) ??
-      [])
-      .map((item) => String(item.broadcasterAbbreviation ?? item.displayName ?? item.broadcasterDisplay ?? ""))
-      .filter(Boolean);
+  const broadcasterLists = [
+    broadcasters.nationalTvBroadcasters,
+    broadcasters.nationalBroadcasters,
+    broadcasters.homeTvBroadcasters,
+    broadcasters.awayTvBroadcasters
+  ].filter((value): value is Array<Record<string, unknown>> => Array.isArray(value));
+  const nationalTv = [...new Set(
+    broadcasterLists
+      .flat()
+      .map((item) => String(item.displayName ?? item.broadcasterDisplay ?? item.broadcasterAbbreviation ?? ""))
+      .filter(Boolean)
+  )];
   const statusValue = safeNumber(game.gameStatus, 1);
   const rawStatusText = String(game.gameStatusText ?? "");
   const status = asGameStatus(statusValue, rawStatusText);

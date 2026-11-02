@@ -2,28 +2,34 @@
 
 :root {
   color-scheme: dark;
-  --bg: #050505;
-  --bg-strong: #0a0a0a;
-  --surface: #101010;
-  --surface-strong: #141414;
-  --surface-tint: #1b1b1b;
-  --ink: #f5f5f5;
-  --ink-soft: #a6a6a6;
-  --ink-faint: #707070;
-  --line: #1f1f1f;
+
+  --bg: #0a0a0a;
+  --bg-strong: #121212;
+  --surface: #181818;
+  --surface-strong: #222222;
+  --surface-tint: #2a2a2a;
+  
+  --ink: #f8f8f8;
+  --ink-soft: #b0b0b0;
+  --ink-faint: #787878;
+  
+  --line: #2d2d2d;
   --line-strong: #ffd400;
+  
   --accent: #ffd400;
   --accent-rgb: 255, 212, 0;
   --accent-2: #ffe066;
   --accent-2-rgb: 255, 224, 102;
   --accent-soft: rgba(255, 212, 0, 0.1);
-  --accent-soft-strong: rgba(255, 212, 0, 0.16);
-  --success: #bdbdbd;
-  --warning: #ffd400;
-  --danger: #ff7d72;
-  --shadow: none;
-  --shadow-soft: none;
-  --shadow-xs: none;
+  --accent-soft-strong: rgba(255, 212, 0, 0.18);
+  
+  --success: #e0e0e0;      
+  --warning: #ffd400;       
+  --danger: #ff5252;       
+
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.6);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
 }
 
 *,
@@ -43,8 +49,8 @@ body {
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   color: var(--ink);
   font-size: 15px;
-  line-height: 1.5;
-  background: #050505;
+  line-height: 1.6;
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -55,27 +61,45 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--surface);
+  background: var(--bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
+  background: var(--surface-tint);
   border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent);
 }
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+  color: inherit;
 }
 
 h1,
 h2,
-h3 {
+h3,
+h4,
+h5,
+h6 {
   font-family: "Space Grotesk", sans-serif;
+  color: var(--ink);
+  margin-top: 0;
+  letter-spacing: -0.02em;
 }

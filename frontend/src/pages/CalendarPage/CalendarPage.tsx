@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
+import { getBroadcastLinks } from "../../lib/broadcast";
 import { formatGamePhase, formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
 import type { CalendarResponse, GameSummary, TeamsResponse } from "../../lib/types";
 import "./CalendarPage.css";
@@ -70,19 +71,23 @@ function getDisplayScore(game: GameSummary, side: "home" | "away") {
   return score ?? "--";
 }
 
+function formatBroadcasts(game: GameSummary) {
+  return game.nationalTv.length > 0 ? game.nationalTv.join(", ") : "Non comunicato dalla fonte NBA";
+}
+
 function CalendarDayList({ games }: { games: GameSummary[] }) {
   return (
     <div className="calendar-day-list">
       {games.map((game) => (
-        <Link key={game.gameId} to={`/games/${game.gameId}`} className="calendar-game-row">
-          <div className="calendar-game-time">
+        <div key={game.gameId} className="calendar-game-row">
+          <Link to={`/games/${game.gameId}`} className="calendar-game-time">
             <span className="calendar-game-hour">{formatTime(game.dateTimeUtc)}</span>
             <Badge tone={game.status === "live" ? "live" : game.status === "final" ? "neutral" : "warning"}>
               {formatStatusLabel(game.status)}
             </Badge>
-          </div>
+          </Link>
 
-          <div className="calendar-game-matchup">
+          <Link to={`/games/${game.gameId}`} className="calendar-game-matchup">
             <div className="calendar-team-inline">
               <div className="game-team">
                 <img src={game.awayTeam.logo} alt="" className="mini-logo" />
@@ -100,13 +105,33 @@ function CalendarDayList({ games }: { games: GameSummary[] }) {
                 <img src={game.homeTeam.logo} alt="" className="mini-logo" />
               </div>
             </div>
-          </div>
+          </Link>
 
           <div className="calendar-game-info">
-            <strong>{formatVenue(game.arena)}</strong>
-            <span>{formatGameStatusText(game)}</span>
+            <Link to={`/games/${game.gameId}`} className="calendar-game-summary">
+              <strong>{formatVenue(game.arena)}</strong>
+              <span>{formatGameStatusText(game)}</span>
+            </Link>
+            <span className="calendar-game-broadcast">
+              <strong>Dove vederla:</strong> {formatBroadcasts(game)}
+            </span>
+            {getBroadcastLinks(game.nationalTv).length > 0 ? (
+              <div className="calendar-broadcast-links">
+                {getBroadcastLinks(game.nationalTv).map((broadcaster) => (
+                  <a
+                    key={broadcaster.url}
+                    href={broadcaster.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    Vai a {broadcaster.name}
+                  </a>
+                ))}
+              </div>
+            ) : null}
           </div>
-        </Link>
+        </div>
       ))}
     </div>
   );

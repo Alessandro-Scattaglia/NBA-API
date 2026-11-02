@@ -39,5 +39,5 @@ I due processi vengono avviati contemporaneamente dal root con `npm run dev` usa
 
 - nessuna autenticazione;
 - nessuna API key richiesta;
-- nessun deploy pubblico;
+- in locale il proxy Vite inoltra `/api` a `127.0.0.1:4001`;
 - tutte le chiamate sono locali all’ambiente di sviluppo.

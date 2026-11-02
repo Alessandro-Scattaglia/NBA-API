@@ -1,155 +1,186 @@
+/* ==========================================================================
+   LAYOUT & GRIDS
+   ========================================================================== */
+
 .grid-2,
 .grid-3,
 .grid-4 {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
-.grid-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.grid-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.grid-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.filter-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #171717;
-  border: 1px solid #292929;
-  box-shadow: var(--shadow-xs);
-  font-weight: 600;
-  font-size: 0.85rem;
-}
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 .entity-grid {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
+
+.stats-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+/* ==========================================================================
+   CARDS & CONTAINERS (UI Moderna / Dark Stealth)
+   ========================================================================== */
 
 .entity-card,
 .game-card,
 .leader-row {
-  display: grid;
-  gap: 10px;
-  padding: 15px;
-  border-radius: 18px;
-  background: #111111;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--surface);
   border: 1px solid var(--line);
-  transition: border-color 160ms ease, transform 160ms ease;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
 }
 
+/* Effetto di luce/hover moderno sulle card */
 .entity-card:hover,
 .game-card:hover,
 .leader-row:hover {
-  border-color: #3a3a3a;
-  transform: none;
+  border-color: rgba(255, 212, 0, 0.3);
+  background: var(--surface-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 212, 0, 0.15);
 }
 
 .entity-card-head {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
 }
 
 .entity-card-head img,
 .team-logo-large,
 .player-headshot-large {
-  width: 54px;
-  height: 54px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
 }
 
 .team-logo-large {
-  width: 66px;
-  height: 66px;
+  width: 64px;
+  height: 64px;
 }
 
 .player-headshot-large {
-  border-radius: 18px;
+  border-radius: 12px;
   object-fit: cover;
-  background: #171717;
+  background: var(--surface-tint);
+  border: 1px solid var(--line);
 }
 
 .entity-meta,
 .game-card-meta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   color: var(--ink-soft);
-  font-size: 0.84rem;
+  font-size: 0.82rem;
+  font-weight: 500;
   min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .entity-card strong,
 .leader-row strong {
   display: block;
-  font-size: 0.96rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
 }
 
 .entity-card p,
 .leader-row p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 0.84rem;
+  font-size: 0.85rem;
 }
+
+/* ==========================================================================
+   STAT BOXES & HEADERS
+   ========================================================================== */
 
 .detail-header {
   display: flex;
-  gap: 18px;
+  gap: 20px;
   align-items: center;
+  padding-bottom: 8px;
 }
 
 .detail-header-text h1 {
-  margin: 0 0 6px;
-  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  margin: 0 0 4px;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .detail-subtitle {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .detail-subtitle a {
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 600;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
 }
 
-.stats-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+.detail-subtitle a:hover {
+  border-color: var(--accent);
 }
 
 .stat-box {
-  padding: 14px;
-  border-radius: 16px;
-  background: var(--surface-tint);
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-xs);
+  transition: border-color 0.2s ease;
+}
+
+.stat-box:hover {
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .stat-box span {
   display: block;
-  color: var(--ink-soft);
-  font-size: 0.76rem;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .stat-box strong {
   display: block;
-  margin-top: 8px;
-  font-size: 1.08rem;
-  line-height: 1.1;
+  margin-top: 6px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  font-family: "Space Grotesk", sans-serif;
 }
+
+/* ==========================================================================
+   FILTERS & INPUTS
+   ========================================================================== */
 
 .filters-bar {
   display: flex;
@@ -161,75 +192,102 @@
 .filters-bar input,
 .filters-bar select {
   min-width: 0;
-  padding: 11px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  background: #0c0c0c;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
   color: var(--ink);
-  box-shadow: var(--shadow-xs);
+  font-size: 0.88rem;
+  transition: all 0.2s ease;
 }
 
 .filters-bar input:focus,
 .filters-bar select:focus {
-  outline: 2px solid rgba(var(--accent-rgb), 0.3);
+  outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
+
+.filter-chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover,
+.filter-chip.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: rgba(255, 212, 0, 0.3);
+}
+
+/* ==========================================================================
+   LEADERBOARD & MATCHES
+   ========================================================================== */
 
 .leader-list {
   display: grid;
-  gap: 12px;
-}
-
-.leader-rank {
-  width: 1.9rem;
-  height: 1.9rem;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: #171717;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.leader-headshot {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  object-fit: cover;
-  background: #171717;
+  gap: 10px;
 }
 
 .leader-row {
+  flex-direction: row;
   align-items: center;
   justify-content: flex-start;
+  padding: 12px 16px;
+}
+
+.leader-rank {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-tint);
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--accent);
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.leader-headshot {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--surface-tint);
 }
 
 .leader-value {
   margin-left: auto;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 700;
+  color: var(--accent);
+  font-family: "Space Grotesk", sans-serif;
 }
 
 .game-card-head,
-.game-matchup,
-.leader-row {
+.game-matchup {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
 }
 
 .game-team,
 .entity-link {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-}
-
-.game-team strong,
-.entity-link strong {
-  min-width: 0;
+  font-weight: 600;
 }
 
 .game-team-right {
@@ -237,64 +295,83 @@
 }
 
 .mini-logo {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
 }
 
+/* ==========================================================================
+   TABLES
+   ========================================================================== */
+
 .table-wrap {
   overflow-x: auto;
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--surface);
+  border: 1px solid var(--line);
   box-shadow: var(--shadow-xs);
 }
 
 .detail-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: 0.85rem;
 }
 
 .detail-table th,
 .detail-table td {
-  padding: 10px 8px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
 
-.detail-table th {
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-soft);
-  background: var(--surface-tint);
+.detail-table tr:last-child td {
+  border-bottom: none;
 }
 
+.detail-table th {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  background: var(--bg-strong);
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Badge Vittoria / Sconfitta */
 .result-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2rem;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(17, 24, 39, 0.06);
-  color: var(--ink-soft);
-  font-size: 0.76rem;
-  font-weight: 800;
-  border: 1px solid var(--line);
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
 }
 
 .result-pill-win {
-  background: rgba(21, 128, 61, 0.12);
-  color: var(--success);
-  border-color: rgba(21, 128, 61, 0.18);
+  background: rgba(255, 212, 0, 0.12);
+  color: var(--accent);
+  border-color: rgba(255, 212, 0, 0.25);
 }
 
 .result-pill-loss {
-  background: rgba(200, 30, 30, 0.12);
-  color: #c81e1e;
-  border-color: rgba(200, 30, 30, 0.18);
+  background: rgba(255, 82, 82, 0.1);
+  color: var(--danger);
+  border-color: rgba(255, 82, 82, 0.2);
 }
+
+/* ==========================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
 
 @media (max-width: 1080px) {
   .grid-2,
@@ -303,11 +380,7 @@
     grid-template-columns: 1fr;
   }
 
-  .detail-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
+  .detail-header,
   .game-matchup {
     flex-direction: column;
     align-items: flex-start;
@@ -335,23 +408,9 @@
   .game-card,
   .leader-row {
     padding: 14px;
-    border-radius: 18px;
-  }
-
-  .game-card-head,
-  .game-card-meta,
-  .leader-row {
-    gap: 8px;
-  }
-
-  .entity-meta,
-  .game-card-meta {
-    flex-wrap: wrap;
-    row-gap: 6px;
   }
 
   .leader-row {
-    align-items: flex-start;
     flex-wrap: wrap;
   }
 
@@ -359,37 +418,20 @@
     margin-left: 0;
   }
 
-  .detail-header {
-    gap: 14px;
-  }
-
-  .table-wrap {
-    border-radius: 14px;
-  }
-
   .detail-table {
-    min-width: 620px;
+    min-width: 600px;
   }
 }
 
 @media (max-width: 420px) {
-  .entity-card-head {
-    gap: 10px;
-  }
-
   .entity-card-head img,
   .team-logo-large,
   .player-headshot-large {
-    width: 48px;
-    height: 48px;
-  }
-
-  .team-logo-large {
-    width: 58px;
-    height: 58px;
+    width: 44px;
+    height: 44px;
   }
 
   .detail-header-text h1 {
-    font-size: 1.45rem;
+    font-size: 1.4rem;
   }
 }
