@@ -44,15 +44,15 @@ npm run dev
 
 Lo script `dev` usa `concurrently --kill-others-on-fail` per avviare i due workspace e terminare gli altri processi in caso di fallimento di uno di essi.
 
-| Comando root | Scopo |
-| --- | --- |
-| `npm run dev` | Avvio contemporaneo backend e frontend |
-| `npm run build` | Build backend, poi frontend |
-| `npm run typecheck` | Controllo TypeScript dei due workspace |
-| `npm run test` | Suite backend, poi frontend |
-| `npm run lint` | Esecuzione degli script lint dei workspace |
-| `npm run test --workspace backend` | Solo test backend |
-| `npm run test --workspace frontend` | Solo test frontend |
+| Comando root                        | Scopo                                      |
+| ----------------------------------- | ------------------------------------------ |
+| `npm run dev`                       | Avvio contemporaneo backend e frontend     |
+| `npm run build`                     | Build backend, poi frontend                |
+| `npm run typecheck`                 | Controllo TypeScript dei due workspace     |
+| `npm run test`                      | Suite backend, poi frontend                |
+| `npm run lint`                      | Esecuzione degli script lint dei workspace |
+| `npm run test --workspace backend`  | Solo test backend                          |
+| `npm run test --workspace frontend` | Solo test frontend                         |
 
 Indirizzi di sviluppo predefiniti: frontend `http://127.0.0.1:5173`, backend `http://127.0.0.1:4001`. Le impostazioni effettive di binding e proxy sono descritte nelle sezioni successive.
 
@@ -60,16 +60,16 @@ Indirizzi di sviluppo predefiniti: frontend `http://127.0.0.1:5173`, backend `ht
 
 La configurazione viene letta da `process.env` in [env.ts](../backend/src/config/env.ts).
 
-| Variabile | Default | Significato |
-| --- | --- | --- |
-| `PORT` | `4001` | Porta HTTP backend |
-| `NBA_SEASON` | Stagione calcolata dalla data UTC | Override della stagione |
-| `NBA_STATS_BASE_URL` | `https://stats.nba.com/stats` | Base degli endpoint statistici |
-| `NBA_CDN_BASE_URL` | `https://cdn.nba.com` | Base CDN NBA |
-| `NBA_LIVE_BASE_URL` | `https://cdn.nba.com/static/json/liveData` | Base dei dati live |
-| `NBA_REQUEST_TIMEOUT_MS` | `6000` | Timeout delle richieste esterne in millisecondi |
-| `NBA_REQUEST_RETRIES` | `1` | Numero di retry configurato nel client |
-| `NBA_ALLOW_INSECURE_TLS` | Disabilitato | Attivo solo con `1` o `true` |
+| Variabile                | Default                                    | Significato                                     |
+| ------------------------ | ------------------------------------------ | ----------------------------------------------- |
+| `PORT`                   | `4001`                                     | Porta HTTP backend                              |
+| `NBA_SEASON`             | Stagione calcolata dalla data UTC          | Override della stagione                         |
+| `NBA_STATS_BASE_URL`     | `https://stats.nba.com/stats`              | Base degli endpoint statistici                  |
+| `NBA_CDN_BASE_URL`       | `https://cdn.nba.com`                      | Base CDN NBA                                    |
+| `NBA_LIVE_BASE_URL`      | `https://cdn.nba.com/static/json/liveData` | Base dei dati live                              |
+| `NBA_REQUEST_TIMEOUT_MS` | `6000`                                     | Timeout delle richieste esterne in millisecondi |
+| `NBA_REQUEST_RETRIES`    | `1`                                        | Numero di retry configurato nel client          |
+| `NBA_ALLOW_INSECURE_TLS` | Disabilitato                               | Attivo solo con `1` o `true`                    |
 
 Esempio PowerShell, prima dell'avvio:
 
@@ -95,12 +95,12 @@ Una rotta inesistente risponde con HTTP 404 e `{"error":"Not Found"}`. Il middle
 
 ## 5. Stack e architettura
 
-| Ambito | Tecnologie dichiarate |
-| --- | --- |
-| Backend | Express `^5.1.0`, CORS `^2.8.5`, Zod `^4.1.5` |
-| Frontend | React e React DOM `^19.1.1`, React Router DOM `^7.8.2`, TanStack React Query `^5.87.4` |
-| Toolchain | TypeScript `^5.9.2`, Vite `^7.1.3`, tsx `^4.20.5`, concurrently `^9.2.0` |
-| Test | Vitest `^3.2.4`, Testing Library React `^16.3.0`, jest-dom `^6.9.1`, jsdom `^27.0.0` |
+| Ambito    | Tecnologie dichiarate                                                                  |
+| --------- | -------------------------------------------------------------------------------------- |
+| Backend   | Express `^5.1.0`, CORS `^2.8.5`, Zod `^4.1.5`                                          |
+| Frontend  | React e React DOM `^19.1.1`, React Router DOM `^7.8.2`, TanStack React Query `^5.87.4` |
+| Toolchain | TypeScript `^5.9.2`, Vite `^7.1.3`, tsx `^4.20.5`, concurrently `^9.2.0`               |
+| Test      | Vitest `^3.2.4`, Testing Library React `^16.3.0`, jest-dom `^6.9.1`, jsdom `^27.0.0`   |
 
 I due workspace sono ES module (`type: module`). I manifest di riferimento sono [backend](../backend/package.json) e [frontend](../frontend/package.json).
 
@@ -122,24 +122,24 @@ La composizione avviene in [services.ts](../backend/src/modules/services.ts): `c
 
 ### 5.1 Organizzazione
 
-| Percorso | Responsabilita |
-| --- | --- |
-| `backend/src/server.ts` | Avvio HTTP, log e warmup |
-| `backend/src/app.ts` | Middleware Express e gestione errori |
-| `backend/src/routes/` | Contratto HTTP e validazione input |
-| `backend/src/config/` | Variabili d'ambiente, stagione, directory squadre |
-| `backend/src/nba-client/` | Richieste HTTPS a NBA ed ESPN |
-| `backend/src/cache/` | Cache volatile nel processo |
-| `backend/src/modules/` | Servizi di dominio e dataset condivisi |
-| `backend/src/types/dto/` | Tipi di risposta e oggetti di dominio |
-| `backend/src/utils/` | Mapping tabellare, date, numeri e URL asset |
-| `frontend/src/app/` | Router client |
-| `frontend/src/pages/` | Viste applicative |
-| `frontend/src/components/` | Layout, selettore, stati, tabelle e pannelli |
-| `frontend/src/lib/` | Client API, tipi, formattazione e asset |
-| `frontend/src/styles/` | Stili condivisi |
-| `frontend/src/test/` | Setup e test frontend |
-| `docs/` | Documentazione del progetto |
+| Percorso                   | Responsabilita                                    |
+| -------------------------- | ------------------------------------------------- |
+| `backend/src/server.ts`    | Avvio HTTP, log e warmup                          |
+| `backend/src/app.ts`       | Middleware Express e gestione errori              |
+| `backend/src/routes/`      | Contratto HTTP e validazione input                |
+| `backend/src/config/`      | Variabili d'ambiente, stagione, directory squadre |
+| `backend/src/nba-client/`  | Richieste HTTPS a NBA ed ESPN                     |
+| `backend/src/cache/`       | Cache volatile nel processo                       |
+| `backend/src/modules/`     | Servizi di dominio e dataset condivisi            |
+| `backend/src/types/dto/`   | Tipi di risposta e oggetti di dominio             |
+| `backend/src/utils/`       | Mapping tabellare, date, numeri e URL asset       |
+| `frontend/src/app/`        | Router client                                     |
+| `frontend/src/pages/`      | Viste applicative                                 |
+| `frontend/src/components/` | Layout, selettore, stati, tabelle e pannelli      |
+| `frontend/src/lib/`        | Client API, tipi, formattazione e asset           |
+| `frontend/src/styles/`     | Stili condivisi                                   |
+| `frontend/src/test/`       | Setup e test frontend                             |
+| `docs/`                    | Documentazione del progetto                       |
 
 ### 5.2 Ciclo di vita
 
@@ -153,14 +153,14 @@ Il timer e `unref()` e viene rimosso su `SIGINT` e `SIGTERM`, seguiti da `proces
 
 `getSeasonPhase` usa soglie convenzionali, non il calendario ufficiale degli eventi:
 
-| Intervallo nella stagione | Fase |
-| --- | --- |
-| 1 settembre - prima del 1 ottobre | `preseason` |
-| 1 ottobre - prima del 1 novembre | `regular-season` |
-| 1 novembre - prima del 10 aprile successivo | `nba-cup` |
-| 10 aprile - prima del 15 aprile | `play-in` |
-| 15 aprile - prima del 1 luglio | `playoffs` |
-| Fuori dagli intervalli precedenti | `offseason` |
+| Intervallo nella stagione                   | Fase             |
+| ------------------------------------------- | ---------------- |
+| 1 settembre - prima del 1 ottobre           | `preseason`      |
+| 1 ottobre - prima del 1 novembre            | `regular-season` |
+| 1 novembre - prima del 10 aprile successivo | `nba-cup`        |
+| 10 aprile - prima del 15 aprile             | `play-in`        |
+| 15 aprile - prima del 1 luglio              | `playoffs`       |
+| Fuori dagli intervalli precedenti           | `offseason`      |
 
 L'intervallo stagionale dei filtri va dal 1 ottobre al 31 luglio successivo. Lo spotlight della home passa da classifica a playoff dal 14 aprile. Queste soglie sono diverse e non devono essere interpretate come date ufficiali NBA.
 
@@ -185,13 +185,13 @@ Inoltre `SEASON_END_YEAR` e calcolato aggiungendo 2000 alle ultime due cifre: il
 
 La deduplicazione non copre tutti i cache miss: due richieste contemporanee a cache vuota possono eseguire due loader. Non sono previsti limite di capacita, eviction periodica, storage persistente o cache condivisa fra processi. Le entry scadute rimangono nella mappa.
 
-| Costante TTL | Durata | Impiego previsto |
-| --- | --- | --- |
-| `live` | 30 secondi | Scoreboard e dati live |
-| `standings` | 2 minuti | Classifiche |
-| `stats` | 10 minuti | Statistiche e cataloghi |
-| `calendar` | 10 minuti | Calendario |
-| `profile` | 12 ore | Profili e dettagli anagrafici |
+| Costante TTL | Durata     | Impiego previsto              |
+| ------------ | ---------- | ----------------------------- |
+| `live`       | 30 secondi | Scoreboard e dati live        |
+| `standings`  | 2 minuti   | Classifiche                   |
+| `stats`      | 10 minuti  | Statistiche e cataloghi       |
+| `calendar`   | 10 minuti  | Calendario                    |
+| `profile`    | 12 ore     | Profili e dettagli anagrafici |
 
 Le chiavi sono definite nei singoli loader: alcune includono stagione, ID o data, altre sono costanti versionate, ad esempio `standings-dataset:v4-espn-fallback`. Non e quindi corretto considerarle tutte isolate per stagione.
 
@@ -221,25 +221,25 @@ Le classifiche ricostruite ordinano per vittorie, sconfitte e nome: non applican
 
 I percorsi NBA Stats sono relativi a `NBA_STATS_BASE_URL`; le richieste statistiche usano normalmente `LeagueID=00`, la stagione del processo e `SeasonType=Regular Season`. I game log possono richiedere anche `Playoffs`.
 
-| Metodo del client | Endpoint | Uso |
-| --- | --- | --- |
-| `getLiveScoreboard` | Live base + `scoreboard/todaysScoreboard_00.json` | Partite di oggi |
-| `getLiveBoxscore` | Live base + `boxscore/boxscore_{gameId}.json` | Dettaglio partita |
-| `getScheduleSnapshot` | CDN base + `static/json/staticData/scheduleLeagueV2_1.json` | Calendario snapshot |
-| `getScoreboardByDate` | Stats + `scoreboardv2` | Calendario per `GameDate=MM/DD/YYYY` |
-| `getPlayerIndex` | Stats + `playerindex` | Catalogo giocatori attivi |
-| `getLeagueDashPlayerStats` | Stats + `leaguedashplayerstats` | Medie giocatore, `PerMode=PerGame` |
-| `getLeagueLeaders` | Stats + `leagueleaders` | Recupero alternativo statistiche, categoria default `PTS` |
-| `getCommonPlayerInfo` | Stats + `commonplayerinfo` | Anagrafica `PlayerID` |
-| `getPlayerGameLogs` | Stats + `playergamelog` | Game log `PlayerID` |
-| `getTeamInfoCommon` | Stats + `teaminfocommon` | Anagrafica squadra |
-| `getCommonTeamRoster` | Stats + `commonteamroster` | Roster `TeamID` |
-| `getLeagueDashTeamStats` | Stats + `leaguedashteamstats` | Medie squadra |
-| `getTeamGameLog` | Stats + `teamgamelog` | Game log squadra |
-| `getLeagueStandings` | Stats + `leaguestandings` | Classifiche |
-| `getPlayoffPicture` | Stats + `playoffpicture` | Quadro qualificazione, `SeasonID=2` seguito dall'anno iniziale |
-| `getEspnScoreboardByDate` | ESPN base + `scoreboard?dates=YYYYMMDD` | Fallback risultati/record |
-| `getEspnRoster` | ESPN base + `teams/{espnTeamId}/roster` | Fallback catalogo giocatori |
+| Metodo del client          | Endpoint                                                    | Uso                                                            |
+| -------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| `getLiveScoreboard`        | Live base + `scoreboard/todaysScoreboard_00.json`           | Partite di oggi                                                |
+| `getLiveBoxscore`          | Live base + `boxscore/boxscore_{gameId}.json`               | Dettaglio partita                                              |
+| `getScheduleSnapshot`      | CDN base + `static/json/staticData/scheduleLeagueV2_1.json` | Calendario snapshot                                            |
+| `getScoreboardByDate`      | Stats + `scoreboardv2`                                      | Calendario per `GameDate=MM/DD/YYYY`                           |
+| `getPlayerIndex`           | Stats + `playerindex`                                       | Catalogo giocatori attivi                                      |
+| `getLeagueDashPlayerStats` | Stats + `leaguedashplayerstats`                             | Medie giocatore, `PerMode=PerGame`                             |
+| `getLeagueLeaders`         | Stats + `leagueleaders`                                     | Recupero alternativo statistiche, categoria default `PTS`      |
+| `getCommonPlayerInfo`      | Stats + `commonplayerinfo`                                  | Anagrafica `PlayerID`                                          |
+| `getPlayerGameLogs`        | Stats + `playergamelog`                                     | Game log `PlayerID`                                            |
+| `getTeamInfoCommon`        | Stats + `teaminfocommon`                                    | Anagrafica squadra                                             |
+| `getCommonTeamRoster`      | Stats + `commonteamroster`                                  | Roster `TeamID`                                                |
+| `getLeagueDashTeamStats`   | Stats + `leaguedashteamstats`                               | Medie squadra                                                  |
+| `getTeamGameLog`           | Stats + `teamgamelog`                                       | Game log squadra                                               |
+| `getLeagueStandings`       | Stats + `leaguestandings`                                   | Classifiche                                                    |
+| `getPlayoffPicture`        | Stats + `playoffpicture`                                    | Quadro qualificazione, `SeasonID=2` seguito dall'anno iniziale |
+| `getEspnScoreboardByDate`  | ESPN base + `scoreboard?dates=YYYYMMDD`                     | Fallback risultati/record                                      |
+| `getEspnRoster`            | ESPN base + `teams/{espnTeamId}/roster`                     | Fallback catalogo giocatori                                    |
 
 La base ESPN e `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/`, codificata nel client e non configurabile via env. Lo scoreboard ESPN ha timeout minimo di 12 secondi. Gli ID squadra vengono tradotti con mappe statiche NBA/codice/ESPN. I metodi ESPN e `getLeagueLeaders` sono opzionali nell'interfaccia, utile per client simulati.
 
@@ -263,12 +263,12 @@ Le risposte applicative usano `ApiEnvelope<T>`:
 
 ```json
 {
-	"data": {},
-	"meta": {
-		"updatedAt": "2026-10-30T12:00:00.000Z",
-		"stale": false,
-		"source": ["stats.nba.com/leaguestandings"]
-	}
+  "data": {},
+  "meta": {
+    "updatedAt": "2026-10-30T12:00:00.000Z",
+    "stale": false,
+    "source": ["stats.nba.com/leaguestandings"]
+  }
 }
 ```
 
@@ -278,50 +278,50 @@ Eccezioni: `/health` restituisce un oggetto diretto; `/seasons` e `/seasons/curr
 
 ### 9.2 Endpoint
 
-| Endpoint | Parametri | Risultato in `data` o risposta diretta |
-| --- | --- | --- |
-| `/health` | Nessuno | `ok`, `app`, `version`, `timestamp`, `uptime` in secondi, `season`, `seasonPhase`, `status`, `cache`, `source` |
-| `/seasons` | Nessuno | `current`, `supported` (6 stagioni), `phase`, `timestamp` |
-| `/seasons/current` | Nessuno | `season`, `phase`, `timestamp` |
-| `/home` | Nessuno utilizzato | `HomeResponse` |
-| `/teams` | `season` validata, non applicata | `TeamsResponse` |
-| `/teams/:teamId` | ID intero positivo | `TeamDetail` |
-| `/players` | `season`, `search`, `teamId`, `position`, `page`, `pageSize` | `PlayersResponse` |
-| `/players/:playerId` | ID intero positivo | `PlayerDetail` |
-| `/standings` | `season` validata, non applicata | `StandingsResponse` |
-| `/playoffs` | `season` validata, non applicata | `PlayoffsResponse` |
-| `/calendar` | `season`, `from`, `to`, `teamId`, `status`, `phase` | `CalendarResponse` |
-| `/games/:gameId` | Stringa, senza schema specifico dell'ID | `GameDetail` |
-| `/leaders` | `season`, `limit` | `LeadersResponse` |
+| Endpoint             | Parametri                                                    | Risultato in `data` o risposta diretta                                                                         |
+| -------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `/health`            | Nessuno                                                      | `ok`, `app`, `version`, `timestamp`, `uptime` in secondi, `season`, `seasonPhase`, `status`, `cache`, `source` |
+| `/seasons`           | Nessuno                                                      | `current`, `supported` (6 stagioni), `phase`, `timestamp`                                                      |
+| `/seasons/current`   | Nessuno                                                      | `season`, `phase`, `timestamp`                                                                                 |
+| `/home`              | Nessuno utilizzato                                           | `HomeResponse`                                                                                                 |
+| `/teams`             | `season` validata, non applicata                             | `TeamsResponse`                                                                                                |
+| `/teams/:teamId`     | ID intero positivo                                           | `TeamDetail`                                                                                                   |
+| `/players`           | `season`, `search`, `teamId`, `position`, `page`, `pageSize` | `PlayersResponse`                                                                                              |
+| `/players/:playerId` | ID intero positivo                                           | `PlayerDetail`                                                                                                 |
+| `/standings`         | `season` validata, non applicata                             | `StandingsResponse`                                                                                            |
+| `/playoffs`          | `season` validata, non applicata                             | `PlayoffsResponse`                                                                                             |
+| `/calendar`          | `season`, `from`, `to`, `teamId`, `status`, `phase`          | `CalendarResponse`                                                                                             |
+| `/games/:gameId`     | Stringa, senza schema specifico dell'ID                      | `GameDetail`                                                                                                   |
+| `/leaders`           | `season`, `limit`                                            | `LeadersResponse`                                                                                              |
 
 `season` non cambia il dataset in nessuna rotta; non viene validata su home e rotte di dettaglio.
 
 ### 9.3 Filtri e limiti
 
-| Parametro | Regole |
-| --- | --- |
-| `teamId`, `playerId` | Conversione a numero, intero positivo dove previsto dagli schemi |
-| `search` | Sottostringa case-insensitive di nome completo giocatore o nome squadra; trim applicato |
-| `position` | Sottostringa della posizione, confronto case-sensitive nel servizio |
-| `page` | Intero positivo; default `1` |
-| `pageSize` | Intero positivo, massimo `50`; default `30` |
-| `limit` | Intero positivo, massimo `20`; default leader `10` |
-| `from`, `to` | Date attese come `YYYY-MM-DD`; lo schema HTTP verifica soltanto che siano stringhe |
-| `status` | `scheduled`, `live`, `final` |
-| `phase` | `preseason`, `regular-season`, `play-in`, `playoffs`, `other` |
+| Parametro            | Regole                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `teamId`, `playerId` | Conversione a numero, intero positivo dove previsto dagli schemi                        |
+| `search`             | Sottostringa case-insensitive di nome completo giocatore o nome squadra; trim applicato |
+| `position`           | Sottostringa della posizione, confronto case-sensitive nel servizio                     |
+| `page`               | Intero positivo; default `1`                                                            |
+| `pageSize`           | Intero positivo, massimo `50`; default `30`                                             |
+| `limit`              | Intero positivo, massimo `20`; default leader `10`                                      |
+| `from`, `to`         | Date attese come `YYYY-MM-DD`; lo schema HTTP verifica soltanto che siano stringhe      |
+| `status`             | `scheduled`, `live`, `final`                                                            |
+| `phase`              | `preseason`, `regular-season`, `play-in`, `playoffs`, `other`                           |
 
 I giocatori sono filtrati prima della paginazione: `total` conta tutti i risultati filtrati, `items` solo la pagina richiesta. Una pagina oltre il totale restituisce una lista vuota. Le date non valide non hanno una risposta 400 garantita, poiche la validazione semantica non e nello schema della rotta.
 
 ### 9.4 Errori e fallback per rotta
 
-| Rotta | Comportamento quando il servizio fallisce |
-| --- | --- |
-| `/home` | Propaga l'errore, ma il servizio puo gia restituire una home parziale |
-| `/teams`, `/standings` | HTTP 200 con directory locale e record sintetici, `stale: true` |
-| `/playoffs` | HTTP 200 con quadro sintetico dalla directory, `stale: true` |
-| `/teams/:teamId` | Propaga errori client/ID invalido; per altri errori tenta dettaglio locale senza roster o statistiche |
-| `/players`, `/leaders` | Propaga errori con status 4xx; per altri errori restituisce liste vuote con `stale: true` |
-| `/players/:playerId`, `/calendar`, `/games/:gameId` | Propaga l'errore al middleware, salvo i recuperi interni dei servizi |
+| Rotta                                               | Comportamento quando il servizio fallisce                                                             |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/home`                                             | Propaga l'errore, ma il servizio puo gia restituire una home parziale                                 |
+| `/teams`, `/standings`                              | HTTP 200 con directory locale e record sintetici, `stale: true`                                       |
+| `/playoffs`                                         | HTTP 200 con quadro sintetico dalla directory, `stale: true`                                          |
+| `/teams/:teamId`                                    | Propaga errori client/ID invalido; per altri errori tenta dettaglio locale senza roster o statistiche |
+| `/players`, `/leaders`                              | Propaga errori con status 4xx; per altri errori restituisce liste vuote con `stale: true`             |
+| `/players/:playerId`, `/calendar`, `/games/:gameId` | Propaga l'errore al middleware, salvo i recuperi interni dei servizi                                  |
 
 Gli errori degli schemi di filtri e ID ricevono status 400. Gli errori di `requireValidSeason`, invece, non hanno uno status: sulle rotte con fallback possono diventare HTTP 200, su `/calendar` arrivano al middleware come HTTP 500. Non esiste quindi un contratto uniforme di HTTP 400 per una stagione non valida.
 
@@ -348,54 +348,54 @@ Le definizioni backend sono suddivise in [common.ts](../backend/src/types/dto/co
 
 ### 10.1 Enumerazioni
 
-| Tipo | Valori |
-| --- | --- |
-| `Conference` | `East`, `West` |
-| `PlayoffStatus` | `playoff`, `play-in`, `eliminated`, `in-the-hunt` |
-| `GameStatus` | `scheduled`, `live`, `final` |
-| `GamePhase` | `preseason`, `regular-season`, `play-in`, `playoffs`, `other` |
-| `GameDataAvailabilityStatus` | `available`, `scheduled`, `pending` |
-| `PostseasonRound` | `play-in`, `first-round`, `semifinals`, `conference-finals`, `finals` |
-| `PostseasonSeriesStatus` | `scheduled`, `confirmed`, `awaiting-play-in` |
-| `LeaderCategoryKey` | `points`, `rebounds`, `assists`, `steals`, `blocks`, `threesMade` |
+| Tipo                         | Valori                                                                |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `Conference`                 | `East`, `West`                                                        |
+| `PlayoffStatus`              | `playoff`, `play-in`, `eliminated`, `in-the-hunt`                     |
+| `GameStatus`                 | `scheduled`, `live`, `final`                                          |
+| `GamePhase`                  | `preseason`, `regular-season`, `play-in`, `playoffs`, `other`         |
+| `GameDataAvailabilityStatus` | `available`, `scheduled`, `pending`                                   |
+| `PostseasonRound`            | `play-in`, `first-round`, `semifinals`, `conference-finals`, `finals` |
+| `PostseasonSeriesStatus`     | `scheduled`, `confirmed`, `awaiting-play-in`                          |
+| `LeaderCategoryKey`          | `points`, `rebounds`, `assists`, `steals`, `blocks`, `threesMade`     |
 
 `SeasonPhase` include `nba-cup` e `offseason`, mentre `GamePhase` no: sono concetti distinti.
 
 ### 10.2 Oggetti di dominio
 
-| Oggetto | Contenuto |
-| --- | --- |
-| `TeamIdentity` | ID, citta, nome, nickname, codice, slug, conference, division, logo |
-| `TeamSummary` | Identita, vittorie/sconfitte, percentuale vittorie, distacco, ranking, record casa/trasferta, ultime dieci, streak, stato playoff e flag clinched |
-| `StandingsRow` | `TeamSummary` piu `seed`, `gamesPlayed`, `remainingGames` |
-| `TeamDetail` | `TeamSummary` piu arena, anno fondazione, allenatori, statistiche stagionali, roster e ultime partite |
-| `TeamSeasonStats` | Punti fatti/subiti, rimbalzi, assist, rating, pace e percentuali al tiro; parte dei campi ammette `null` |
-| `TeamRosterPlayer` | ID, nome, ruolo, maglia, altezza, peso, eta e headshot |
-| `TeamReference` | ID, nome, codice e logo per i riferimenti dal giocatore |
-| `PlayerSummary` | ID, nomi, headshot, squadra opzionale, dati fisici, maglia, ruolo e medie opzionali |
-| `PlayerAverageLine` | Partite, minuti, punti, rimbalzi, assist, rubate, stoppate, triple e percentuali FG/3P/FT |
-| `PlayerDetail` | `PlayerSummary` piu nascita, eta, paese, scuola, esperienza, draft e ultime partite |
-| `PlayerRecentGame` | ID e data partita, matchup, risultato, minuti e statistiche individuali |
-| `GameSummary` | ID/codice, data UTC e label, stato/fase, arena, TV, cronometro, periodo, squadre con punteggio e record opzionali |
-| `GameDetail` | Riepilogo, disponibilita dei dati, leader e righe giocatore delle due squadre |
-| `GamePlayerLine` | ID, nome, ruolo, titolare, minuti, punti, rimbalzi, assist, rubate, stoppate e plus/minus opzionale |
-| `GameLeader` | ID, nome, squadra, punti, rimbalzi e assist |
-| `LeaderCategory` | Chiave, etichetta e lista dei leader con identita, valore e partite giocate |
-| `PostseasonSeries` | Conference, round, stato, etichetta, seed, squadre opzionali, nota e partite |
-| `PostseasonConferenceSnapshot` | Qualificate dirette, play-in, escluse dal quadro e serie per round |
-| `PostseasonKeyDate` | Chiave, etichetta, data iniziale, data finale opzionale e nota |
+| Oggetto                        | Contenuto                                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TeamIdentity`                 | ID, citta, nome, nickname, codice, slug, conference, division, logo                                                                               |
+| `TeamSummary`                  | Identita, vittorie/sconfitte, percentuale vittorie, distacco, ranking, record casa/trasferta, ultime dieci, streak, stato playoff e flag clinched |
+| `StandingsRow`                 | `TeamSummary` piu `seed`, `gamesPlayed`, `remainingGames`                                                                                         |
+| `TeamDetail`                   | `TeamSummary` piu arena, anno fondazione, allenatori, statistiche stagionali, roster e ultime partite                                             |
+| `TeamSeasonStats`              | Punti fatti/subiti, rimbalzi, assist, rating, pace e percentuali al tiro; parte dei campi ammette `null`                                          |
+| `TeamRosterPlayer`             | ID, nome, ruolo, maglia, altezza, peso, eta e headshot                                                                                            |
+| `TeamReference`                | ID, nome, codice e logo per i riferimenti dal giocatore                                                                                           |
+| `PlayerSummary`                | ID, nomi, headshot, squadra opzionale, dati fisici, maglia, ruolo e medie opzionali                                                               |
+| `PlayerAverageLine`            | Partite, minuti, punti, rimbalzi, assist, rubate, stoppate, triple e percentuali FG/3P/FT                                                         |
+| `PlayerDetail`                 | `PlayerSummary` piu nascita, eta, paese, scuola, esperienza, draft e ultime partite                                                               |
+| `PlayerRecentGame`             | ID e data partita, matchup, risultato, minuti e statistiche individuali                                                                           |
+| `GameSummary`                  | ID/codice, data UTC e label, stato/fase, arena, TV, cronometro, periodo, squadre con punteggio e record opzionali                                 |
+| `GameDetail`                   | Riepilogo, disponibilita dei dati, leader e righe giocatore delle due squadre                                                                     |
+| `GamePlayerLine`               | ID, nome, ruolo, titolare, minuti, punti, rimbalzi, assist, rubate, stoppate e plus/minus opzionale                                               |
+| `GameLeader`                   | ID, nome, squadra, punti, rimbalzi e assist                                                                                                       |
+| `LeaderCategory`               | Chiave, etichetta e lista dei leader con identita, valore e partite giocate                                                                       |
+| `PostseasonSeries`             | Conference, round, stato, etichetta, seed, squadre opzionali, nota e partite                                                                      |
+| `PostseasonConferenceSnapshot` | Qualificate dirette, play-in, escluse dal quadro e serie per round                                                                                |
+| `PostseasonKeyDate`            | Chiave, etichetta, data iniziale, data finale opzionale e nota                                                                                    |
 
 ### 10.3 Risposte aggregate
 
-| Risposta | Campi |
-| --- | --- |
-| `HomeResponse` | `season`, `homeSpotlightMode`, `todayGames`, `upcomingGames`, `featuredGame`, `conferenceLeaders`, `playerLeaders` |
-| `TeamsResponse` | `season`, `east`, `west` |
-| `PlayersResponse` | `season`, `total`, `page`, `pageSize`, `items` |
-| `StandingsResponse` | `season`, `east`, `west`, `playInNotes` |
-| `CalendarResponse` | `season`, `from`, `to`, `total`, `items` |
-| `LeadersResponse` | `season`, `categories` |
-| `PlayoffsResponse` | `season`, `overview`, `keyDates`, `finalsDates`, `formatNotes`, `east`, `west`, `playInGames`, `playoffGames` |
+| Risposta            | Campi                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `HomeResponse`      | `season`, `homeSpotlightMode`, `todayGames`, `upcomingGames`, `featuredGame`, `conferenceLeaders`, `playerLeaders` |
+| `TeamsResponse`     | `season`, `east`, `west`                                                                                           |
+| `PlayersResponse`   | `season`, `total`, `page`, `pageSize`, `items`                                                                     |
+| `StandingsResponse` | `season`, `east`, `west`, `playInNotes`                                                                            |
+| `CalendarResponse`  | `season`, `from`, `to`, `total`, `items`                                                                           |
+| `LeadersResponse`   | `season`, `categories`                                                                                             |
+| `PlayoffsResponse`  | `season`, `overview`, `keyDates`, `finalsDates`, `formatNotes`, `east`, `west`, `playInGames`, `playoffGames`      |
 
 `overview` conta squadre qualificate direttamente, squadre play-in, serie di primo turno confermate e partite play-in/playoff. Punteggi, anagrafiche e statistiche possono essere `null`; liste vuote indicano anche dati non disponibili. Alcuni mapper numerici applicano pero default a zero: il contratto attuale non distingue uniformemente zero reale e valore mancante.
 
@@ -457,19 +457,19 @@ Il riepilogo delle Finals e del campione e calcolato nel frontend da [playoffSta
 
 [main.tsx](../frontend/src/main.tsx) monta React in `#root` con `StrictMode` e importa gli stili globali. [App.tsx](../frontend/src/app/App.tsx) crea il `QueryClient`, avvolge l'app in `BrowserRouter` e registra tutte le pagine sotto `AppShell`.
 
-| Percorso UI | Vista e comportamento principale |
-| --- | --- |
-| `/` | Home, partite e panoramica classifica |
-| `/teams` | Squadre per conference |
-| `/teams/:teamId` | Scheda squadra, roster, statistiche e ultime gare |
-| `/players` | Ricerca, filtro ruolo, dimensione pagina e schede giocatore |
-| `/players/:playerId` | Profilo e ultime gare giocatore |
-| `/standings` | Classifiche e indicazioni qualificazione |
-| `/playoffs` | Quadro postseason, serie e calendario |
-| `/calendar` | Calendario giornaliero con filtri |
-| `/games/:gameId` | Dettaglio partita e boxscore |
-| `/leaders` | Sei classifiche statistiche |
-| Qualsiasi altro percorso | Pagina not found |
+| Percorso UI              | Vista e comportamento principale                            |
+| ------------------------ | ----------------------------------------------------------- |
+| `/`                      | Home, partite e panoramica classifica                       |
+| `/teams`                 | Squadre per conference                                      |
+| `/teams/:teamId`         | Scheda squadra, roster, statistiche e ultime gare           |
+| `/players`               | Ricerca, filtro ruolo, dimensione pagina e schede giocatore |
+| `/players/:playerId`     | Profilo e ultime gare giocatore                             |
+| `/standings`             | Classifiche e indicazioni qualificazione                    |
+| `/playoffs`              | Quadro postseason, serie e calendario                       |
+| `/calendar`              | Calendario giornaliero con filtri                           |
+| `/games/:gameId`         | Dettaglio partita e boxscore                                |
+| `/leaders`               | Sei classifiche statistiche                                 |
+| Qualsiasi altro percorso | Pagina not found                                            |
 
 [AppShell](../frontend/src/components/layout/AppShell/AppShell.tsx) gestisce sidebar comprimibile, menu mobile, navigazione e selettore stagione. Il menu mobile si chiude quando cambia percorso o query string.
 
@@ -483,13 +483,13 @@ Le query key includono normalmente risorsa, ID o filtri URL; non includono la st
 
 ### 12.3 Stato persistente e filtri
 
-| Posizione | Contenuto |
-| --- | --- |
-| `localStorage["nba-selected-season"]` | Stagione selezionata |
-| `localStorage["nba-sidebar-collapsed"]` | Stato sidebar, stringa `true` o `false` |
-| Query string giocatori | Ricerca, ruolo, dimensione pagina e altri parametri API inoltrati |
-| Query string calendario | Data e filtri squadra, stato e fase |
-| Stato locale playoff | Giorno selezionato e filtro stato |
+| Posizione                               | Contenuto                                                         |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| `localStorage["nba-selected-season"]`   | Stagione selezionata                                              |
+| `localStorage["nba-sidebar-collapsed"]` | Stato sidebar, stringa `true` o `false`                           |
+| Query string giocatori                  | Ricerca, ruolo, dimensione pagina e altri parametri API inoltrati |
+| Query string calendario                 | Data e filtri squadra, stato e fase                               |
+| Stato locale playoff                    | Giorno selezionato e filtro stato                                 |
 
 Il frontend calcola autonomamente la stagione dalla data UTC e le cinque precedenti; non consulta `/api/seasons`. Un override backend puo quindi non coincidere con la stagione corrente mostrata nel selettore.
 
@@ -521,14 +521,14 @@ Il frontend usa JSX `react-jsx`, tipi Vite e configurazioni separate per applica
 
 ### 13.2 Comandi dei workspace
 
-| Comando | Comportamento |
-| --- | --- |
-| `npm run dev --workspace backend` | `tsx watch --clear-screen=false src/server.ts` |
-| `npm run build --workspace backend` | `tsc -p tsconfig.json`, output `backend/dist` |
-| `npm run start --workspace backend` | `node dist/server.js`, richiede build precedente |
-| `npm run dev --workspace frontend` | Vite su `127.0.0.1:5173` |
-| `npm run build --workspace frontend` | Typecheck applicazione/configurazione e bundle in `frontend/dist` |
-| `npm run preview --workspace frontend` | Anteprima Vite su `127.0.0.1:4173` |
+| Comando                                | Comportamento                                                     |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| `npm run dev --workspace backend`      | `tsx watch --clear-screen=false src/server.ts`                    |
+| `npm run build --workspace backend`    | `tsc -p tsconfig.json`, output `backend/dist`                     |
+| `npm run start --workspace backend`    | `node dist/server.js`, richiede build precedente                  |
+| `npm run dev --workspace frontend`     | Vite su `127.0.0.1:5173`                                          |
+| `npm run build --workspace frontend`   | Typecheck applicazione/configurazione e bundle in `frontend/dist` |
+| `npm run preview --workspace frontend` | Anteprima Vite su `127.0.0.1:4173`                                |
 
 Il comando `npm run build` root concatena le due build e interrompe la sequenza al primo errore. Lo stesso vale per test e typecheck. Gli script npm contengono `&&`; questo non richiede di usare `&&` direttamente in una sessione PowerShell 5.1.
 
@@ -548,10 +548,10 @@ Per una distribuzione futura servono un server statico e un reverse proxy `/api`
 
 ### 14.1 Suite presenti
 
-| File | Copertura attuale |
-| --- | --- |
-| [season.test.ts](../backend/src/config/season.test.ts) | 3 test: formato stagione, inferenza da una data, fase su date di esempio |
-| [SeasonSelector.test.tsx](../frontend/src/test/SeasonSelector.test.tsx) | 1 test: presenza della stagione selezionata e del pulsante di reset |
+| File                                                                    | Copertura attuale                                                        |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [season.test.ts](../backend/src/config/season.test.ts)                  | 3 test: formato stagione, inferenza da una data, fase su date di esempio |
+| [SeasonSelector.test.tsx](../frontend/src/test/SeasonSelector.test.tsx) | 1 test: presenza della stagione selezionata e del pulsante di reset      |
 
 Il test del selettore non simula un cambio di stagione o un click sul reset. I test di stagione non coprono tutte le transizioni temporali o tutti gli override. Nel repository esaminato non sono presenti test dedicati a cache, rotte, servizi, fallback HTTP, TLS, playoff o integrazione end-to-end.
 
@@ -590,20 +590,20 @@ I log sono scritti con `console.log`/`console.warn`, con prefissi quali `[backen
 
 ### 15.2 Problemi frequenti
 
-| Sintomo | Verifiche e intervento |
-| --- | --- |
-| Backend non raggiungibile | Processo attivo, porta libera, `PORT`, firewall e log di avvio |
-| Frontend funziona ma API falliscono | Target `/api` nel proxy Vite e porta effettiva del backend |
-| Avvio interrotto dopo errore di un workspace | `concurrently` termina gli altri processi; leggere il primo errore |
-| Classifica con tutti record 0-0 | Possibile directory fallback; controllare fonti NBA/ESPN e warning |
-| HTTP 200 ma liste vuote | Puo essere un fallback, un filtro senza risultati o un payload upstream incompleto |
-| Dati fermi nonostante refresh | Controllare TTL del dataset e TTL di 12 ore dei dettagli; il polling UI non forza l'invalidazione server |
-| Stagione selezionata senza variazioni | Limite end-to-end attuale; verificare `NBA_SEASON` e stato browser |
-| Boxscore assente | Controllare `dataAvailability`; una gara programmata non ha necessariamente statistiche |
-| Errori TLS | Verificare proxy aziendale/catena CA e warning di downgrade; configurare certificati attendibili |
-| Orari incoerenti | Controllare UTC, Europe/Rome e approssimazione DST del parser backend |
-| Logo, foto o font assenti | Verificare raggiungibilita CDN NBA, Wikimedia, Google Fonts e URL dell'asset |
-| Test con stagione inattesa | Controllare eventuale override `NBA_SEASON` ereditato dall'ambiente |
+| Sintomo                                      | Verifiche e intervento                                                                                   |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Backend non raggiungibile                    | Processo attivo, porta libera, `PORT`, firewall e log di avvio                                           |
+| Frontend funziona ma API falliscono          | Target `/api` nel proxy Vite e porta effettiva del backend                                               |
+| Avvio interrotto dopo errore di un workspace | `concurrently` termina gli altri processi; leggere il primo errore                                       |
+| Classifica con tutti record 0-0              | Possibile directory fallback; controllare fonti NBA/ESPN e warning                                       |
+| HTTP 200 ma liste vuote                      | Puo essere un fallback, un filtro senza risultati o un payload upstream incompleto                       |
+| Dati fermi nonostante refresh                | Controllare TTL del dataset e TTL di 12 ore dei dettagli; il polling UI non forza l'invalidazione server |
+| Stagione selezionata senza variazioni        | Limite end-to-end attuale; verificare `NBA_SEASON` e stato browser                                       |
+| Boxscore assente                             | Controllare `dataAvailability`; una gara programmata non ha necessariamente statistiche                  |
+| Errori TLS                                   | Verificare proxy aziendale/catena CA e warning di downgrade; configurare certificati attendibili         |
+| Orari incoerenti                             | Controllare UTC, Europe/Rome e approssimazione DST del parser backend                                    |
+| Logo, foto o font assenti                    | Verificare raggiungibilita CDN NBA, Wikimedia, Google Fonts e URL dell'asset                             |
+| Test con stagione inattesa                   | Controllare eventuale override `NBA_SEASON` ereditato dall'ambiente                                      |
 
 ### 15.3 Ripristino dello stato locale
 
@@ -686,19 +686,19 @@ I documenti sintetici contengono alcune descrizioni piu generali del comportamen
 
 ### 18.2 Glossario
 
-| Termine | Significato nel progetto |
-| --- | --- |
-| DTO | Oggetto tipizzato scambiato fra API e frontend |
-| Envelope | Contenitore della risposta con `data` e `meta` |
-| TTL | Durata dopo la quale una entry cache e considerata scaduta |
-| Stale | Dato scaduto o segnalato come degradato dal produttore della risposta |
-| Stale-while-revalidate | Risposta immediata col dato precedente e aggiornamento in background |
-| Warmup | Lettura periodica dei servizi per popolare/aggiornare la cache |
-| Snapshot | Fotografia del calendario recuperata dal CDN |
-| Fallback | Percorso alternativo con altra fonte, dati parziali o directory locale |
-| Seed | Posizione utilizzata per qualificazione e accoppiamenti postseason |
-| Boxscore | Statistiche dettagliate di una partita e dei giocatori |
-| Clinched | Flag che indica un obiettivo di qualificazione gia assicurato nella fonte |
-| Upstream | Servizio esterno interrogato dal backend |
+| Termine                | Significato nel progetto                                                  |
+| ---------------------- | ------------------------------------------------------------------------- |
+| DTO                    | Oggetto tipizzato scambiato fra API e frontend                            |
+| Envelope               | Contenitore della risposta con `data` e `meta`                            |
+| TTL                    | Durata dopo la quale una entry cache e considerata scaduta                |
+| Stale                  | Dato scaduto o segnalato come degradato dal produttore della risposta     |
+| Stale-while-revalidate | Risposta immediata col dato precedente e aggiornamento in background      |
+| Warmup                 | Lettura periodica dei servizi per popolare/aggiornare la cache            |
+| Snapshot               | Fotografia del calendario recuperata dal CDN                              |
+| Fallback               | Percorso alternativo con altra fonte, dati parziali o directory locale    |
+| Seed                   | Posizione utilizzata per qualificazione e accoppiamenti postseason        |
+| Boxscore               | Statistiche dettagliate di una partita e dei giocatori                    |
+| Clinched               | Flag che indica un obiettivo di qualificazione gia assicurato nella fonte |
+| Upstream               | Servizio esterno interrogato dal backend                                  |
 
 Aggiornare il documento quando cambiano rotte, DTO, fonti, TTL, configurazioni, gestione della stagione o procedure di avvio e test.
