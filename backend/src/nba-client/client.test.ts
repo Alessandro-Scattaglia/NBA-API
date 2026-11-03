@@ -24,13 +24,22 @@ describe("ESPN calendar client", () => {
     const result = await client.getGamesSchedule("2026-10-01", "2026-10-03");
 
     expect(result).toEqual({
-      data: [{ id: "1" }, { id: "1" }, { id: "1" }, { id: "1" }, { id: "1" }, { id: "1" }],
+      data: [
+        { id: "1" },
+        { id: "1" },
+        { id: "1" },
+        { id: "1" },
+        { id: "1" },
+        { id: "1" },
+        { id: "1" },
+        { id: "1" }
+      ],
       provider: "ESPN"
     });
-    expect(urls).toHaveLength(6);
+    expect(urls).toHaveLength(8);
     expect(urls[0]).toContain("site.api.espn.com");
-    expect(urls[0]).toContain("dates=20261001");
-    expect(urls[2]).toContain("dates=20261002");
+    expect(urls[0]).toContain("dates=20260930");
+    expect(urls[2]).toContain("dates=20261001");
     expect(urls[0]).not.toContain("Authorization");
   });
 

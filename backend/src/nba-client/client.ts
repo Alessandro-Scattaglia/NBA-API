@@ -356,6 +356,7 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
     async getGamesSchedule(from: string, to: string) {
       const games: unknown[] = [];
       const start = new Date(`${from}T00:00:00.000Z`);
+      start.setUTCDate(start.getUTCDate() - 1);
       const end = new Date(`${to}T00:00:00.000Z`);
 
       for (let date = start; date <= end; date = new Date(date.getTime() + 86_400_000)) {

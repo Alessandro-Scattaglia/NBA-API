@@ -342,6 +342,15 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
   });
 }
 
+function getCalendarDate(dateTimeUtc: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(dateTimeUtc));
+}
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -981,7 +990,10 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
     let espnGames: GameSummary[] = [];
     try {
       const response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: unknown[] };
-      espnGames = mapEspnScoreboardGames({ events: response.data ?? [] });
+      espnGames = mapEspnScoreboardGames({ events: response.data ?? [] }).filter((game) => {
+        const date = getCalendarDate(game.dateTimeUtc);
+        return date >= range.from && date <= range.to;
+      });
     } catch (error) {
       console.warn("[calendar] ESPN failed; using NBA CDN schedule fallback.", error instanceof Error ? error.message : error);
     }
@@ -990,7 +1002,7 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
     try {
       const snapshot = await loadScheduleSnapshotGames(deps);
       cdnGames = snapshot.value.filter((game) => {
-        const date = game.dateTimeUtc.slice(0, 10);
+        const date = getCalendarDate(game.dateTimeUtc);
         return date >= range.from && date <= range.to;
       });
     } catch (error) {
