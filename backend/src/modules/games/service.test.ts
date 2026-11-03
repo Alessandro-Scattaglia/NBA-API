@@ -51,6 +51,42 @@ describe("ESPN boxscore normalization", () => {
     expect((game as { gameStatusText: string }).gameStatusText).toBe("Final");
   });
 
+  it("maps ESPN stats arrays from the live summary shape", () => {
+    const game = mapEspnSummaryToBoxscore({
+      header: {
+        competitions: [{
+          date: "2026-11-03T01:30:00Z",
+          status: { type: { description: "Final" } },
+          competitors: [
+            { homeAway: "home", score: "125", team: { id: "26", abbreviation: "UTAH", location: "Utah", name: "Jazz" } },
+            { homeAway: "away", score: "110", team: { id: " SAS", abbreviation: "SA", location: "San Antonio", name: "Spurs" } }
+          ]
+        }]
+      },
+      boxscore: {
+        players: [{
+          team: { id: "26" },
+          statistics: [{
+            names: ["MIN", "PTS", "FG", "3PT", "FT", "REB", "AST", "TO", "STL", "BLK", "+/-"],
+            athletes: [{
+              athlete: { id: "1", displayName: "Test Jazz", position: { abbreviation: "F" } },
+              starter: true,
+              stats: ["31", "22", "8-16", "4-7", "2-2", "8", "3", "0", "1", "0", "-23"]
+            }]
+          }]
+        }]
+      }
+    }, "401909917");
+
+    const players = (game.homeTeam as Record<string, unknown>).players as Array<Record<string, unknown>>;
+    const statistics = players[0]?.statistics as Record<string, unknown>;
+
+    expect(statistics.points).toBe(22);
+    expect(statistics.reboundsTotal).toBe(8);
+    expect(statistics.assists).toBe(3);
+    expect(statistics.steals).toBe(1);
+  });
+
   it("resolves both raw NBA ids and canonical ids across provider fallback", async () => {
     const espnSummary = {
       header: {

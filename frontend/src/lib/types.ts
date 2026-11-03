@@ -180,6 +180,7 @@ export interface GamePlayerLine {
   assists: number;
   steals: number;
   blocks: number;
+  turnovers: number;
   plusMinus: number | null;
 }
 

@@ -329,6 +329,9 @@ function PlayerTable({
                 <th>Rimbalzi</th>
                 <th>Assist</th>
                 <th>Rec</th>
+                <th>Stoppate</th>
+                <th>Palle perse</th>
+                <th>+/-</th>
               </tr>
             </thead>
             <tbody>
@@ -355,6 +358,15 @@ function PlayerTable({
                   </td>
                   <td data-label="Recuperi">
                     <span className="detail-stat-pill">{player.steals}</span>
+                  </td>
+                  <td data-label="Stoppate">
+                    <span className="detail-stat-pill">{player.blocks}</span>
+                  </td>
+                  <td data-label="Palle perse">
+                    <span className="detail-stat-pill">{player.turnovers}</span>
+                  </td>
+                  <td data-label="+/-">
+                    <span className="detail-stat-pill">{player.plusMinus ?? "--"}</span>
                   </td>
                 </tr>
               ))}

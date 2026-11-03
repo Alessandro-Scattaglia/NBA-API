@@ -216,7 +216,9 @@ export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: str
     const players = ((athletes?.statistics as Array<Record<string, unknown>> | undefined) ?? []).flatMap((stat) =>
       ((stat.athletes as Array<Record<string, unknown>> | undefined) ?? []).map((athlete) => {
         const athleteData = athlete.athlete as Record<string, unknown>;
-        const values = (athlete.statistics as unknown[] | undefined) ?? [];
+        const values = (athlete.stats as unknown[] | undefined) ??
+          (athlete.statistics as unknown[] | undefined) ??
+          [];
         const names = ((stat.names as string[] | undefined) ?? []).map((name) => name.toLowerCase());
         const teamCode = String(team.abbreviation ?? "");
         const playerName = String(athleteData.displayName ?? "");
@@ -265,7 +267,7 @@ export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: str
 export function createGamesService(deps: ServiceDeps) {
   return {
     async getGameDetail(gameId: string): Promise<ApiEnvelope<GameDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`game-detail:${gameId}`, TTL.live, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`game-detail:v2:${gameId}`, TTL.live, async () => {
         const identity = resolveGameIdentity(gameId);
         const canonical = parseCanonicalGameId(gameId);
         let nbaGameId = identity.nbaGameId;
