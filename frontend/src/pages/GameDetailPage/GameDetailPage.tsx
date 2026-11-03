@@ -87,6 +87,10 @@ function getLeaderLine(leader: GameLeader, rows: GamePlayerLine[]) {
   return rows.find((row) => row.playerId === leader.playerId) ?? null;
 }
 
+function getPlayerImageUrl(playerId: number, headshot: string | null) {
+  return headshot ?? (playerId > 0 ? buildPlayerHeadshotUrl(playerId) : "");
+}
+
 function getDoubleFigureCategories(player: Pick<GamePlayerLine, "points" | "rebounds" | "assists" | "steals" | "blocks">) {
   return [player.points, player.rebounds, player.assists, player.steals, player.blocks].filter((value) => value >= 10).length;
 }
@@ -251,7 +255,7 @@ function LeaderSection({
               >
                 <span className="game-leader-rank">{index + 1}</span>
                 <img
-                  src={buildPlayerHeadshotUrl(leader.playerId)}
+                  src={getPlayerImageUrl(leader.playerId, line?.headshot ?? leader.headshot)}
                   alt={`Headshot di ${leader.fullName}`}
                   className="game-leader-headshot"
                   loading="lazy"
@@ -339,6 +343,14 @@ function PlayerTable({
                 <tr key={player.playerId} className={player.starter ? "detail-row-starter" : ""}>
                   <td data-label="Giocatore">
                     <div className="detail-player-copy">
+                      {getPlayerImageUrl(player.playerId, player.headshot) ? (
+                        <img
+                          src={getPlayerImageUrl(player.playerId, player.headshot)}
+                          alt=""
+                          className="detail-player-headshot"
+                          loading="lazy"
+                        />
+                      ) : null}
                       <Link to={`/players/${player.playerId}`}>
                         <strong>{player.fullName}</strong>
                       </Link>

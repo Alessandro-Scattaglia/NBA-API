@@ -520,6 +520,20 @@
   font-size: 0.94rem;
 }
 
+.detail-player-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-player-headshot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-strong);
+}
+
 .game-table-wrap .detail-minutes-pill {
   min-width: 3.8rem;
   color: var(--ink-soft);

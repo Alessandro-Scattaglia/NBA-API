@@ -163,6 +163,7 @@ export interface GameSummary {
 export interface GameLeader {
   playerId: number;
   fullName: string;
+  headshot: string | null;
   teamId: number;
   points: number;
   rebounds: number;
@@ -172,6 +173,7 @@ export interface GameLeader {
 export interface GamePlayerLine {
   playerId: number;
   fullName: string;
+  headshot: string | null;
   position: string | null;
   starter: boolean;
   minutes: string | null;

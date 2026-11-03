@@ -71,6 +71,7 @@ function mapPlayer(player: BoxscorePlayer): GamePlayerLine {
   return {
     playerId: safeNumber(player.personId ?? player.playerId),
     fullName,
+    headshot: String(player.headshot ?? "") || null,
     position: String(player.position ?? "") || null,
     starter: String(player.starter ?? "0") === "1",
     minutes: String(statistics.minutes ?? "") || null,
@@ -104,6 +105,7 @@ function mapLeaders(players: GamePlayerLine[], teamId: number): GameLeader[] {
     .map((player) => ({
       playerId: player.playerId,
       fullName: player.fullName,
+      headshot: player.headshot,
       teamId,
       points: player.points,
       rebounds: player.rebounds,
@@ -216,6 +218,7 @@ export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: str
     const players = ((athletes?.statistics as Array<Record<string, unknown>> | undefined) ?? []).flatMap((stat) =>
       ((stat.athletes as Array<Record<string, unknown>> | undefined) ?? []).map((athlete) => {
         const athleteData = athlete.athlete as Record<string, unknown>;
+        const headshot = athleteData.headshot as Record<string, unknown> | undefined;
         const values = (athlete.stats as unknown[] | undefined) ??
           (athlete.statistics as unknown[] | undefined) ??
           [];
@@ -225,6 +228,7 @@ export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: str
         return {
         personId: stableInternalPlayerId(playerName, teamCode),
         name: playerName,
+        headshot: String(headshot?.href ?? "") || null,
         starter: athlete.starter ? "1" : "0",
         position: String((athleteData.position as Record<string, unknown> | undefined)?.abbreviation ?? ""),
         statistics: {
@@ -267,7 +271,7 @@ export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: str
 export function createGamesService(deps: ServiceDeps) {
   return {
     async getGameDetail(gameId: string): Promise<ApiEnvelope<GameDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`game-detail:v2:${gameId}`, TTL.live, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`game-detail:v3:${gameId}`, TTL.live, async () => {
         const identity = resolveGameIdentity(gameId);
         const canonical = parseCanonicalGameId(gameId);
         let nbaGameId = identity.nbaGameId;
