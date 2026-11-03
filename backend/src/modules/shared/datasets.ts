@@ -16,6 +16,7 @@ import { clampToSeason, enumerateDates, round, safeNumber, parseNbaDate } from "
 import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
 import type { NbaApiClient } from "../../nba-client/client.js";
 import type { ServiceDeps } from "./types.js";
+import { canonicalGameId, registerGameIdentity } from "./gameIdentity.js";
 
 type StatsRow = Record<string, unknown>;
 type TeamRecordSnapshot = {
@@ -25,6 +26,7 @@ type TeamRecordSnapshot = {
 };
 
 const STANDINGS_LOAD_TIMEOUT_MS = Math.max(createRuntimeEnv().requestTimeoutMs + 1_000, 6_000);
+const nbaGameIdsByCanonicalId = new Map<string, string>();
 
 function getNumber(row: StatsRow, keys: string[], fallback = 0) {
   for (const key of keys) {
@@ -294,12 +296,17 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
     const homeRecord = (home.records as Array<Record<string, unknown>> | undefined)?.find((record) => record.type === "total");
     const awayRecord = (away.records as Array<Record<string, unknown>> | undefined)?.find((record) => record.type === "total");
 
-    return [{
-      gameId: String(event.id ?? ""),
+    const eventId = String(event.id ?? "");
+    if (!eventId) return [];
+
+    const mapped = {
+      gameId: eventId,
+      canonicalId: canonicalGameId(dateTimeUtc, homeIdentity.code, awayIdentity.code),
       gameCode: null,
       dateTimeUtc: new Date(dateTimeUtc).toISOString(),
       dateLabel: new Date(dateTimeUtc).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }),
-      status: String(statusType?.description ?? "").toLowerCase().includes("final") ? "final" : "scheduled",
+      status: String(statusType?.state ?? "").toLowerCase() === "in" ? "live" :
+        String(statusType?.description ?? "").toLowerCase().includes("final") ? "final" : "scheduled",
       statusText: String(statusType?.description ?? "Final"),
       phase,
       arena: null,
@@ -322,7 +329,16 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
         score: away.score !== undefined ? safeNumber(away.score) : null,
         record: String(awayRecord?.summary ?? "") || null
       }
-    } satisfies GameSummary];
+    } satisfies GameSummary;
+    registerGameIdentity({
+      canonicalGameId: canonicalGameId(dateTimeUtc, homeIdentity.code, awayIdentity.code),
+      nbaGameId: null,
+      espnEventId: eventId,
+      date: dateTimeUtc.slice(0, 10),
+      homeCode: homeIdentity.code,
+      awayCode: awayIdentity.code
+    });
+    return [mapped];
   });
 }
 
@@ -780,9 +796,24 @@ function mapLiveGame(game: Record<string, unknown>): GameSummary {
   const statusText = String(game.gameStatusText ?? game.gameStatus ?? "");
   const statusValue = safeNumber(game.gameStatus ?? 1);
   const parsedDate = parseNbaDate(String(game.gameDateTimeUTC ?? game.gameEt ?? new Date().toISOString()));
+  const canonicalId = canonicalGameId(
+    parsedDate.toISOString(),
+    String(homeTeam.teamTricode ?? ""),
+    String(awayTeam.teamTricode ?? "")
+  );
+  const nbaGameId = String(game.gameId ?? "");
+  registerGameIdentity({
+    canonicalGameId: canonicalId,
+    nbaGameId,
+    espnEventId: null,
+    date: parsedDate.toISOString().slice(0, 10),
+    homeCode: String(homeTeam.teamTricode ?? ""),
+    awayCode: String(awayTeam.teamTricode ?? "")
+  });
 
   return {
-    gameId: String(game.gameId ?? ""),
+    gameId: nbaGameId,
+    canonicalId,
     gameCode: String(game.gameCode ?? ""),
     dateTimeUtc: parsedDate.toISOString(),
     dateLabel: parsedDate.toLocaleString("it-IT", {
@@ -856,9 +887,23 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
   const awayScore =
     awayScoreRaw !== undefined && awayScoreRaw !== null && awayScoreRaw !== "" ? safeNumber(awayScoreRaw) : null;
   const parsedDate = parseNbaDate(String(game.gameDateTimeUTC ?? game.gameDateEst ?? new Date().toISOString()));
+  const canonicalId = canonicalGameId(parsedDate.toISOString(), homeTeam?.code ?? "", awayTeam?.code ?? "");
+  const nbaGameId = String(game.gameId ?? "");
+  if (nbaGameId) {
+    nbaGameIdsByCanonicalId.set(canonicalId, nbaGameId);
+    registerGameIdentity({
+      canonicalGameId: canonicalId,
+      nbaGameId,
+      espnEventId: null,
+      date: parsedDate.toISOString().slice(0, 10),
+      homeCode: homeTeam?.code ?? "",
+      awayCode: awayTeam?.code ?? ""
+    });
+  }
 
   return {
-    gameId: String(game.gameId ?? ""),
+    gameId: nbaGameId,
+    canonicalId,
     gameCode: String(game.gameCode ?? "") || null,
     dateTimeUtc: parsedDate.toISOString(),
     dateLabel: parsedDate.toLocaleString("it-IT", {
@@ -902,56 +947,8 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
   };
 }
 
-function mapBallDontLieGame(game: Record<string, unknown>): GameSummary {
-  const homeTeamData = (game.home_team as Record<string, unknown> | undefined) ?? {};
-  const awayTeamData = (game.visitor_team as Record<string, unknown> | undefined) ?? {};
-  const homeCode = String(homeTeamData.abbreviation ?? "");
-  const awayCode = String(awayTeamData.abbreviation ?? "");
-  const homeTeam = getTeamIdentityByCode(homeCode);
-  const awayTeam = getTeamIdentityByCode(awayCode);
-  const statusState = String(game.status_state ?? "").toLowerCase();
-  const statusText = String(game.status ?? "");
-  const period = safeNumber(game.period, 0);
-  const status = statusState === "final" ? "final" : statusState === "live" ? "live" : "scheduled";
-  const dateTimeUtc = String(game.datetime ?? `${String(game.date ?? "")}T00:00:00.000Z`);
-  const parsedDate = parseNbaDate(dateTimeUtc);
-
-  return {
-    gameId: String(game.id ?? ""),
-    gameCode: null,
-    dateTimeUtc: parsedDate.toISOString(),
-    dateLabel: parsedDate.toLocaleString("it-IT", {
-      dateStyle: "medium",
-      timeStyle: "short"
-    }),
-    status,
-    statusText: statusText || (status === "final" ? "Finale" : status === "live" ? "Live" : "In programma"),
-    phase: game.postseason === true ? "playoffs" : "regular-season",
-    arena: null,
-    nationalTv: [],
-    clock: status === "live" ? String(game.time ?? "") || null : null,
-    period: period || null,
-    homeTeam: {
-      teamId: homeTeam?.teamId ?? safeNumber(homeTeamData.id),
-      name: homeTeam?.name ?? String(homeTeamData.full_name ?? ""),
-      code: homeCode,
-      logo: homeTeam?.logo ?? "",
-      score: game.home_team_score === null || game.home_team_score === undefined
-        ? null
-        : safeNumber(game.home_team_score),
-      record: null
-    },
-    awayTeam: {
-      teamId: awayTeam?.teamId ?? safeNumber(awayTeamData.id),
-      name: awayTeam?.name ?? String(awayTeamData.full_name ?? ""),
-      code: awayCode,
-      logo: awayTeam?.logo ?? "",
-      score: game.visitor_team_score === null || game.visitor_team_score === undefined
-        ? null
-        : safeNumber(game.visitor_team_score),
-      record: null
-    }
-  };
+export function resolveNbaGameId(canonicalId: string) {
+  return nbaGameIdsByCanonicalId.get(canonicalId) ?? null;
 }
 
 export async function loadTodayGames(deps: ServiceDeps) {
@@ -981,12 +978,46 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
   const key = `calendar:v2:${range.from}:${range.to}`;
 
   return getCache(deps).getOrLoad(key, TTL.calendar, async () => {
-    const response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: Array<Record<string, unknown>> };
+    let espnGames: GameSummary[] = [];
+    try {
+      const response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: unknown[] };
+      espnGames = mapEspnScoreboardGames({ events: response.data ?? [] });
+    } catch (error) {
+      console.warn("[calendar] ESPN failed; using NBA CDN schedule fallback.", error instanceof Error ? error.message : error);
+    }
 
-    return (response.data ?? [])
-      .map((game) => mapBallDontLieGame(game))
+    let cdnGames: GameSummary[] = [];
+    try {
+      const snapshot = await loadScheduleSnapshotGames(deps);
+      cdnGames = snapshot.value.filter((game) => {
+        const date = game.dateTimeUtc.slice(0, 10);
+        return date >= range.from && date <= range.to;
+      });
+    } catch (error) {
+      console.warn("[calendar] NBA CDN schedule failed.", error instanceof Error ? error.message : error);
+    }
+
+    const buildMergeKey = (game: GameSummary) =>
+      `${game.dateTimeUtc.slice(0, 10)}:${[game.homeTeam.code, game.awayTeam.code].sort().join(":")}`;
+    const merged = new Map<string, { game: GameSummary; source: "cdn" | "espn" }>();
+    for (const game of cdnGames) {
+      merged.set(buildMergeKey(game), { game, source: "cdn" });
+    }
+    for (const game of espnGames) {
+      const key = buildMergeKey(game);
+      if (!merged.has(key)) {
+        merged.set(key, { game, source: "espn" });
+      }
+    }
+
+    if (merged.size === 0) {
+      throw new Error("ESPN and NBA CDN returned an empty or invalid calendar response.");
+    }
+
+    return [...merged.values()]
+      .map((entry) => entry.game)
       .sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
-  });
+  }, true, (games) => games.length > 0);
 }
 
 export function splitByConference(rows: StandingsRow[]) {

@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { cache } from "../cache/memoryCache.js";
 import { getCurrentSeason } from "../config/season.js";
 import { buildApiMeta, requireValidSeason, seasonQuerySchema } from "./season.js";
 import { TEAM_DIRECTORY } from "../config/teams.js";
 import type { AppServices } from "../modules/services.js";
+import { getProviderHealth } from "../monitoring/providerHealth.js";
 import type {
   ApiEnvelope,
   CalendarResponse,
@@ -364,7 +364,8 @@ export function createApiRouter(services: AppServices) {
       season,
       seasonPhase: "regular-season",
       status: "online",
-      cache: cache.getStats(),
+      cache: services.cache.getStats(),
+      providers: getProviderHealth(),
       source: "local-nba-data"
     });
   });

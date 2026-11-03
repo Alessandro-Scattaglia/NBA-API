@@ -3,6 +3,7 @@ import type { TeamScoreLine } from "./teams.js";
 
 export interface GameSummary {
   gameId: string;
+  canonicalId?: string;
   gameCode: string | null;
   dateTimeUtc: string;
   dateLabel: string;
@@ -38,6 +39,7 @@ export interface GamePlayerLine {
   steals: number;
   blocks: number;
   plusMinus: number | null;
+  turnovers: number;
 }
 
 export interface GameDataAvailability {

@@ -41,7 +41,7 @@ export function createCalendarService(deps: ServiceDeps) {
         },
         state.updatedAt,
         state.stale,
-        ["api.balldontlie.io/nba/v1/games"]
+        ["ESPN scoreboard"]
       );
     }
   };

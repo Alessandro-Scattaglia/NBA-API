@@ -9,3 +9,11 @@ NBA_LIVE_BASE_URL = "https://cdn.nba.com/static/json/liveData"
 NBA_REQUEST_TIMEOUT_MS = "6000"
 NBA_REQUEST_RETRIES = "1"
 FRONTEND_ORIGIN = "https://alessandro-scattaglia.github.io"
+
+[[kv_namespaces]]
+binding = "NBA_CACHE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_NAMESPACE_ID"
+
+[[triggers]]
+crons = ["*/2 * * * *", "0 */6 * * *", "0 0 * * *"]

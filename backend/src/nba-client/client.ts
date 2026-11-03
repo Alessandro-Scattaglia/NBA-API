@@ -1,5 +1,6 @@
 import { createRuntimeEnv, type RuntimeEnv } from "../config/env.js";
 import { getCurrentSeason, REGULAR_SEASON_LABEL } from "../config/season.js";
+import { recordProviderError, recordProviderSuccess, type ProviderName } from "../monitoring/providerHealth.js";
 
 export interface NbaApiClient {
   getLiveScoreboard(): Promise<unknown>;
@@ -18,7 +19,8 @@ export interface NbaApiClient {
   getTeamGameLog(teamId: number, seasonType?: string): Promise<unknown>;
   getLeagueStandings(): Promise<unknown>;
   getPlayoffPicture(): Promise<unknown>;
-  getEspnScoreboardByDate?(gameDateIso: string): Promise<unknown>;
+  getEspnScoreboardByDate?(gameDateIso: string, page?: number): Promise<unknown>;
+  getEspnGameSummary?(eventId: string): Promise<unknown>;
   getEspnRoster?(teamId: number): Promise<unknown>;
 }
 
@@ -57,8 +59,6 @@ const DEFAULT_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 };
-
-const BALLDONTLIE_BASE_URL = "https://api.balldontlie.io/nba/v1";
 
 const ESPN_TEAM_IDS: Record<string, number> = {
   ATL: 1,
@@ -146,6 +146,20 @@ function normalizeRequestError(error: unknown, url: string, runtimeEnv: RuntimeE
   return new Error(`Unknown NBA API error for ${url}`);
 }
 
+function getHttpStatus(error: unknown) {
+  return typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
+    ? error.status
+    : null;
+}
+
+function shouldRetryRequest(error: unknown) {
+  const status = getHttpStatus(error);
+  if (status !== null) {
+    return status === 408 || status === 429 || status >= 500;
+  }
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TypeError");
+}
+
 function buildUrl(baseUrl: string, path: string, params?: Record<string, string | number>) {
   const url = new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
 
@@ -163,10 +177,12 @@ async function requestJson(
   url: string,
   headers: Record<string, string>,
   runtimeEnv: RuntimeEnv,
-  timeoutMs = runtimeEnv.requestTimeoutMs
+  timeoutMs = runtimeEnv.requestTimeoutMs,
+  provider: ProviderName = url.includes("espn.com") ? "ESPN" : url.includes("stats.nba.com") ? "NBA Stats" : "NBA CDN"
 ) {
   let lastError: unknown = null;
   let requestAttempts = 0;
+  const startedAt = Date.now();
 
   while (requestAttempts <= runtimeEnv.requestRetries) {
     const controller = new AbortController();
@@ -179,18 +195,23 @@ async function requestJson(
       });
 
       if (!response.ok) {
-        throw new Error(`NBA API ${response.status} for ${url}`);
+        const error = new Error(`${provider} API ${response.status} for ${url}`) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
       }
 
-      return await response.json();
+      const value = await response.json();
+      recordProviderSuccess(provider, Date.now() - startedAt, url);
+      return value;
     } catch (error) {
       lastError = error;
+      recordProviderError(provider, error, Date.now() - startedAt, url);
 
       if (shouldRetryWithInsecureTls(error, url, runtimeEnv)) {
         continue;
       }
 
-      if (requestAttempts < runtimeEnv.requestRetries) {
+      if (requestAttempts < runtimeEnv.requestRetries && shouldRetryRequest(error)) {
         requestAttempts += 1;
         await delay(300 * requestAttempts);
       } else {
@@ -333,37 +354,23 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
     },
 
     async getGamesSchedule(from: string, to: string) {
-      const apiKey = runtimeEnv.ballDontLieApiKey?.trim();
-      if (!apiKey) {
-        throw new Error("BALLDONTLIE_API_KEY is required to load the calendar.");
-      }
-
       const games: unknown[] = [];
-      let cursor: string | undefined;
+      let page = 1;
+      let pageCount = 1;
+      const dateRange = `${from.replaceAll("-", "")}-${to.replaceAll("-", "")}`;
 
       do {
-        const url = buildUrl(BALLDONTLIE_BASE_URL, "games", {
-          start_date: from,
-          end_date: to,
-          ...(cursor ? { cursor } : {})
-        });
-        const response = (await requestJson(
-          fetchImpl,
-          url,
-          { Accept: "application/json", Authorization: apiKey },
-          runtimeEnv
-        )) as {
-          data?: unknown[];
-          meta?: { next_cursor?: string | number | null };
-        };
+        const response = (await this.getEspnScoreboardByDate?.(dateRange, page)) as {
+          events?: unknown[];
+          pageCount?: number;
+        } | undefined;
+        if (!response) throw new Error("ESPN scoreboard client is unavailable.");
+        games.push(...(response.events ?? []));
+        pageCount = Number(response.pageCount ?? 1);
+        page += 1;
+      } while (page <= pageCount);
 
-        games.push(...(response.data ?? []));
-        cursor = response.meta?.next_cursor === null || response.meta?.next_cursor === undefined
-          ? undefined
-          : String(response.meta.next_cursor);
-      } while (cursor);
-
-      return { data: games };
+      return { data: games, provider: "ESPN" };
     },
 
     getPlayerIndex() {
@@ -449,9 +456,21 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
       return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
-    getEspnScoreboardByDate(gameDateIso: string) {
+    getEspnScoreboardByDate(gameDateIso: string, page = 1) {
+      const dates = /^\d{8}-\d{8}$/.test(gameDateIso)
+        ? gameDateIso
+        : gameDateIso.replaceAll("-", "");
       const url = buildUrl("https://site.api.espn.com/apis/site/v2/sports/basketball/nba", "scoreboard", {
-        dates: gameDateIso.replaceAll("-", "")
+        dates,
+        limit: 100,
+        page
+      });
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv, Math.max(runtimeEnv.requestTimeoutMs, 12_000));
+    },
+
+    getEspnGameSummary(eventId: string) {
+      const url = buildUrl("https://site.api.espn.com/apis/site/v2/sports/basketball/nba", "summary", {
+        event: eventId
       });
       return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv, Math.max(runtimeEnv.requestTimeoutMs, 12_000));
     },

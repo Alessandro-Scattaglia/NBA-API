@@ -69,7 +69,7 @@ La configurazione viene letta da `process.env` in [env.ts](../backend/src/config
 | `NBA_LIVE_BASE_URL`      | `https://cdn.nba.com/static/json/liveData` | Base dei dati live                              |
 | `NBA_REQUEST_TIMEOUT_MS` | `6000`                                     | Timeout delle richieste esterne in millisecondi |
 | `NBA_REQUEST_RETRIES`    | `1`                                        | Numero di retry configurato nel client          |
-| `BALLDONTLIE_API_KEY`    | Secret Cloudflare                          | Chiave per il calendario balldontlie.io         |
+| `NBA_CACHE`              | KV namespace binding                       | Cache L2 condivisa tra le istanze Worker        |
 | `NBA_ALLOW_INSECURE_TLS` | Disabilitato                               | Attivo solo con `1` o `true`                    |
 
 Esempio PowerShell, prima dell'avvio:

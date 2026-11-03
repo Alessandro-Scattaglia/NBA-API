@@ -6,7 +6,7 @@ Monorepo locale per una web app NBA moderna composta da backend Hono su Cloudfla
 
 - Node.js 22+
 - npm 10+
-- accesso locale alla rete del PC per le chiamate a endpoint NBA pubblici
+- accesso locale alla rete del PC per le chiamate a endpoint ESPN e NBA pubblici
 
 ## Installazione
 
@@ -50,11 +50,11 @@ Il frontend usa esclusivamente la stagione determinata dal backend; non è dispo
 
 ## Fonti dati
 
-Il backend usa endpoint pubblici NBA già esistenti e li gestisce attraverso il client dedicato. Le chiamate sono centralizzate in `backend/src/nba-client/` e validano payload esterni con Zod, con fallback locale in caso di errore o payload vuoto.
+Il backend usa endpoint pubblici NBA già esistenti e li gestisce attraverso il client dedicato. Le chiamate sono centralizzate in `backend/src/nba-client/`: ESPN fornisce calendario e fallback dei dettagli, NBA CDN scoreboard/boxscore e NBA Stats statistiche/classifiche. Le risposte vuote o non valide non sostituiscono snapshot validi.
 
 ## Cache locale
 
-La cache in memoria è gestita da `backend/src/cache/memoryCache.ts`:
+La cache L1 in memoria è gestita da `backend/src/cache/memoryCache.ts`; in Cloudflare Workers la cache L2 condivisa usa il binding KV `NBA_CACHE`:
 
 - chiavi per dataset e stagione;
 - TTL differenziati;
@@ -98,12 +98,18 @@ Per pubblicare il Worker:
 npm run deploy --workspace backend
 ```
 
-La chiave API di balldontlie.io deve essere configurata come secret Cloudflare,
-non nel file `wrangler.toml`:
+Creare prima i namespace KV e sostituire gli ID placeholder in
+`backend/wrangler.toml`:
 
 ```bash
-npx wrangler secret put BALLDONTLIE_API_KEY --config backend/wrangler.toml
+npx wrangler kv namespace create NBA_CACHE
+npx wrangler kv namespace create NBA_CACHE --preview
+npx wrangler deploy --config backend/wrangler.toml
 ```
+
+Non sono richieste API key o secret esterni. I Cron Trigger configurati aggiornano
+scoreboard/live ogni 2 minuti, calendario ogni 6 ore e dataset stagionali ogni giorno;
+il Worker esegue ogni refresh in modo indipendente.
 
 ## Test e build
 
@@ -118,7 +124,8 @@ Il progetto include test con Vitest per backend e frontend. Il comando root eseg
 
 ## Pulizia cache locale
 
-La cache è in memoria e viene svuotata con il restart del backend. Se si vuole azzerare stato locale, riavviare il processo con:
+La cache locale è in memoria e viene svuotata con il restart del backend. In produzione
+KV è condivisa tra le istanze; per azzerarla usare la dashboard Cloudflare o Wrangler.
 
 ```bash
 npm run dev

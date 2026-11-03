@@ -1,6 +1,6 @@
 import { cache } from "../../cache/memoryCache.js";
 import { TTL } from "../../config/season.js";
-import { getTeamIdentity } from "../../config/teams.js";
+import { getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
 import type {
   ApiEnvelope,
   GameDataAvailability,
@@ -11,9 +11,10 @@ import type {
   GameSummary
 } from "../../types/dto/index.js";
 import { safeNumber } from "../../utils/date.js";
-import { loadScheduleSnapshotGames } from "../shared/datasets.js";
+import { loadScheduleSnapshotGames, resolveNbaGameId } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
+import { parseCanonicalGameId, resolveGameIdentity } from "../shared/gameIdentity.js";
 
 type BoxscorePlayer = Record<string, unknown>;
 type BoxscoreGame = Record<string, unknown>;
@@ -55,7 +56,7 @@ function isUnavailableLiveBoxscoreError(error: unknown) {
     return false;
   }
 
-  const match = error.message.match(/NBA API (\d+)/i);
+  const match = error.message.match(/API (\d+)/i);
   const status = match ? Number(match[1]) : null;
   return status === 403 || status === 404;
 }
@@ -78,8 +79,22 @@ function mapPlayer(player: BoxscorePlayer): GamePlayerLine {
     assists: safeNumber(statistics.assists),
     steals: safeNumber(statistics.steals),
     blocks: safeNumber(statistics.blocks),
-    plusMinus: plusMinus !== undefined && plusMinus !== null && plusMinus !== "" ? safeNumber(plusMinus) : null
+    plusMinus: plusMinus !== undefined && plusMinus !== null && plusMinus !== "" ? safeNumber(plusMinus) : null,
+    turnovers: safeNumber(statistics.turnovers)
   };
+}
+
+function stableInternalPlayerId(name: string, teamCode: string) {
+  let hash = 7;
+  for (const character of `${teamCode}:${name}`) {
+    hash = (hash * 31 + character.charCodeAt(0)) % 2_000_000_000;
+  }
+  return -Math.max(1, hash);
+}
+
+function readEspnStatistic(values: unknown[], names: string[], aliases: string[]) {
+  const index = names.findIndex((name) => aliases.includes(name.trim().toLowerCase()));
+  return index >= 0 ? values[index] : null;
 }
 
 function mapLeaders(players: GamePlayerLine[], teamId: number): GameLeader[] {
@@ -170,12 +185,114 @@ function buildUnavailableDetail(game: GameSummary): GameDetail {
   };
 }
 
+async function findEspnEventId(
+  client: ServiceDeps["client"],
+  game: GameSummary
+) {
+  if (!client.getEspnScoreboardByDate) return null;
+  const response = await client.getEspnScoreboardByDate(game.dateTimeUtc.slice(0, 10));
+  const events = (response as { events?: Array<Record<string, unknown>> }).events ?? [];
+  return events.find((event) => {
+    const competition = (event.competitions as Array<Record<string, unknown>> | undefined)?.[0];
+    const competitors = competition?.competitors as Array<Record<string, unknown>> | undefined;
+    const codes = competitors?.map((competitor) => String((competitor.team as Record<string, unknown>)?.abbreviation ?? "")) ?? [];
+    return codes.includes(game.homeTeam.code) && codes.includes(game.awayTeam.code);
+  });
+}
+
+export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: string): BoxscoreGame {
+  const payload = response as { header?: Record<string, unknown>; boxscore?: Record<string, unknown> };
+  const competition = (payload.header?.competitions as Array<Record<string, unknown>> | undefined)?.[0];
+  const competitors = competition?.competitors as Array<Record<string, unknown>> | undefined;
+  if (!competition || !competitors || competitors.length < 2) {
+    throw new Error("ESPN returned an invalid game summary.");
+  }
+
+  const mapTeam = (competitor: Record<string, unknown>) => {
+    const team = competitor.team as Record<string, unknown>;
+    const athletes = (payload.boxscore?.players as Array<Record<string, unknown>> | undefined)?.find(
+      (entry) => (entry.team as Record<string, unknown> | undefined)?.id === team.id
+    );
+    const players = ((athletes?.statistics as Array<Record<string, unknown>> | undefined) ?? []).flatMap((stat) =>
+      ((stat.athletes as Array<Record<string, unknown>> | undefined) ?? []).map((athlete) => {
+        const athleteData = athlete.athlete as Record<string, unknown>;
+        const values = (athlete.statistics as unknown[] | undefined) ?? [];
+        const names = ((stat.names as string[] | undefined) ?? []).map((name) => name.toLowerCase());
+        const teamCode = String(team.abbreviation ?? "");
+        const playerName = String(athleteData.displayName ?? "");
+        return {
+        personId: stableInternalPlayerId(playerName, teamCode),
+        name: playerName,
+        starter: athlete.starter ? "1" : "0",
+        position: String((athleteData.position as Record<string, unknown> | undefined)?.abbreviation ?? ""),
+        statistics: {
+          minutes: String(readEspnStatistic(values, names, ["min", "minutes"]) ?? ""),
+          points: safeNumber(readEspnStatistic(values, names, ["pts", "points"])),
+          reboundsTotal: safeNumber(readEspnStatistic(values, names, ["reb", "tr", "total rebounds", "rebounds"])),
+          assists: safeNumber(readEspnStatistic(values, names, ["ast", "assists"])),
+          steals: safeNumber(readEspnStatistic(values, names, ["stl", "steals"])),
+          blocks: safeNumber(readEspnStatistic(values, names, ["blk", "blocks"])),
+          plusMinusPoints: safeNumber(readEspnStatistic(values, names, ["+/-", "plus/minus", "plusminus"])),
+          turnovers: safeNumber(readEspnStatistic(values, names, ["to", "turnovers", "tov"]))
+        }
+        };
+      })
+    );
+    return {
+      teamId: getTeamIdentityByCode(String(team.abbreviation ?? ""))?.teamId ?? 0,
+      teamCity: String(team.location ?? ""),
+      teamName: String(team.name ?? ""),
+      teamTricode: String(team.abbreviation ?? ""),
+      score: safeNumber(competitor.score),
+      players
+    };
+  };
+
+  const home = competitors.find((competitor) => competitor.homeAway === "home") ?? competitors[0];
+  const away = competitors.find((competitor) => competitor.homeAway === "away") ?? competitors[1];
+  return {
+    gameId: requestedGameId,
+    gameDateTimeUTC: String(competition.date ?? new Date().toISOString()),
+    gameStatusText: String(
+      ((competition.status as Record<string, unknown> | undefined)?.type as Record<string, unknown> | undefined)
+        ?.description ?? ""
+    ),
+    homeTeam: mapTeam(home),
+    awayTeam: mapTeam(away)
+  };
+}
+
 export function createGamesService(deps: ServiceDeps) {
   return {
     async getGameDetail(gameId: string): Promise<ApiEnvelope<GameDetail>> {
       const state = await (deps.cache ?? cache).getOrLoad(`game-detail:${gameId}`, TTL.live, async () => {
+        const identity = resolveGameIdentity(gameId);
+        const canonical = parseCanonicalGameId(gameId);
+        let nbaGameId = identity.nbaGameId;
+
+        if (identity.espnEventId && deps.client.getEspnGameSummary) {
+          const response = await deps.client.getEspnGameSummary(identity.espnEventId);
+          return {
+            detail: buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, gameId), gameId),
+            source: ["ESPN summary"]
+          } satisfies GameDetailState;
+        }
+
+        if (canonical) {
+          const scheduleState = await loadScheduleSnapshotGames(deps);
+          const scheduledGame = scheduleState.value.find(
+            (game) =>
+              game.canonicalId === gameId ||
+              (game.dateTimeUtc.slice(0, 10) === canonical.date &&
+                game.homeTeam.code === canonical.homeCode &&
+                game.awayTeam.code === canonical.awayCode)
+          );
+          nbaGameId = scheduledGame ? resolveNbaGameId(scheduledGame.canonicalId ?? gameId) : null;
+        }
+
         try {
-          const response = (await deps.client.getLiveBoxscore(gameId)) as {
+          if (!nbaGameId) throw new Error("No NBA Game ID resolved for canonical game.");
+          const response = (await deps.client.getLiveBoxscore(nbaGameId)) as {
             game?: BoxscoreGame;
           };
 
@@ -188,11 +305,40 @@ export function createGamesService(deps: ServiceDeps) {
             throw error;
           }
 
+          if (deps.client.getEspnGameSummary && identity.espnEventId) {
+            const response = await deps.client.getEspnGameSummary(identity.espnEventId);
+            return {
+              detail: buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+              source: ["ESPN summary"]
+            } satisfies GameDetailState;
+          }
+
           const scheduleState = await loadScheduleSnapshotGames(deps);
-          const scheduledGame = scheduleState.value.find((game) => game.gameId === gameId);
+          const scheduledGame = scheduleState.value.find(
+            (game) => game.gameId === gameId || game.canonicalId === gameId
+          );
 
           if (!scheduledGame) {
             throw error;
+          }
+
+          if (deps.client.getEspnGameSummary) {
+            try {
+              const event = await findEspnEventId(deps.client, scheduledGame);
+              const eventId = String(event?.id ?? "");
+              if (eventId) {
+                const response = await deps.client.getEspnGameSummary(eventId);
+                return {
+                  detail: buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+                  source: ["ESPN summary", "NBA CDN schedule"]
+                } satisfies GameDetailState;
+              }
+            } catch (fallbackError) {
+              console.warn(
+                "[games] ESPN boxscore fallback failed",
+                fallbackError instanceof Error ? fallbackError.message : fallbackError
+              );
+            }
           }
 
           return {
