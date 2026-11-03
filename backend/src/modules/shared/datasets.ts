@@ -998,6 +998,10 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
       console.warn("[calendar] ESPN failed; using NBA CDN schedule fallback.", error instanceof Error ? error.message : error);
     }
 
+    if (espnGames.length > 0) {
+      return espnGames.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
+    }
+
     let cdnGames: GameSummary[] = [];
     try {
       const snapshot = await loadScheduleSnapshotGames(deps);

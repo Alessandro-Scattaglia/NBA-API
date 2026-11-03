@@ -28,7 +28,7 @@ describe("calendar provider merge", () => {
     expect(state.value[0]?.awayTeam.code).toBe("NOP");
   });
 
-  it("integrates missing NBA CDN games and deduplicates by date and team codes", async () => {
+  it("uses ESPN as the primary calendar source", async () => {
     const client = {
       getGamesSchedule: async () => ({
         data: [{
@@ -73,10 +73,10 @@ describe("calendar provider merge", () => {
 
     const state = await loadCalendarRange({ client, cache: undefined }, "2026-10-01", "2026-10-01");
 
-    expect(state.value).toHaveLength(2);
-    expect(new Set(state.value.map((game) => game.gameId)).size).toBe(2);
-    expect(state.value.map((game) => game.gameId)).toEqual(["0022600001", "0022600002"]);
+    expect(state.value).toHaveLength(1);
+    expect(new Set(state.value.map((game) => game.gameId)).size).toBe(1);
+    expect(state.value.map((game) => game.gameId)).toEqual(["espn-1"]);
     expect(state.value.every((game) => game.canonicalId?.startsWith("game:"))).toBe(true);
-    expect(state.value.find((game) => game.gameId === "0022600001")?.homeTeam.score).toBe(90);
+    expect(state.value.find((game) => game.gameId === "espn-1")?.homeTeam.score).toBe(100);
   });
 });

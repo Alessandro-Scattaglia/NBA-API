@@ -7,6 +7,12 @@ import {
 } from "./gameIdentity.js";
 
 describe("game identity", () => {
+  it("recognizes raw ESPN event ids", () => {
+    expect(resolveGameIdentity("401909917")).toEqual({
+      nbaGameId: null,
+      espnEventId: "401909917"
+    });
+  });
   it("never treats an ESPN event id as an NBA game id", () => {
     const id = canonicalGameId("2026-10-01T00:00:00Z", "BOS", "LAL");
 

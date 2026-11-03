@@ -52,5 +52,9 @@ export function resolveGameIdentity(gameId: string): Pick<GameIdentity, "nbaGame
     return { nbaGameId: gameId, espnEventId: knownIdentity.espnEventId };
   }
 
+  if (/^401\d+$/.test(gameId)) {
+    return { nbaGameId: null, espnEventId: gameId };
+  }
+
   return { nbaGameId: gameId, espnEventId: null };
 }
