@@ -109,7 +109,9 @@ npx wrangler deploy --config backend/wrangler.toml
 
 Non sono richieste API key per ESPN o per le fonti NBA pubbliche. Per il deploy del
 frontend, configura però il secret GitHub Actions `VITE_API_BASE_URL` con l’URL
-pubblico del Worker (per esempio `https://<worker>.<account>.workers.dev`).
+pubblico completo del Worker, incluso `https://` (per esempio
+`https://<worker>.<account>.workers.dev`). Il valore deve essere l’URL realmente
+stampato da `wrangler deploy`, non un hostname inventato o un percorso GitHub Pages.
 I Cron Trigger configurati aggiornano scoreboard/live ogni 2 minuti, calendario
 ogni 6 ore e dataset stagionali ogni giorno; il Worker esegue ogni refresh in modo
 indipendente.

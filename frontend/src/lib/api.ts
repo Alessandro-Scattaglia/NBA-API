@@ -1,6 +1,16 @@
 import type { ApiEnvelope } from "./types";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+function normalizeApiBaseUrl(value: string | undefined) {
+  const trimmed = value?.trim().replace(/\/+$/, "") ?? "";
+
+  if (!trimmed || trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+const apiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 async function readJsonSafely<T>(response: Response): Promise<T | null> {
   const raw = await response.text();
