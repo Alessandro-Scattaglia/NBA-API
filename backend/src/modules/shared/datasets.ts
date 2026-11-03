@@ -902,6 +902,58 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
   };
 }
 
+function mapBallDontLieGame(game: Record<string, unknown>): GameSummary {
+  const homeTeamData = (game.home_team as Record<string, unknown> | undefined) ?? {};
+  const awayTeamData = (game.visitor_team as Record<string, unknown> | undefined) ?? {};
+  const homeCode = String(homeTeamData.abbreviation ?? "");
+  const awayCode = String(awayTeamData.abbreviation ?? "");
+  const homeTeam = getTeamIdentityByCode(homeCode);
+  const awayTeam = getTeamIdentityByCode(awayCode);
+  const statusState = String(game.status_state ?? "").toLowerCase();
+  const statusText = String(game.status ?? "");
+  const period = safeNumber(game.period, 0);
+  const status = statusState === "final" ? "final" : statusState === "live" ? "live" : "scheduled";
+  const dateTimeUtc = String(game.datetime ?? `${String(game.date ?? "")}T00:00:00.000Z`);
+  const parsedDate = parseNbaDate(dateTimeUtc);
+
+  return {
+    gameId: String(game.id ?? ""),
+    gameCode: null,
+    dateTimeUtc: parsedDate.toISOString(),
+    dateLabel: parsedDate.toLocaleString("it-IT", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }),
+    status,
+    statusText: statusText || (status === "final" ? "Finale" : status === "live" ? "Live" : "In programma"),
+    phase: game.postseason === true ? "playoffs" : "regular-season",
+    arena: null,
+    nationalTv: [],
+    clock: status === "live" ? String(game.time ?? "") || null : null,
+    period: period || null,
+    homeTeam: {
+      teamId: homeTeam?.teamId ?? safeNumber(homeTeamData.id),
+      name: homeTeam?.name ?? String(homeTeamData.full_name ?? ""),
+      code: homeCode,
+      logo: homeTeam?.logo ?? "",
+      score: game.home_team_score === null || game.home_team_score === undefined
+        ? null
+        : safeNumber(game.home_team_score),
+      record: null
+    },
+    awayTeam: {
+      teamId: awayTeam?.teamId ?? safeNumber(awayTeamData.id),
+      name: awayTeam?.name ?? String(awayTeamData.full_name ?? ""),
+      code: awayCode,
+      logo: awayTeam?.logo ?? "",
+      score: game.visitor_team_score === null || game.visitor_team_score === undefined
+        ? null
+        : safeNumber(game.visitor_team_score),
+      record: null
+    }
+  };
+}
+
 export async function loadTodayGames(deps: ServiceDeps) {
   return getCache(deps).getOrLoad("today-games", TTL.live, async () => {
     const response = (await deps.client.getLiveScoreboard()) as { scoreboard?: { games?: Array<Record<string, unknown>> } };
@@ -929,34 +981,10 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
   const key = `calendar:v2:${range.from}:${range.to}`;
 
   return getCache(deps).getOrLoad(key, TTL.calendar, async () => {
-    const scheduleState = await loadScheduleSnapshotGames(deps);
-    const scheduleGames = scheduleState.value
-      .filter((game) => game.dateTimeUtc.slice(0, 10) >= range.from && game.dateTimeUtc.slice(0, 10) <= range.to);
+    const response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: Array<Record<string, unknown>> };
 
-    if (scheduleGames.length > 0) {
-      return scheduleGames.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
-    }
-
-    const dates = enumerateDates(range.from, range.to);
-    if (deps.client.getEspnScoreboardByDate) {
-      const phase: GamePhase = range.from.includes("-04-") ? "playoffs" : "regular-season";
-      const espnResults = await Promise.allSettled(
-        dates.map((date) => deps.client.getEspnScoreboardByDate!(date))
-      );
-      const espnGames = espnResults.flatMap((result) =>
-        result.status === "fulfilled" ? mapEspnScoreboardGames(result.value, phase) : []
-      );
-      if (espnGames.length > 0) return espnGames.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
-    }
-
-    const results = await Promise.all(dates.map((date) => deps.client.getScoreboardByDate(date)));
-
-    return results
-      .flatMap((response) => {
-        const gameHeaderRows = mapStatsRows<StatsRow>(response, "GameHeader");
-        return gameHeaderRows.length > 0 ? gameHeaderRows : mapStatsRows<StatsRow>(response);
-      })
-      .map((row) => mapScoreboardGame(row))
+    return (response.data ?? [])
+      .map((game) => mapBallDontLieGame(game))
       .sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
   });
 }

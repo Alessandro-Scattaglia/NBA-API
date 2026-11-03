@@ -10,6 +10,7 @@ export interface WorkerEnv {
   NBA_REQUEST_TIMEOUT_MS?: string;
   NBA_REQUEST_RETRIES?: string;
   NBA_ALLOW_INSECURE_TLS?: string;
+  BALLDONTLIE_API_KEY?: string;
   FRONTEND_ORIGIN?: string;
 }
 
@@ -28,6 +29,7 @@ export interface RuntimeEnv {
   requestTimeoutMs: number;
   requestRetries: number;
   allowInsecureTls: boolean;
+  ballDontLieApiKey?: string;
 }
 
 export function createRuntimeEnv(bindings: WorkerEnv = {}): RuntimeEnv {
@@ -38,7 +40,8 @@ export function createRuntimeEnv(bindings: WorkerEnv = {}): RuntimeEnv {
     liveBaseUrl: bindings.NBA_LIVE_BASE_URL ?? "https://cdn.nba.com/static/json/liveData",
     requestTimeoutMs: Number(bindings.NBA_REQUEST_TIMEOUT_MS ?? 6000),
     requestRetries: Number(bindings.NBA_REQUEST_RETRIES ?? 1),
-    allowInsecureTls: asBoolean(bindings.NBA_ALLOW_INSECURE_TLS)
+    allowInsecureTls: asBoolean(bindings.NBA_ALLOW_INSECURE_TLS),
+    ballDontLieApiKey: bindings.BALLDONTLIE_API_KEY
   };
 }
 

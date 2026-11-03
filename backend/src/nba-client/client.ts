@@ -6,6 +6,7 @@ export interface NbaApiClient {
   getLiveBoxscore(gameId: string): Promise<unknown>;
   getScoreboardByDate(gameDateIso: string): Promise<unknown>;
   getScheduleSnapshot(): Promise<unknown>;
+  getGamesSchedule(from: string, to: string): Promise<unknown>;
   getPlayerIndex(): Promise<unknown>;
   getLeagueDashPlayerStats(): Promise<unknown>;
   getLeagueLeaders?(statCategory?: string): Promise<unknown>;
@@ -56,6 +57,8 @@ const DEFAULT_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 };
+
+const BALLDONTLIE_BASE_URL = "https://api.balldontlie.io/nba/v1";
 
 const ESPN_TEAM_IDS: Record<string, number> = {
   ATL: 1,
@@ -327,6 +330,40 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
         Season: getCurrentSeason()
       });
       return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
+    },
+
+    async getGamesSchedule(from: string, to: string) {
+      const apiKey = runtimeEnv.ballDontLieApiKey?.trim();
+      if (!apiKey) {
+        throw new Error("BALLDONTLIE_API_KEY is required to load the calendar.");
+      }
+
+      const games: unknown[] = [];
+      let cursor: string | undefined;
+
+      do {
+        const url = buildUrl(BALLDONTLIE_BASE_URL, "games", {
+          start_date: from,
+          end_date: to,
+          ...(cursor ? { cursor } : {})
+        });
+        const response = (await requestJson(
+          fetchImpl,
+          url,
+          { Accept: "application/json", Authorization: apiKey },
+          runtimeEnv
+        )) as {
+          data?: unknown[];
+          meta?: { next_cursor?: string | number | null };
+        };
+
+        games.push(...(response.data ?? []));
+        cursor = response.meta?.next_cursor === null || response.meta?.next_cursor === undefined
+          ? undefined
+          : String(response.meta.next_cursor);
+      } while (cursor);
+
+      return { data: games };
     },
 
     getPlayerIndex() {

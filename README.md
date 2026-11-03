@@ -98,6 +98,13 @@ Per pubblicare il Worker:
 npm run deploy --workspace backend
 ```
 
+La chiave API di balldontlie.io deve essere configurata come secret Cloudflare,
+non nel file `wrangler.toml`:
+
+```bash
+npx wrangler secret put BALLDONTLIE_API_KEY --config backend/wrangler.toml
+```
+
 ## Test e build
 
 Il progetto include test con Vitest per backend e frontend. Il comando root esegue entrambe le suite e controlla le fondamenta di stagione e cache.

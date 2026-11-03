@@ -41,7 +41,7 @@ export function createCalendarService(deps: ServiceDeps) {
         },
         state.updatedAt,
         state.stale,
-        ["cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json", "stats.nba.com/scoreboardv2"]
+        ["api.balldontlie.io/nba/v1/games"]
       );
     }
   };
