@@ -55,5 +55,13 @@ export function getTeamIdentity(teamId: number) {
 }
 
 export function getTeamIdentityByCode(code: string) {
-  return TEAM_DIRECTORY.find((team) => team.code === code) ?? null;
+  const normalizedCode = {
+    GS: "GSW",
+    NO: "NOP",
+    NY: "NYK",
+    SA: "SAS",
+    UTAH: "UTA"
+  }[code] ?? code;
+
+  return TEAM_DIRECTORY.find((team) => team.code === normalizedCode) ?? null;
 }

@@ -2,6 +2,32 @@ import { describe, expect, it } from "vitest";
 import { loadCalendarRange } from "./datasets.js";
 
 describe("calendar provider merge", () => {
+  it("maps ESPN abbreviated team codes", async () => {
+    const client = {
+      getGamesSchedule: async () => ({
+        data: [{
+          id: "espn-2",
+          date: "2026-10-02T00:00:00Z",
+          competitions: [{
+            date: "2026-10-02T00:00:00Z",
+            competitors: [
+              { homeAway: "home", team: { abbreviation: "NY" } },
+              { homeAway: "away", team: { abbreviation: "NO" } }
+            ],
+            status: { type: { state: "pre", description: "Scheduled" } }
+          }]
+        }]
+      }),
+      getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [] } })
+    } as never;
+
+    const state = await loadCalendarRange({ client, cache: undefined }, "2026-10-02", "2026-10-02");
+
+    expect(state.value).toHaveLength(1);
+    expect(state.value[0]?.homeTeam.code).toBe("NYK");
+    expect(state.value[0]?.awayTeam.code).toBe("NOP");
+  });
+
   it("integrates missing NBA CDN games and deduplicates by date and team codes", async () => {
     const client = {
       getGamesSchedule: async () => ({
