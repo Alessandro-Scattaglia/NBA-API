@@ -355,20 +355,25 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
 
     async getGamesSchedule(from: string, to: string) {
       const games: unknown[] = [];
-      let page = 1;
-      let pageCount = 1;
-      const dateRange = `${from.replaceAll("-", "")}-${to.replaceAll("-", "")}`;
+      const start = new Date(`${from}T00:00:00.000Z`);
+      const end = new Date(`${to}T00:00:00.000Z`);
 
-      do {
-        const response = (await this.getEspnScoreboardByDate?.(dateRange, page)) as {
-          events?: unknown[];
-          pageCount?: number;
-        } | undefined;
-        if (!response) throw new Error("ESPN scoreboard client is unavailable.");
-        games.push(...(response.events ?? []));
-        pageCount = Number(response.pageCount ?? 1);
-        page += 1;
-      } while (page <= pageCount);
+      for (let date = start; date <= end; date = new Date(date.getTime() + 86_400_000)) {
+        const dateIso = date.toISOString().slice(0, 10);
+        let page = 1;
+        let pageCount = 1;
+
+        do {
+          const response = (await this.getEspnScoreboardByDate?.(dateIso, page)) as {
+            events?: unknown[];
+            pageCount?: number;
+          } | undefined;
+          if (!response) throw new Error("ESPN scoreboard client is unavailable.");
+          games.push(...(response.events ?? []));
+          pageCount = Number(response.pageCount ?? 1);
+          page += 1;
+        } while (page <= pageCount);
+      }
 
       return { data: games, provider: "ESPN" };
     },
