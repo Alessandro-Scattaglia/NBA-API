@@ -44,9 +44,9 @@ La stagione non è fissa nel codice. Il backend determina la stagione in modo ce
 
 Questo mantiene il comportamento locale, senza necessità di aggiornare costanti manualmente ogni anno.
 
-## Selezione stagioni storiche
+## Stagione
 
-Il frontend mostra un selettore di stagione con valore persistito in `localStorage` e pulsante per tornare alla stagione corrente. Tutte le richieste aggiungono automaticamente il parametro `season` all’API locale, e l’API valida il formato.
+Il frontend usa esclusivamente la stagione determinata dal backend; non è disponibile una selezione manuale di stagioni storiche.
 
 ## Fonti dati
 
@@ -100,7 +100,7 @@ npm run deploy --workspace backend
 
 ## Test e build
 
-Il progetto include test con Vitest per backend e frontend. Il comando root esegue entrambe le suite e controlla le fondamenta di stagione, cache e selezione stagione.
+Il progetto include test con Vitest per backend e frontend. Il comando root esegue entrambe le suite e controlla le fondamenta di stagione e cache.
 
 ## Risoluzione problemi
 

@@ -471,27 +471,25 @@ Il riepilogo delle Finals e del campione e calcolato nel frontend da [playoffSta
 | `/leaders`               | Sei classifiche statistiche                                 |
 | Qualsiasi altro percorso | Pagina not found                                            |
 
-[AppShell](../frontend/src/components/layout/AppShell/AppShell.tsx) gestisce sidebar comprimibile, menu mobile, navigazione e selettore stagione. Il menu mobile si chiude quando cambia percorso o query string.
+[AppShell](../frontend/src/components/layout/AppShell/AppShell.tsx) gestisce sidebar fissa e navigazione.
 
 ### 12.2 Client API e cache browser
 
-[apiGet](../frontend/src/lib/api.ts) usa richieste relative, aggiunge `season` da `localStorage` e legge il JSON. Non valida lo schema runtime della risposta. Per un errore di rete mostra il backend standard `127.0.0.1:4001`; il messaggio non si adatta a porte personalizzate. Una risposta vuota genera un errore esplicito, un JSON malformato un errore di parsing.
+[apiGet](../frontend/src/lib/api.ts) usa richieste relative e legge il JSON. Non valida lo schema runtime della risposta. Per un errore di rete mostra il backend standard `127.0.0.1:4001`; il messaggio non si adatta a porte personalizzate. Una risposta vuota genera un errore esplicito, un JSON malformato un errore di parsing.
 
 Le opzioni globali di TanStack Query sono: `retry: 1`, `staleTime: 15000`, `refetchInterval: 45000`, refresh anche in background, al focus della finestra e alla riconnessione. La pagina playoff usa un intervallo di 30 secondi. La cache Query vive in memoria nel browser e non e la stessa cache del backend.
 
-Le query key includono normalmente risorsa, ID o filtri URL; non includono la stagione selezionata. Il cambio stagione aggiorna solo lo stato di `AppShell` e `localStorage`, senza invalidare le query: non forza una richiesta immediata e non separa i dati in cache per stagione.
+Le query key includono normalmente risorsa, ID o filtri URL. La stagione è determinata dal backend e non viene modificata dalla UI.
 
 ### 12.3 Stato persistente e filtri
 
 | Posizione                               | Contenuto                                                         |
 | --------------------------------------- | ----------------------------------------------------------------- |
-| `localStorage["nba-selected-season"]`   | Stagione selezionata                                              |
-| `localStorage["nba-sidebar-collapsed"]` | Stato sidebar, stringa `true` o `false`                           |
 | Query string giocatori                  | Ricerca, ruolo, dimensione pagina e altri parametri API inoltrati |
 | Query string calendario                 | Data e filtri squadra, stato e fase                               |
 | Stato locale playoff                    | Giorno selezionato e filtro stato                                 |
 
-Il frontend calcola autonomamente la stagione dalla data UTC e le cinque precedenti; non consulta `/api/seasons`. Un override backend puo quindi non coincidere con la stagione corrente mostrata nel selettore.
+Il frontend non espone una selezione manuale della stagione e non consulta `/api/seasons`.
 
 La ricerca giocatori aggiorna l'URL a ogni variazione, senza debounce, e azzera `page` quando cambia un altro filtro. L'API supporta la paginazione, ma la pagina non espone pulsanti per spostarsi fra le pagine; `page` e utilizzabile tramite URL.
 
@@ -598,7 +596,7 @@ I log sono scritti con `console.log`/`console.warn`, con prefissi quali `[backen
 | Classifica con tutti record 0-0              | Possibile directory fallback; controllare fonti NBA/ESPN e warning                                       |
 | HTTP 200 ma liste vuote                      | Puo essere un fallback, un filtro senza risultati o un payload upstream incompleto                       |
 | Dati fermi nonostante refresh                | Controllare TTL del dataset e TTL di 12 ore dei dettagli; il polling UI non forza l'invalidazione server |
-| Stagione selezionata senza variazioni        | Limite end-to-end attuale; verificare `NBA_SEASON` e stato browser                                       |
+| Stagione inattesa                            | Verificare `NBA_SEASON` e la stagione calcolata dal backend                                               |
 | Boxscore assente                             | Controllare `dataAvailability`; una gara programmata non ha necessariamente statistiche                  |
 | Errori TLS                                   | Verificare proxy aziendale/catena CA e warning di downgrade; configurare certificati attendibili         |
 | Orari incoerenti                             | Controllare UTC, Europe/Rome e approssimazione DST del parser backend                                    |
@@ -607,13 +605,7 @@ I log sono scritti con `console.log`/`console.warn`, con prefissi quali `[backen
 
 ### 15.3 Ripristino dello stato locale
 
-Per svuotare la cache server, arrestare e riavviare il backend. Per eliminare soltanto le preferenze dell'app, dalla console del browser sulla sua origine:
-
-```javascript
-localStorage.removeItem("nba-selected-season");
-localStorage.removeItem("nba-sidebar-collapsed");
-location.reload();
-```
+Per svuotare la cache server, arrestare e riavviare il backend. La sidebar e la stagione non hanno preferenze locali da ripristinare.
 
 Per rimuovere un override dalla sessione PowerShell:
 

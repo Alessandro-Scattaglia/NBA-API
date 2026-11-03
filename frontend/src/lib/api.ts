@@ -12,25 +12,18 @@ async function readJsonSafely<T>(response: Response): Promise<T | null> {
   return JSON.parse(raw) as T;
 }
 
-function appendSeasonQuery(path: string): string {
+function normalizePath(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 
   if (typeof window === "undefined") {
     return normalizedPath;
   }
 
-  const selectedSeason = window.localStorage.getItem("nba-selected-season");
-
-  if (!selectedSeason) {
-    return normalizedPath;
-  }
-
-  const separator = normalizedPath.includes("?") ? "&" : "?";
-  return `${normalizedPath}${separator}season=${encodeURIComponent(selectedSeason)}`;
+  return normalizedPath;
 }
 
 export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
-  const finalPath = `${apiBaseUrl}${appendSeasonQuery(path)}`;
+  const finalPath = `${apiBaseUrl}${normalizePath(path)}`;
   let response: Response;
 
   try {

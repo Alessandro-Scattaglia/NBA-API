@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { SeasonSelector } from "../../common/SeasonSelector";
+import { Link, NavLink, Outlet } from "react-router-dom";
+import type { ReactNode } from "react";
 import "./AppShell.css";
 
 function SidebarIcon({ children }: { children: ReactNode }) {
@@ -92,82 +91,9 @@ const navItems = [
 ];
 
 export function AppShell() {
-  const currentSeason = useMemo(() => {
-    if (typeof window === "undefined") {
-      return "2026-27";
-    }
-
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth() + 1;
-    const startYear = month >= 9 ? year : year - 1;
-    return `${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`;
-  }, []);
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return window.localStorage.getItem("nba-sidebar-collapsed") === "true";
-  });
-  const [selectedSeason, setSelectedSeason] = useState<string>(() => {
-    if (typeof window === "undefined") {
-      return currentSeason;
-    }
-
-    return window.localStorage.getItem("nba-selected-season") ?? currentSeason;
-  });
-  const location = useLocation();
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    window.localStorage.setItem("nba-sidebar-collapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    window.localStorage.setItem("nba-selected-season", selectedSeason);
-  }, [selectedSeason]);
-
-  const seasons = useMemo(() => {
-    const values = [currentSeason];
-    for (let offset = 1; offset <= 5; offset += 1) {
-      const startYear = Number(currentSeason.slice(0, 4)) - offset;
-      values.push(`${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`);
-    }
-    return Array.from(new Set(values));
-  }, [currentSeason]);
-
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "app-shell-collapsed" : ""}`}>
-      {menuOpen ? <button type="button" className="sidebar-backdrop" aria-label="Chiudi menu" onClick={() => setMenuOpen(false)} /> : null}
-
-      <aside className={`sidebar ${menuOpen ? "sidebar-open" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-        <button
-          type="button"
-          className="sidebar-toggle sidebar-toggle-top"
-          aria-label={sidebarCollapsed ? "Espandi barra laterale" : "Riduci barra laterale"}
-          title={sidebarCollapsed ? "Espandi barra laterale" : "Riduci barra laterale"}
-          onClick={() => setSidebarCollapsed((value) => !value)}
-        >
-          <span className="sidebar-toggle-icon">
-            <SidebarIcon>
-              <path
-                d={sidebarCollapsed ? "M10 7.5 14.5 12 10 16.5" : "M14 7.5 9.5 12 14 16.5"}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </SidebarIcon>
-          </span>
-        </button>
-
+    <div className="app-shell">
+      <aside className="sidebar">
         <div className="sidebar-header">
           <Link to="/" className="brand-mark">
             <span className="brand-logo" aria-hidden="true">
@@ -201,31 +127,6 @@ export function AppShell() {
       </aside>
 
       <div className="main-shell">
-        <header className="mobile-bar">
-          <div className="mobile-actions">
-            <button type="button" className="menu-button" onClick={() => setMenuOpen((open) => !open)}>
-              <span className="menu-button-icon">
-                <SidebarIcon>
-                  <path d="M4.5 7.5h15M4.5 12h15M4.5 16.5h15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </SidebarIcon>
-              </span>
-              <span>Menu</span>
-            </button>
-          </div>
-          <Link to="/" className="mobile-brand">
-            NBA Dashboard
-          </Link>
-        </header>
-
-        <div className="season-toolbar">
-          <SeasonSelector
-            seasons={seasons}
-            value={selectedSeason}
-            currentSeason={currentSeason}
-            onChange={setSelectedSeason}
-          />
-        </div>
-
         <main className="page-shell">
           <Outlet />
         </main>
