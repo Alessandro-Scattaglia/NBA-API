@@ -207,7 +207,7 @@ export function createTeamsService(deps: ServiceDeps) {
             age,
             headshot: buildPlayerHeadshotUrl(playerId)
           };
-        });
+        }).filter((player) => player.playerId > 0 && player.fullName.length > 0);
         const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : [];
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = [

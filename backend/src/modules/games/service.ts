@@ -11,7 +11,7 @@ import type {
   GameSummary
 } from "../../types/dto/index.js";
 import { safeNumber } from "../../utils/date.js";
-import { loadScheduleSnapshotGames, resolveNbaGameId } from "../shared/datasets.js";
+import { loadPlayerCatalog, loadScheduleSnapshotGames, resolveNbaGameId } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
 import { parseCanonicalGameId, resolveGameIdentity } from "../shared/gameIdentity.js";
@@ -187,6 +187,56 @@ function buildUnavailableDetail(game: GameSummary): GameDetail {
   };
 }
 
+function normalizePlayerName(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+async function reconcileEspnPlayerIds(detail: GameDetail, deps: ServiceDeps) {
+  const syntheticPlayers = [...detail.homePlayers, ...detail.awayPlayers].filter((player) => player.playerId < 0);
+  if (syntheticPlayers.length === 0) {
+    return detail;
+  }
+
+  let catalog: Awaited<ReturnType<typeof loadPlayerCatalog>>;
+  try {
+    catalog = await loadPlayerCatalog(deps);
+  } catch (error) {
+    console.warn(
+      "[games] NBA player ID reconciliation unavailable",
+      error instanceof Error ? error.message : error
+    );
+    return detail;
+  }
+  const playersByName = new Map(
+    catalog.value.map((player) => [normalizePlayerName(player.fullName), player.playerId])
+  );
+  const resolvedIds = new Map<number, number>();
+
+  for (const player of syntheticPlayers) {
+    const playerId = playersByName.get(normalizePlayerName(player.fullName));
+    if (playerId) {
+      resolvedIds.set(player.playerId, playerId);
+    }
+  }
+
+  if (resolvedIds.size === 0) {
+    return detail;
+  }
+
+  const resolveId = (playerId: number) => resolvedIds.get(playerId) ?? playerId;
+  return {
+    ...detail,
+    homePlayers: detail.homePlayers.map((player) => ({ ...player, playerId: resolveId(player.playerId) })),
+    awayPlayers: detail.awayPlayers.map((player) => ({ ...player, playerId: resolveId(player.playerId) })),
+    homeLeaders: detail.homeLeaders.map((leader) => ({ ...leader, playerId: resolveId(leader.playerId) })),
+    awayLeaders: detail.awayLeaders.map((leader) => ({ ...leader, playerId: resolveId(leader.playerId) }))
+  };
+}
+
 async function findEspnEventId(
   client: ServiceDeps["client"],
   game: GameSummary
@@ -279,7 +329,10 @@ export function createGamesService(deps: ServiceDeps) {
         if (identity.espnEventId && deps.client.getEspnGameSummary) {
           const response = await deps.client.getEspnGameSummary(identity.espnEventId);
           return {
-            detail: buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, gameId), gameId),
+            detail: await reconcileEspnPlayerIds(
+              buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, gameId), gameId),
+              deps
+            ),
             source: ["ESPN summary"]
           } satisfies GameDetailState;
         }
@@ -314,7 +367,10 @@ export function createGamesService(deps: ServiceDeps) {
           if (deps.client.getEspnGameSummary && identity.espnEventId) {
             const response = await deps.client.getEspnGameSummary(identity.espnEventId);
             return {
-              detail: buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+              detail: await reconcileEspnPlayerIds(
+                buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+                deps
+              ),
               source: ["ESPN summary"]
             } satisfies GameDetailState;
           }
@@ -335,7 +391,10 @@ export function createGamesService(deps: ServiceDeps) {
               if (eventId) {
                 const response = await deps.client.getEspnGameSummary(eventId);
                 return {
-                  detail: buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+                  detail: await reconcileEspnPlayerIds(
+                    buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+                    deps
+                  ),
                   source: ["ESPN summary", "NBA CDN schedule"]
                 } satisfies GameDetailState;
               }

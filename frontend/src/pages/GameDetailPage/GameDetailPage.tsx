@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
@@ -89,6 +90,15 @@ function getLeaderLine(leader: GameLeader, rows: GamePlayerLine[]) {
 
 function getPlayerImageUrl(playerId: number, headshot: string | null) {
   return headshot ?? (playerId > 0 ? buildPlayerHeadshotUrl(playerId) : "");
+}
+
+function getPlayerLinkProps(playerId: number) {
+  return playerId > 0
+    ? { to: `/players/${playerId}` }
+    : {
+        to: "#",
+        onClick: (event: MouseEvent<HTMLAnchorElement>) => event.preventDefault()
+      };
 }
 
 function getDoubleFigureCategories(player: Pick<GamePlayerLine, "points" | "rebounds" | "assists" | "steals" | "blocks">) {
@@ -248,7 +258,7 @@ function LeaderSection({
             return (
               <Link
                 key={leader.playerId}
-                to={`/players/${leader.playerId}`}
+                {...getPlayerLinkProps(leader.playerId)}
                 className={`game-leader-card game-leader-card-${tone} ${primaryHighlight ? `game-leader-card-highlight-${primaryHighlight.tone}` : ""}`}
                 title={tooltip}
                 style={{ textDecoration: "none", color: "inherit" }}
@@ -351,7 +361,7 @@ function PlayerTable({
                           loading="lazy"
                         />
                       ) : null}
-                      <Link to={`/players/${player.playerId}`}>
+                      <Link {...getPlayerLinkProps(player.playerId)}>
                         <strong>{player.fullName}</strong>
                       </Link>
                     </div>
