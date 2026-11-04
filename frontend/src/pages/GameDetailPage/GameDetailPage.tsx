@@ -92,9 +92,12 @@ function getPlayerImageUrl(playerId: number, headshot: string | null) {
   return headshot ?? (playerId > 0 ? buildPlayerHeadshotUrl(playerId) : "");
 }
 
-function getPlayerLinkProps(playerId: number) {
-  return playerId > 0
-    ? { to: `/players/${playerId}` }
+function getPlayerLinkProps(playerId: number, headshot?: string | null) {
+  const headshotPlayerId = headshot?.match(/\/(\d+)\.(?:png|jpg|jpeg)(?:\?|$)/i)?.[1];
+  const resolvedPlayerId = playerId > 0 ? playerId : Number(headshotPlayerId ?? 0);
+
+  return resolvedPlayerId > 0
+    ? { to: `/players/${resolvedPlayerId}` }
     : {
         to: "#",
         onClick: (event: MouseEvent<HTMLAnchorElement>) => event.preventDefault()
@@ -258,7 +261,7 @@ function LeaderSection({
             return (
               <Link
                 key={leader.playerId}
-                {...getPlayerLinkProps(leader.playerId)}
+                {...getPlayerLinkProps(leader.playerId, line?.headshot ?? leader.headshot)}
                 className={`game-leader-card game-leader-card-${tone} ${primaryHighlight ? `game-leader-card-highlight-${primaryHighlight.tone}` : ""}`}
                 title={tooltip}
                 style={{ textDecoration: "none", color: "inherit" }}
@@ -361,7 +364,7 @@ function PlayerTable({
                           loading="lazy"
                         />
                       ) : null}
-                      <Link {...getPlayerLinkProps(player.playerId)}>
+                      <Link {...getPlayerLinkProps(player.playerId, player.headshot)}>
                         <strong>{player.fullName}</strong>
                       </Link>
                     </div>

@@ -9,6 +9,18 @@ import type { ServiceDeps } from "../shared/types.js";
 
 type StatsRow = Record<string, unknown>;
 
+function getInfoValue(row: StatsRow, keys: string[]) {
+  for (const key of keys) {
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    const value = actualKey ? row[actualKey] : undefined;
+    if (value !== undefined && value !== null && value !== "") {
+      return String(value);
+    }
+  }
+
+  return "";
+}
+
 interface PlayerFilters {
   search?: string;
   teamId?: number;
@@ -60,13 +72,21 @@ export function createPlayersService(deps: ServiceDeps) {
           throw new Error(`Player ${playerId} not found`);
         }
 
-        const [infoResult, gameLogsResult, playoffGameLogsResult] = await Promise.allSettled([
+        const [infoResult, gameLogsResult, playoffGameLogsResult, rosterResult] = await Promise.allSettled([
           deps.client.getCommonPlayerInfo(playerId),
           deps.client.getPlayerGameLogs(playerId),
-          deps.client.getPlayerGameLogs(playerId, "Playoffs")
+          deps.client.getPlayerGameLogs(playerId, "Playoffs"),
+          base.team && deps.client.getEspnRoster ? deps.client.getEspnRoster(base.team.teamId) : Promise.reject(new Error("Roster fallback unavailable"))
         ]);
 
         const info = infoResult.status === "fulfilled" ? mapStatsRows<StatsRow>(infoResult.value)[0] ?? {} : {};
+        const normalizedName = base.fullName.trim().toLowerCase();
+        const rosterAthlete = rosterResult.status === "fulfilled"
+          ? ((rosterResult.value as { athletes?: Array<Record<string, unknown>> }).athletes ?? []).find((athlete) =>
+              String(athlete.fullName ?? athlete.displayName ?? "").trim().toLowerCase() === normalizedName
+            )
+          : undefined;
+        const rosterPosition = rosterAthlete?.position as Record<string, unknown> | undefined;
         const allGameLogs = [
           ...(playoffGameLogsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playoffGameLogsResult.value) : []),
           ...(gameLogsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(gameLogsResult.value) : [])
@@ -91,20 +111,26 @@ export function createPlayersService(deps: ServiceDeps) {
             blocks: safeNumber(row.BLK)
           }));
 
-        const birthDate = String(info.BIRTHDATE ?? info.BIRTH_DATE ?? "") || null;
+        const birthDate =
+          getInfoValue(info, ["BIRTHDATE", "BIRTH_DATE"]) ||
+          getInfoValue((rosterAthlete ?? {}) as StatsRow, ["birthDate", "dateOfBirth"]) ||
+          null;
         const draftParts = [
-          info.DRAFT_YEAR ? `Anno ${info.DRAFT_YEAR}` : "",
-          info.DRAFT_ROUND ? `Round ${info.DRAFT_ROUND}` : "",
-          info.DRAFT_NUMBER ? `Pick ${info.DRAFT_NUMBER}` : ""
+          getInfoValue(info, ["DRAFT_YEAR"]) ? `Anno ${getInfoValue(info, ["DRAFT_YEAR"])}` : "",
+          getInfoValue(info, ["DRAFT_ROUND"]) ? `Round ${getInfoValue(info, ["DRAFT_ROUND"])}` : "",
+          getInfoValue(info, ["DRAFT_NUMBER"]) ? `Pick ${getInfoValue(info, ["DRAFT_NUMBER"])}` : ""
         ].filter(Boolean);
 
         return {
           ...base,
+          position: base.position ?? (String(rosterPosition?.abbreviation ?? "") || null),
+          height: base.height ?? (String(rosterAthlete?.displayHeight ?? "") || null),
+          weight: base.weight ?? (String(rosterAthlete?.displayWeight ?? "") || null),
           birthDate,
           age: calculateAge(birthDate),
-          country: String(info.COUNTRY ?? info.COUNTRY_CODE ?? "") || null,
-          school: String(info.SCHOOL ?? info.COLLEGE ?? "") || null,
-          experience: String(info.SEASON_EXP ?? info.EXPERIENCE ?? "") || null,
+          country: getInfoValue(info, ["COUNTRY", "COUNTRY_CODE"]) || null,
+          school: getInfoValue(info, ["SCHOOL", "COLLEGE"]) || null,
+          experience: getInfoValue(info, ["SEASON_EXP", "EXPERIENCE"]) || null,
           draft: draftParts.length > 0 ? draftParts.join(" - ") : null,
           recentGames
         } satisfies PlayerDetail;

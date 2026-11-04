@@ -4,7 +4,7 @@ import { getCurrentSeason, TTL } from "../../config/season.js";
 import { cache } from "../../cache/memoryCache.js";
 import { getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
-import { loadScheduleSnapshotGames, loadStandings, loadTeamStats, splitByConference } from "../shared/datasets.js";
+import { loadPlayerCatalog, loadScheduleSnapshotGames, loadStandings, loadTeamStats, splitByConference } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
 
@@ -189,7 +189,7 @@ export function createTeamsService(deps: ServiceDeps) {
 
         const teamInfo = teamInfoResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamInfoResult.value)[0] ?? {} : {};
         const rosterRows = rosterResult.status === "fulfilled" ? mapStatsRows<StatsRow>(rosterResult.value) : [];
-        const roster = rosterRows.map((row) => {
+        let roster = rosterRows.map((row) => {
           const playerId = Number(row.PLAYER_ID ?? row.PlayerID ?? 0);
           const birthDate = row.BIRTH_DATE ? new Date(String(row.BIRTH_DATE)) : null;
           const age =
@@ -208,6 +208,25 @@ export function createTeamsService(deps: ServiceDeps) {
             headshot: buildPlayerHeadshotUrl(playerId)
           };
         }).filter((player) => player.playerId > 0 && player.fullName.length > 0);
+        if (roster.length === 0) {
+          try {
+            const catalog = await loadPlayerCatalog(deps);
+            roster = catalog.value
+              .filter((player) => player.team?.teamId === teamId)
+              .map((player) => ({
+                playerId: player.playerId,
+                fullName: player.fullName,
+                position: player.position,
+                jersey: player.jersey,
+                height: player.height,
+                weight: player.weight,
+                age: null,
+                headshot: player.headshot
+              }));
+          } catch (error) {
+            console.warn("[teams] roster catalog fallback unavailable", error instanceof Error ? error.message : error);
+          }
+        }
         const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : [];
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = [

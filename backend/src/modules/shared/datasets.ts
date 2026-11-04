@@ -30,8 +30,9 @@ const nbaGameIdsByCanonicalId = new Map<string, string>();
 
 function getNumber(row: StatsRow, keys: string[], fallback = 0) {
   for (const key of keys) {
-    if (row[key] !== undefined && row[key] !== null && row[key] !== "") {
-      return safeNumber(row[key], fallback);
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== "") {
+      return safeNumber(row[actualKey], fallback);
     }
   }
 
@@ -40,7 +41,8 @@ function getNumber(row: StatsRow, keys: string[], fallback = 0) {
 
 function getString(row: StatsRow, keys: string[], fallback = "") {
   for (const key of keys) {
-    const value = row[key];
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    const value = actualKey ? row[actualKey] : undefined;
     if (value !== undefined && value !== null && value !== "") {
       return String(value);
     }
@@ -272,7 +274,45 @@ function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
     }
   }
 
-  return [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
+  const rows = [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
+  const gamesByTeam = new Map<number, GameSummary[]>();
+
+  for (const game of scheduleGames) {
+    if (game.status !== "final" || game.homeTeam.score === null || game.awayTeam.score === null) {
+      continue;
+    }
+
+    for (const teamId of [game.homeTeam.teamId, game.awayTeam.teamId]) {
+      const games = gamesByTeam.get(teamId) ?? [];
+      games.push(game);
+      gamesByTeam.set(teamId, games);
+    }
+  }
+
+  return rows.map((row) => {
+    const games = (gamesByTeam.get(row.teamId) ?? [])
+      .sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc));
+    const outcomes = games.map((game) => {
+      const teamScore = game.homeTeam.teamId === row.teamId ? game.homeTeam.score : game.awayTeam.score;
+      const opponentScore = game.homeTeam.teamId === row.teamId ? game.awayTeam.score : game.homeTeam.score;
+      return teamScore !== null && opponentScore !== null && teamScore > opponentScore ? "W" : "L";
+    });
+    const lastTenOutcomes = outcomes.slice(0, 10);
+    const wins = lastTenOutcomes.filter((outcome) => outcome === "W").length;
+    const losses = lastTenOutcomes.length - wins;
+    const streakOutcome = outcomes[0];
+    let streakLength = 0;
+    for (const outcome of outcomes) {
+      if (outcome !== streakOutcome) break;
+      streakLength += 1;
+    }
+
+    return {
+      ...row,
+      lastTen: outcomes.length > 0 ? `${wins}-${losses}` : row.lastTen,
+      streak: streakOutcome ? `${streakOutcome}${streakLength}` : row.streak
+    };
+  });
 }
 
 function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-season"): GameSummary[] {
@@ -515,6 +555,28 @@ export async function loadStandings(deps: ServiceDeps) {
         .filter((row): row is StandingsRow => row !== null);
 
       if (mappedRows.length >= 20 && mappedRows.some((row) => row.gamesPlayed > 0)) {
+        const missingForm = mappedRows.some((row) => row.lastTen === "--" || row.streak === "--");
+        if (missingForm) {
+          const scheduleState = await withTimeout(
+            loadScheduleSnapshotGames(deps),
+            STANDINGS_LOAD_TIMEOUT_MS,
+            "standings form"
+          );
+          const scheduleRowsByTeam = new Map(
+            buildStandingsFromScheduleSnapshot(scheduleState.value).map((row) => [row.teamId, row])
+          );
+          return mappedRows
+            .map((row) => {
+              const scheduleRow = scheduleRowsByTeam.get(row.teamId);
+              return {
+                ...row,
+                lastTen: row.lastTen === "--" ? scheduleRow?.lastTen ?? row.lastTen : row.lastTen,
+                streak: row.streak === "--" ? scheduleRow?.streak ?? row.streak : row.streak
+              };
+            })
+            .sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
+        }
+
         return mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
       }
     } catch {

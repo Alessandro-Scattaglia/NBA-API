@@ -138,6 +138,9 @@ export function PlayerDetailPage() {
                     <th>Punti</th>
                     <th>Rimbalzi</th>
                     <th>Assist</th>
+                    <th>Min</th>
+                    <th>Rec</th>
+                    <th>Stoppate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -161,6 +164,9 @@ export function PlayerDetailPage() {
                       <td>{game.points}</td>
                       <td>{game.rebounds}</td>
                       <td>{game.assists}</td>
+                      <td>{game.minutes}</td>
+                      <td>{game.steals}</td>
+                      <td>{game.blocks}</td>
                     </tr>
                   ))}
                 </tbody>
