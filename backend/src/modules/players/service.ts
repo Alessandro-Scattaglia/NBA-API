@@ -2,7 +2,7 @@ import { cache } from "../../cache/memoryCache.js";
 import { getCurrentSeason, TTL } from "../../config/season.js";
 import type { ApiEnvelope, PlayerDetail, PlayersResponse } from "../../types/dto/index.js";
 import { calculateAge, round, safeNumber } from "../../utils/date.js";
-import { mapStatsRows } from "../../utils/stats.js";
+import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
 import { loadPlayerCatalog } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
@@ -65,7 +65,7 @@ export function createPlayersService(deps: ServiceDeps) {
     },
 
     async getPlayerDetail(playerId: number): Promise<ApiEnvelope<PlayerDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v2:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
         const base = catalogState.value.find((player) => player.playerId === playerId);
         if (!base) {
@@ -79,7 +79,11 @@ export function createPlayersService(deps: ServiceDeps) {
           base.team && deps.client.getEspnRoster ? deps.client.getEspnRoster(base.team.teamId) : Promise.reject(new Error("Roster fallback unavailable"))
         ]);
 
-        const info = infoResult.status === "fulfilled" ? mapStatsRows<StatsRow>(infoResult.value)[0] ?? {} : {};
+        const info = infoResult.status === "fulfilled"
+          ? mapAllStatsRows<StatsRow>(infoResult.value).find((row) =>
+              getInfoValue(row, ["DISPLAY_FIRST_LAST", "BIRTHDATE", "BIRTH_DATE", "COUNTRY"]).length > 0
+            ) ?? mapStatsRows<StatsRow>(infoResult.value)[0] ?? {}
+          : {};
         const normalizedName = base.fullName.trim().toLowerCase();
         const rosterAthlete = rosterResult.status === "fulfilled"
           ? ((rosterResult.value as { athletes?: Array<Record<string, unknown>> }).athletes ?? []).find((athlete) =>

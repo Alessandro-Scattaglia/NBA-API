@@ -196,8 +196,8 @@ function normalizePlayerName(value: string) {
 }
 
 async function reconcileEspnPlayerIds(detail: GameDetail, deps: ServiceDeps) {
-  const syntheticPlayers = [...detail.homePlayers, ...detail.awayPlayers].filter((player) => player.playerId < 0);
-  if (syntheticPlayers.length === 0) {
+  const allPlayers = [...detail.homePlayers, ...detail.awayPlayers];
+  if (allPlayers.length === 0) {
     return detail;
   }
 
@@ -216,7 +216,7 @@ async function reconcileEspnPlayerIds(detail: GameDetail, deps: ServiceDeps) {
   );
   const resolvedIds = new Map<number, number>();
 
-  for (const player of syntheticPlayers) {
+  for (const player of allPlayers) {
     const playerId = playersByName.get(normalizePlayerName(player.fullName));
     if (playerId) {
       resolvedIds.set(player.playerId, playerId);

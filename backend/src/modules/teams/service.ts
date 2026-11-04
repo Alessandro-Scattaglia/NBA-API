@@ -1,10 +1,10 @@
-import { mapStatsRows } from "../../utils/stats.js";
+import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
 import type { ApiEnvelope, GameSummary, TeamDetail, TeamsResponse } from "../../types/dto/index.js";
 import { getCurrentSeason, TTL } from "../../config/season.js";
 import { cache } from "../../cache/memoryCache.js";
 import { getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
-import { loadPlayerCatalog, loadScheduleSnapshotGames, loadStandings, loadTeamStats, splitByConference } from "../shared/datasets.js";
+import { loadPlayerCatalog, loadRecentGames, loadScheduleSnapshotGames, loadStandings, loadTeamStats, splitByConference } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
 
@@ -171,7 +171,7 @@ export function createTeamsService(deps: ServiceDeps) {
     },
 
     async getTeamDetail(teamId: number): Promise<ApiEnvelope<TeamDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:${teamId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:v2:${getCurrentSeason()}:${teamId}`, TTL.profile, async () => {
         const standingsState = await loadStandings(deps);
         const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult, playoffGameLogResult] = await Promise.allSettled([
           loadTeamStats(deps),
@@ -187,8 +187,12 @@ export function createTeamsService(deps: ServiceDeps) {
           throw new Error(`Team ${teamId} not found`);
         }
 
-        const teamInfo = teamInfoResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamInfoResult.value)[0] ?? {} : {};
-        const rosterRows = rosterResult.status === "fulfilled" ? mapStatsRows<StatsRow>(rosterResult.value) : [];
+        const teamInfo = teamInfoResult.status === "fulfilled"
+          ? mapAllStatsRows<StatsRow>(teamInfoResult.value).find((row) =>
+              Object.keys(row).some((key) => key.toLowerCase() === "arena" || key.toLowerCase() === "headcoach")
+            ) ?? mapStatsRows<StatsRow>(teamInfoResult.value)[0] ?? {}
+          : {};
+        const rosterRows = rosterResult.status === "fulfilled" ? mapAllStatsRows<StatsRow>(rosterResult.value) : [];
         let roster = rosterRows.map((row) => {
           const playerId = Number(row.PLAYER_ID ?? row.PlayerID ?? 0);
           const birthDate = row.BIRTH_DATE ? new Date(String(row.BIRTH_DATE)) : null;
@@ -227,7 +231,9 @@ export function createTeamsService(deps: ServiceDeps) {
             console.warn("[teams] roster catalog fallback unavailable", error instanceof Error ? error.message : error);
           }
         }
-        const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : [];
+        const scheduleGames = scheduleResult.status === "fulfilled"
+          ? scheduleResult.value.value
+          : await loadRecentGames(deps);
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = [
           ...(playoffGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playoffGameLogResult.value) : []),

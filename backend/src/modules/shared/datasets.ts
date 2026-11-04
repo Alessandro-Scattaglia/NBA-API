@@ -391,6 +391,11 @@ function getCalendarDate(dateTimeUtc: string) {
   }).format(new Date(dateTimeUtc));
 }
 
+function getIsoDateDaysAgo(days: number) {
+  const date = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -529,7 +534,7 @@ function getCache(deps: ServiceDeps) {
 }
 
 export async function loadStandings(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("standings-dataset:v4-espn-fallback", TTL.standings, async () => {
+  return getCache(deps).getOrLoad(`standings-dataset:v5-${getCurrentSeason()}-espn-fallback`, TTL.standings, async () => {
     try {
       const [standingsResponseResult, playoffPictureResponseResult] = await Promise.allSettled([
         withTimeout(deps.client.getLeagueStandings(), STANDINGS_LOAD_TIMEOUT_MS, "league standings"),
@@ -581,6 +586,20 @@ export async function loadStandings(deps: ServiceDeps) {
       }
     } catch {
       // Fall back to schedule snapshot when stats endpoints are unavailable or too slow.
+    }
+
+    if (deps.client.getGamesSchedule) {
+      try {
+        const response = (await deps.client.getGamesSchedule(getIsoDateDaysAgo(45), getIsoDateDaysAgo(0))) as {
+          data?: unknown[];
+        };
+        const espnGames = mapEspnScoreboardGames({ events: response.data ?? [] });
+        if (espnGames.length > 0) {
+          return buildStandingsFromScheduleSnapshot(espnGames);
+        }
+      } catch (error) {
+        console.warn("[standings] ESPN range fallback failed", error instanceof Error ? error.message : error);
+      }
     }
 
     try {
@@ -1042,6 +1061,22 @@ export async function loadScheduleSnapshotGames(deps: ServiceDeps) {
       .map((game) => mapScheduleSnapshotGame(game))
       .sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
   });
+}
+
+export async function loadRecentGames(deps: ServiceDeps, days = 45) {
+  if (!deps.client.getGamesSchedule) {
+    return [];
+  }
+
+  try {
+    const response = (await deps.client.getGamesSchedule(getIsoDateDaysAgo(days), getIsoDateDaysAgo(0))) as {
+      data?: unknown[];
+    };
+    return mapEspnScoreboardGames({ events: response.data ?? [] });
+  } catch (error) {
+    console.warn("[games] ESPN recent-games fallback failed", error instanceof Error ? error.message : error);
+    return [];
+  }
 }
 
 export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string) {
