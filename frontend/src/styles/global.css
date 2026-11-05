@@ -55,6 +55,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

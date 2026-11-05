@@ -76,13 +76,19 @@ Esempio PowerShell, prima dell'avvio:
 
 ```powershell
 $env:NBA_SEASON = "2025-26"
-$env:PORT = "4001"
 npm run dev
 ```
 
-I parametri numerici sono convertiti tramite `Number`, senza validazione di intervallo in questo modulo. Il default della stagione usa settembre come mese di cambio anno sportivo: da settembre `YYYY-(YY+1)`, da gennaio ad agosto la stagione iniziata l'anno precedente.
+Il comando `npm run dev --workspace backend` avvia Wrangler sulla porta `4001`,
+coerente con il proxy Vite. I parametri numerici sono convertiti tramite
+`Number`, senza validazione di intervallo in questo modulo. Il default della
+stagione usa settembre come mese di cambio anno sportivo: da settembre
+`YYYY-(YY+1)`, da gennaio ad agosto la stagione iniziata l'anno precedente.
 
-Non e configurato un caricamento automatico di file `.env` nel backend: creare il file da solo non applica queste variabili. Usare l'ambiente del terminale o configurare esplicitamente il processo di avvio. Cambiare `PORT` richiede anche l'aggiornamento del target proxy Vite, che non legge questa variabile.
+Non e configurato un caricamento automatico di file `.env` nel backend: creare
+il file da solo non applica queste variabili. Usare l'ambiente del terminale o
+configurare esplicitamente il processo di avvio. Se si cambia la porta Wrangler,
+aggiornare anche il target proxy Vite, che non legge automaticamente la porta.
 
 L'opzione TLS insicura e un workaround diagnostico temporaneo e non deve essere abilitata in un ambiente esposto o usata come soluzione permanente. Il client modifica `NODE_TLS_REJECT_UNAUTHORIZED` per l'intero processo; inoltre puo attivare automaticamente questa modalita dopo alcuni errori di certificato, anche senza l'override. Vedere la sezione sul client HTTP.
 

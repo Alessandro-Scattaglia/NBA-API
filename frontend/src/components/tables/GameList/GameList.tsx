@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { GameSummary } from "../../../lib/types";
-import { formatGameDateLabel, formatGameStatusText, formatStatusLabel, formatVenue } from "../../../lib/format";
+import { formatGameDateLabel, formatGameStatusText, formatStatusLabel } from "../../../lib/format";
 import { Badge } from "../../common/States";
 import "./GameList.css";
 
@@ -31,7 +31,6 @@ export function GameList({ games }: { games: GameSummary[] }) {
           </div>
 
           <div className="game-card-meta">
-            <span>{formatVenue(game.arena)}</span>
             <span>{formatGameStatusText(game)}</span>
           </div>
         </Link>

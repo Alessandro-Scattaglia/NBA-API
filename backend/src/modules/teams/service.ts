@@ -171,15 +171,14 @@ export function createTeamsService(deps: ServiceDeps) {
     },
 
     async getTeamDetail(teamId: number): Promise<ApiEnvelope<TeamDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:v2:${getCurrentSeason()}:${teamId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:v3:${getCurrentSeason()}:${teamId}`, TTL.profile, async () => {
         const standingsState = await loadStandings(deps);
-        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult, playoffGameLogResult] = await Promise.allSettled([
+        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult] = await Promise.allSettled([
           loadTeamStats(deps),
           loadScheduleSnapshotGames(deps),
           deps.client.getTeamInfoCommon(teamId),
           deps.client.getCommonTeamRoster(teamId),
-          deps.client.getTeamGameLog(teamId),
-          deps.client.getTeamGameLog(teamId, "Playoffs")
+          deps.client.getTeamGameLog(teamId)
         ]);
 
         const base = standingsState.value.find((team) => team.teamId === teamId);
@@ -236,7 +235,6 @@ export function createTeamsService(deps: ServiceDeps) {
           : await loadRecentGames(deps);
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = [
-          ...(playoffGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playoffGameLogResult.value) : []),
           ...(teamGameLogResult.status === "fulfilled" ? mapStatsRows<StatsRow>(teamGameLogResult.value) : [])
         ].sort((a, b) => {
           const dateA = new Date(String(a.GAME_DATE ?? 0)).getTime();

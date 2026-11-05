@@ -4,7 +4,12 @@ import { formatDateTimeWithSeconds } from "../../../lib/format";
 import "./States.css";
 
 export function LoadingState({ label = "Caricamento in corso..." }: { label?: string }) {
-  return <div className="state-card state-card-loading">{label}</div>;
+  return (
+    <div className="state-card state-card-loading" role="status">
+      <span className="loading-spinner" aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
 }
 
 export function ErrorState({ message }: { message: string }) {

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DataStamp, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { DataStamp, ErrorState, PageHeader } from "../../components/common/States";
 import { LeaderPanel } from "../../components/cards/LeaderPanel";
 import { apiGet } from "../../lib/api";
 import type { LeadersResponse } from "../../lib/types";
@@ -11,10 +11,6 @@ export function LeadersPage() {
     queryKey: ["leaders"],
     queryFn: () => apiGet<LeadersResponse>("/api/leaders?limit=10")
   });
-
-  if (query.isLoading) {
-    return <LoadingState label="Sto caricando i leaders statistici..." />;
-  }
 
   if (query.error) {
     return <ErrorState message={query.error.message} />;

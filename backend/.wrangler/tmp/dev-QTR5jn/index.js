@@ -17386,6 +17386,18 @@ function createNbaApiClient(fetchImpl = fetch, runtimeEnv = createRuntimeEnv()) 
         `teams/${team[1]}/roster`
       );
       return requestJson(fetchImpl, url2, DEFAULT_HEADERS, runtimeEnv);
+    },
+    getEspnTeamSchedule(teamId) {
+      const team = Object.entries(ESPN_TEAM_IDS).find(([code]) => code === getTeamCode(teamId));
+      if (!team) {
+        return Promise.reject(new Error(`No ESPN team mapping for NBA team ${teamId}`));
+      }
+      const url2 = buildUrl(
+        "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
+        `teams/${team[1]}/schedule`,
+        { limit: 20 }
+      );
+      return requestJson(fetchImpl, url2, DEFAULT_HEADERS, runtimeEnv);
     }
   };
 }
@@ -19435,7 +19447,7 @@ function createPlayersService(deps) {
       );
     },
     async getPlayerDetail(playerId) {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v2:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v3:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
         const base = catalogState.value.find((player) => player.playerId === playerId);
         if (!base) {
@@ -19463,7 +19475,7 @@ function createPlayersService(deps) {
           const dateB = new Date(String(b.GAME_DATE ?? 0)).getTime();
           return dateB - dateA;
         });
-        const recentGames = allGameLogs.slice(0, 5).map((row) => ({
+        let recentGames = allGameLogs.slice(0, 5).map((row) => ({
           gameId: String(row.GAME_ID ?? ""),
           gameDate: new Date(String(row.GAME_DATE ?? (/* @__PURE__ */ new Date()).toISOString())).toISOString(),
           matchup: String(row.MATCHUP ?? ""),
@@ -19475,6 +19487,57 @@ function createPlayersService(deps) {
           steals: safeNumber(row.STL),
           blocks: safeNumber(row.BLK)
         }));
+        if (recentGames.length === 0 && base.team && deps.client.getEspnTeamSchedule && deps.client.getEspnGameSummary) {
+          const scheduleResult = await Promise.allSettled([
+            deps.client.getEspnTeamSchedule(base.team.teamId)
+          ]);
+          const events = scheduleResult[0].status === "fulfilled" ? scheduleResult[0].value.events ?? [] : [];
+          const completedEvents = events.filter((event) => {
+            const status = event.competitions?.[0]?.status;
+            return status?.type && status.type.completed === true;
+          }).sort((left, right) => String(right.date ?? "").localeCompare(String(left.date ?? ""))).slice(0, 5);
+          const summaries = await Promise.allSettled(
+            completedEvents.map((event) => deps.client.getEspnGameSummary(String(event.id)))
+          );
+          const normalizedName2 = base.fullName.trim().toLowerCase();
+          recentGames = summaries.flatMap((summary, index) => {
+            if (summary.status !== "fulfilled") {
+              return [];
+            }
+            const payload = summary.value;
+            const playerGroup = payload.boxscore?.players?.find(
+              (group) => (group.statistics ?? []).some(
+                (stat) => (stat.athletes ?? []).some(
+                  (athlete2) => String(athlete2.athlete?.displayName ?? "").trim().toLowerCase() === normalizedName2
+                )
+              )
+            );
+            const athlete = (playerGroup?.statistics ?? []).flatMap((stat) => stat.athletes ?? []).find(
+              (candidate) => String(candidate.athlete?.displayName ?? "").trim().toLowerCase() === normalizedName2
+            );
+            if (!athlete) {
+              return [];
+            }
+            const stats = athlete.stats ?? [];
+            const competition = completedEvents[index].competitions?.[0];
+            const competitors = competition?.competitors ?? [];
+            const result = competitors.find(
+              (competitor) => String(competitor.team?.abbreviation ?? "").toLowerCase() === base.team?.code.toLowerCase()
+            );
+            return [{
+              gameId: String(completedEvents[index].id ?? ""),
+              gameDate: new Date(String(completedEvents[index].date ?? (/* @__PURE__ */ new Date()).toISOString())).toISOString(),
+              matchup: String(completedEvents[index].name ?? ""),
+              result: result?.winner === true ? "W" : "L",
+              minutes: round(safeNumber(stats[0])),
+              points: safeNumber(stats[1]),
+              rebounds: safeNumber(stats[5]),
+              assists: safeNumber(stats[6]),
+              steals: safeNumber(stats[8]),
+              blocks: safeNumber(stats[9])
+            }];
+          });
+        }
         const birthDate = getInfoValue(info, ["BIRTHDATE", "BIRTH_DATE"]) || getInfoValue(rosterAthlete ?? {}, ["birthDate", "dateOfBirth"]) || null;
         const draftParts = [
           getInfoValue(info, ["DRAFT_YEAR"]) ? `Anno ${getInfoValue(info, ["DRAFT_YEAR"])}` : "",
@@ -19674,15 +19737,14 @@ function createTeamsService(deps) {
       );
     },
     async getTeamDetail(teamId) {
-      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:v2:${getCurrentSeason()}:${teamId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:v3:${getCurrentSeason()}:${teamId}`, TTL.profile, async () => {
         const standingsState = await loadStandings(deps);
-        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult, playoffGameLogResult] = await Promise.allSettled([
+        const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult] = await Promise.allSettled([
           loadTeamStats(deps),
           loadScheduleSnapshotGames(deps),
           deps.client.getTeamInfoCommon(teamId),
           deps.client.getCommonTeamRoster(teamId),
-          deps.client.getTeamGameLog(teamId),
-          deps.client.getTeamGameLog(teamId, "Playoffs")
+          deps.client.getTeamGameLog(teamId)
         ]);
         const base = standingsState.value.find((team) => team.teamId === teamId);
         if (!base) {
@@ -19727,7 +19789,6 @@ function createTeamsService(deps) {
         const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : await loadRecentGames(deps);
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = [
-          ...playoffGameLogResult.status === "fulfilled" ? mapStatsRows(playoffGameLogResult.value) : [],
           ...teamGameLogResult.status === "fulfilled" ? mapStatsRows(teamGameLogResult.value) : []
         ].sort((a, b) => {
           const dateA = new Date(String(a.GAME_DATE ?? 0)).getTime();
@@ -19827,12 +19888,191 @@ async function scheduled(_controller, env2) {
 __name(scheduled, "scheduled");
 
 // src/index.ts
-var index_default = {
+var src_default = {
   fetch: app_default.fetch,
   scheduled
 };
+
+// ../node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
+var drainBody = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx) => {
+  try {
+    return await middlewareCtx.next(request, env2);
+  } finally {
+    try {
+      if (request.body !== null && !request.bodyUsed) {
+        const reader = request.body.getReader();
+        while (!(await reader.read()).done) {
+        }
+      }
+    } catch (e) {
+      console.error("Failed to drain the unused request body.", e);
+    }
+  }
+}, "drainBody");
+var middleware_ensure_req_body_drained_default = drainBody;
+
+// ../node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
+function reduceError(e) {
+  return {
+    name: e?.name,
+    message: e?.message ?? String(e),
+    stack: e?.stack,
+    cause: e?.cause === void 0 ? void 0 : reduceError(e.cause)
+  };
+}
+__name(reduceError, "reduceError");
+var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx) => {
+  try {
+    return await middlewareCtx.next(request, env2);
+  } catch (e) {
+    const error48 = reduceError(e);
+    const body = JSON.stringify(error48);
+    const headers = {
+      "Content-Type": "application/json",
+      "MF-Experimental-Error-Stack": "true"
+    };
+    const encoded = encodeURIComponent(body);
+    if (encoded.length <= 8192) {
+      headers["MF-Experimental-Error-Stack-Payload"] = encoded;
+    }
+    return new Response(body, { status: 500, headers });
+  }
+}, "jsonError");
+var middleware_miniflare3_json_error_default = jsonError;
+
+// .wrangler/tmp/bundle-fmYkSb/middleware-insertion-facade.js
+var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
+  middleware_ensure_req_body_drained_default,
+  middleware_miniflare3_json_error_default
+];
+var middleware_insertion_facade_default = src_default;
+
+// ../node_modules/wrangler/templates/middleware/common.ts
+var __facade_middleware__ = [];
+function __facade_register__(...args) {
+  __facade_middleware__.push(...args.flat());
+}
+__name(__facade_register__, "__facade_register__");
+function __facade_invokeChain__(request, env2, ctx, dispatch, middlewareChain) {
+  const [head, ...tail] = middlewareChain;
+  const middlewareCtx = {
+    dispatch,
+    next(newRequest, newEnv) {
+      return __facade_invokeChain__(newRequest, newEnv, ctx, dispatch, tail);
+    }
+  };
+  return head(request, env2, ctx, middlewareCtx);
+}
+__name(__facade_invokeChain__, "__facade_invokeChain__");
+function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
+  return __facade_invokeChain__(request, env2, ctx, dispatch, [
+    ...__facade_middleware__,
+    finalMiddleware
+  ]);
+}
+__name(__facade_invoke__, "__facade_invoke__");
+
+// .wrangler/tmp/bundle-fmYkSb/middleware-loader.entry.ts
+var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
+  constructor(scheduledTime, cron, noRetry) {
+    this.scheduledTime = scheduledTime;
+    this.cron = cron;
+    this.#noRetry = noRetry;
+  }
+  scheduledTime;
+  cron;
+  static {
+    __name(this, "__Facade_ScheduledController__");
+  }
+  #noRetry;
+  noRetry() {
+    if (!(this instanceof ___Facade_ScheduledController__)) {
+      throw new TypeError("Illegal invocation");
+    }
+    this.#noRetry();
+  }
+};
+function wrapExportedHandler(worker) {
+  if (__INTERNAL_WRANGLER_MIDDLEWARE__ === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__.length === 0) {
+    return worker;
+  }
+  for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__) {
+    __facade_register__(middleware);
+  }
+  const fetchDispatcher = /* @__PURE__ */ __name(function(request, env2, ctx) {
+    if (worker.fetch === void 0) {
+      throw new Error("Handler does not export a fetch() function.");
+    }
+    return worker.fetch(request, env2, ctx);
+  }, "fetchDispatcher");
+  return {
+    ...worker,
+    fetch(request, env2, ctx) {
+      const dispatcher = /* @__PURE__ */ __name(function(type, init) {
+        if (type === "scheduled" && worker.scheduled !== void 0) {
+          const controller = new __Facade_ScheduledController__(
+            Date.now(),
+            init.cron ?? "",
+            () => {
+            }
+          );
+          return worker.scheduled(controller, env2, ctx);
+        }
+      }, "dispatcher");
+      return __facade_invoke__(request, env2, ctx, dispatcher, fetchDispatcher);
+    }
+  };
+}
+__name(wrapExportedHandler, "wrapExportedHandler");
+function wrapWorkerEntrypoint(klass) {
+  if (__INTERNAL_WRANGLER_MIDDLEWARE__ === void 0 || __INTERNAL_WRANGLER_MIDDLEWARE__.length === 0) {
+    return klass;
+  }
+  for (const middleware of __INTERNAL_WRANGLER_MIDDLEWARE__) {
+    __facade_register__(middleware);
+  }
+  return class extends klass {
+    #fetchDispatcher = /* @__PURE__ */ __name((request, env2, ctx) => {
+      this.env = env2;
+      this.ctx = ctx;
+      if (super.fetch === void 0) {
+        throw new Error("Entrypoint class does not define a fetch() function.");
+      }
+      return super.fetch(request);
+    }, "#fetchDispatcher");
+    #dispatcher = /* @__PURE__ */ __name((type, init) => {
+      if (type === "scheduled" && super.scheduled !== void 0) {
+        const controller = new __Facade_ScheduledController__(
+          Date.now(),
+          init.cron ?? "",
+          () => {
+          }
+        );
+        return super.scheduled(controller);
+      }
+    }, "#dispatcher");
+    fetch(request) {
+      return __facade_invoke__(
+        request,
+        this.env,
+        this.ctx,
+        this.#dispatcher,
+        this.#fetchDispatcher
+      );
+    }
+  };
+}
+__name(wrapWorkerEntrypoint, "wrapWorkerEntrypoint");
+var WRAPPED_ENTRY;
+if (typeof middleware_insertion_facade_default === "object") {
+  WRAPPED_ENTRY = wrapExportedHandler(middleware_insertion_facade_default);
+} else if (typeof middleware_insertion_facade_default === "function") {
+  WRAPPED_ENTRY = wrapWorkerEntrypoint(middleware_insertion_facade_default);
+}
+var middleware_loader_entry_default = WRAPPED_ENTRY;
 export {
-  index_default as default,
+  __INTERNAL_WRANGLER_MIDDLEWARE__,
+  middleware_loader_entry_default as default,
   scheduled
 };
 //# sourceMappingURL=index.js.map

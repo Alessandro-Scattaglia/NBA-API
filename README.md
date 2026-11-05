@@ -23,7 +23,7 @@ npm run dev
 L’avvio avvia in parallelo:
 
 - Frontend: http://127.0.0.1:5173
-- Backend: http://127.0.0.1:4001
+- Backend: http://127.0.0.1:4001 (Wrangler)
 
 Lo script root usa `concurrently` con chiusura automatica dei worker se uno dei due processi fallisce.
 
@@ -119,6 +119,22 @@ indipendente.
 ## Test e build
 
 Il progetto include test con Vitest per backend e frontend. Il comando root esegue entrambe le suite e controlla le fondamenta di stagione e cache.
+
+Per la procedura completa prima del push e del deploy consultare
+[DEPLOY.md](./DEPLOY.md).
+
+Prima di pubblicare il frontend, eseguire la stessa build usata da GitHub Pages:
+
+```bash
+npm install
+npm run build --workspace frontend
+npm run preview --workspace frontend
+```
+
+Con il preview aperto, verificare anche un refresh diretto su `/NBA-API/standings`,
+`/NBA-API/players` e su una pagina dettaglio. Il workflow pubblica una copia di
+`index.html` come `404.html`, necessaria perché GitHub Pages possa avviare React
+anche quando si apre direttamente una rotta interna.
 
 ## Risoluzione problemi
 

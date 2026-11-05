@@ -22,6 +22,7 @@ export interface NbaApiClient {
   getEspnScoreboardByDate?(gameDateIso: string, page?: number): Promise<unknown>;
   getEspnGameSummary?(eventId: string): Promise<unknown>;
   getEspnRoster?(teamId: number): Promise<unknown>;
+  getEspnTeamSchedule?(teamId: number): Promise<unknown>;
 }
 
 type FetchImpl = typeof fetch;
@@ -490,6 +491,20 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
       const url = buildUrl(
         "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
         `teams/${team[1]}/roster`
+      );
+      return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
+    },
+
+    getEspnTeamSchedule(teamId: number) {
+      const team = Object.entries(ESPN_TEAM_IDS).find(([code]) => code === getTeamCode(teamId));
+      if (!team) {
+        return Promise.reject(new Error(`No ESPN team mapping for NBA team ${teamId}`));
+      }
+
+      const url = buildUrl(
+        "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
+        `teams/${team[1]}/schedule`,
+        { limit: 20 }
       );
       return requestJson(fetchImpl, url, DEFAULT_HEADERS, runtimeEnv);
     }

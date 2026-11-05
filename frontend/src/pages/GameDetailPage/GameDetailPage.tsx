@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { Badge, DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { buildPlayerHeadshotUrl } from "../../lib/assets";
@@ -11,7 +11,6 @@ import {
   formatGamePhase,
   formatGameStatusText,
   formatStatusLabel,
-  formatVenue
 } from "../../lib/format";
 import type { GameDetail, GameLeader, GamePlayerLine } from "../../lib/types";
 import "./GameDetailPage.css";
@@ -413,10 +412,6 @@ export function GameDetailPage() {
     queryFn: () => apiGet<GameDetail>(`/api/games/${gameId}`)
   });
 
-  if (query.isLoading) {
-    return <LoadingState label="Sto caricando il dettaglio della partita..." />;
-  }
-
   if (query.error) {
     return <ErrorState message={query.error.message} />;
   }
@@ -498,10 +493,6 @@ export function GameDetailPage() {
             </div>
           </div>
 
-          <div className="game-hero-footer">
-            <span>{formatVenue(data.game.arena)}</span>
-            {data.game.nationalTv.length > 0 ? <span>TV: {data.game.nationalTv.join(", ")}</span> : null}
-          </div>
         </div>
       </SurfaceCard>
 

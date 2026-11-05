@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
 import "./AppShell.css";
@@ -91,11 +92,40 @@ const navItems = [
 ];
 
 export function AppShell() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const closeSidebar = () => setSidebarOpen(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeSidebar();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell ${sidebarCollapsed ? "app-shell-collapsed" : ""}`}>
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <button
+          type="button"
+          className="sidebar-toggle sidebar-toggle-top"
+          aria-label={sidebarCollapsed ? "Espandi menu" : "Riduci menu"}
+          aria-expanded={!sidebarCollapsed}
+          onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        >
+          <span className="sidebar-toggle-icon" aria-hidden="true">
+            <SidebarIcon>
+              <path d="m14 6-6 6 6 6M10 12h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </SidebarIcon>
+          </span>
+        </button>
         <div className="sidebar-header">
-          <Link to="/" className="brand-mark">
+          <Link to="/" className="brand-mark" onClick={closeSidebar}>
             <span className="brand-logo" aria-hidden="true">
               <img src={NBA_WIKIPEDIA_LOGO} alt="" className="brand-logo-image" />
             </span>
@@ -111,6 +141,7 @@ export function AppShell() {
               end={item.to === "/"}
               className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}
               title={item.label}
+              onClick={closeSidebar}
             >
               <span className="nav-link-icon">{item.icon}</span>
               <span className="nav-link-label">{item.label}</span>
@@ -125,8 +156,31 @@ export function AppShell() {
           </div>
         </div>
       </aside>
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Chiudi menu"
+          onClick={closeSidebar}
+        />
+      ) : null}
 
       <div className="main-shell">
+        <div className="mobile-bar">
+          <Link to="/" className="mobile-brand" onClick={closeSidebar}>
+            NBA Dashboard
+          </Link>
+          <div className="mobile-actions">
+            <button type="button" className="menu-button" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>
+              <span className="menu-button-icon" aria-hidden="true">
+                <SidebarIcon>
+                  <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </SidebarIcon>
+              </span>
+              <span>{sidebarOpen ? "Chiudi" : "Menu"}</span>
+            </button>
+          </div>
+        </div>
         <main className="page-shell">
           <Outlet />
         </main>

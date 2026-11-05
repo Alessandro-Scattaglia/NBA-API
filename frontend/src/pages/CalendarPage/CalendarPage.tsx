@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { Badge, DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { getBroadcastLinks } from "../../lib/broadcast";
-import { formatGamePhase, formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
+import { formatGamePhase, formatGameStatusText, formatStatusLabel, formatTime } from "../../lib/format";
 import type { CalendarResponse, GameSummary, TeamsResponse } from "../../lib/types";
 import "./CalendarPage.css";
 
@@ -71,10 +71,6 @@ function getDisplayScore(game: GameSummary, side: "home" | "away") {
   return score ?? "--";
 }
 
-function formatBroadcasts(game: GameSummary) {
-  return game.nationalTv.length > 0 ? game.nationalTv.join(", ") : "Non comunicato dalla fonte NBA";
-}
-
 function CalendarDayList({ games }: { games: GameSummary[] }) {
   return (
     <div className="calendar-day-list">
@@ -109,12 +105,8 @@ function CalendarDayList({ games }: { games: GameSummary[] }) {
 
           <div className="calendar-game-info">
             <Link to={`/games/${game.gameId}`} className="calendar-game-summary">
-              <strong>{formatVenue(game.arena)}</strong>
               <span>{formatGameStatusText(game)}</span>
             </Link>
-            <span className="calendar-game-broadcast">
-              <strong>Dove vederla:</strong> {formatBroadcasts(game)}
-            </span>
             {getBroadcastLinks(game.nationalTv).length > 0 ? (
               <div className="calendar-broadcast-links">
                 {getBroadcastLinks(game.nationalTv).map((broadcaster) => (
@@ -251,7 +243,6 @@ export function CalendarPage() {
         </div>
       </SurfaceCard>
 
-      {query.isLoading ? <LoadingState label="Sto caricando il calendario..." /> : null}
       {query.error ? <ErrorState message={query.error.message} /> : null}
 
       {query.data ? (

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { StandingsTable } from "../../components/tables/StandingsTable";
 import { apiGet } from "../../lib/api";
@@ -11,10 +11,6 @@ export function StandingsPage() {
     queryKey: ["standings"],
     queryFn: () => apiGet<StandingsResponse>("/api/standings")
   });
-
-  if (query.isLoading) {
-    return <LoadingState label="Sto caricando la classifica..." />;
-  }
 
   if (query.error) {
     return <ErrorState message={query.error.message} />;

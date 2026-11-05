@@ -17386,6 +17386,18 @@ function createNbaApiClient(fetchImpl = fetch, runtimeEnv = createRuntimeEnv()) 
         `teams/${team[1]}/roster`
       );
       return requestJson(fetchImpl, url2, DEFAULT_HEADERS, runtimeEnv);
+    },
+    getEspnTeamSchedule(teamId) {
+      const team = Object.entries(ESPN_TEAM_IDS).find(([code]) => code === getTeamCode(teamId));
+      if (!team) {
+        return Promise.reject(new Error(`No ESPN team mapping for NBA team ${teamId}`));
+      }
+      const url2 = buildUrl(
+        "https://site.api.espn.com/apis/site/v2/sports/basketball/nba",
+        `teams/${team[1]}/schedule`,
+        { limit: 20 }
+      );
+      return requestJson(fetchImpl, url2, DEFAULT_HEADERS, runtimeEnv);
     }
   };
 }
@@ -17608,8 +17620,9 @@ var STANDINGS_LOAD_TIMEOUT_MS = Math.max(createRuntimeEnv().requestTimeoutMs + 1
 var nbaGameIdsByCanonicalId = /* @__PURE__ */ new Map();
 function getNumber(row, keys, fallback = 0) {
   for (const key of keys) {
-    if (row[key] !== void 0 && row[key] !== null && row[key] !== "") {
-      return safeNumber(row[key], fallback);
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    if (actualKey && row[actualKey] !== void 0 && row[actualKey] !== null && row[actualKey] !== "") {
+      return safeNumber(row[actualKey], fallback);
     }
   }
   return fallback;
@@ -17617,7 +17630,8 @@ function getNumber(row, keys, fallback = 0) {
 __name(getNumber, "getNumber");
 function getString(row, keys, fallback = "") {
   for (const key of keys) {
-    const value = row[key];
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    const value = actualKey ? row[actualKey] : void 0;
     if (value !== void 0 && value !== null && value !== "") {
       return String(value);
     }
@@ -17797,7 +17811,40 @@ function buildStandingsFromScheduleSnapshot(scheduleGames) {
       upsertLatestRecord(recordsByTeamId, game.awayTeam.teamId, awayRecord, game.dateTimeUtc);
     }
   }
-  return [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
+  const rows = [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
+  const gamesByTeam = /* @__PURE__ */ new Map();
+  for (const game of scheduleGames) {
+    if (game.status !== "final" || game.homeTeam.score === null || game.awayTeam.score === null) {
+      continue;
+    }
+    for (const teamId of [game.homeTeam.teamId, game.awayTeam.teamId]) {
+      const games = gamesByTeam.get(teamId) ?? [];
+      games.push(game);
+      gamesByTeam.set(teamId, games);
+    }
+  }
+  return rows.map((row) => {
+    const games = (gamesByTeam.get(row.teamId) ?? []).sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc));
+    const outcomes = games.map((game) => {
+      const teamScore = game.homeTeam.teamId === row.teamId ? game.homeTeam.score : game.awayTeam.score;
+      const opponentScore = game.homeTeam.teamId === row.teamId ? game.awayTeam.score : game.homeTeam.score;
+      return teamScore !== null && opponentScore !== null && teamScore > opponentScore ? "W" : "L";
+    });
+    const lastTenOutcomes = outcomes.slice(0, 10);
+    const wins = lastTenOutcomes.filter((outcome) => outcome === "W").length;
+    const losses = lastTenOutcomes.length - wins;
+    const streakOutcome = outcomes[0];
+    let streakLength = 0;
+    for (const outcome of outcomes) {
+      if (outcome !== streakOutcome) break;
+      streakLength += 1;
+    }
+    return {
+      ...row,
+      lastTen: outcomes.length > 0 ? `${wins}-${losses}` : row.lastTen,
+      streak: streakOutcome ? `${streakOutcome}${streakLength}` : row.streak
+    };
+  });
 }
 __name(buildStandingsFromScheduleSnapshot, "buildStandingsFromScheduleSnapshot");
 function mapEspnScoreboardGames(response, phase = "regular-season") {
@@ -17870,6 +17917,11 @@ function getCalendarDate(dateTimeUtc) {
   }).format(new Date(dateTimeUtc));
 }
 __name(getCalendarDate, "getCalendarDate");
+function getIsoDateDaysAgo(days) {
+  const date5 = new Date(Date.now() - days * 24 * 60 * 60 * 1e3);
+  return date5.toISOString().slice(0, 10);
+}
+__name(getIsoDateDaysAgo, "getIsoDateDaysAgo");
 async function withTimeout(promise2, timeoutMs, label) {
   let timeoutId;
   const timeoutPromise = new Promise((_resolve, reject) => {
@@ -17931,7 +17983,7 @@ function getCache(deps) {
 }
 __name(getCache, "getCache");
 async function loadStandings(deps) {
-  return getCache(deps).getOrLoad("standings-dataset:v4-espn-fallback", TTL.standings, async () => {
+  return getCache(deps).getOrLoad(`standings-dataset:v5-${getCurrentSeason()}-espn-fallback`, TTL.standings, async () => {
     try {
       const [standingsResponseResult, playoffPictureResponseResult] = await Promise.allSettled([
         withTimeout(deps.client.getLeagueStandings(), STANDINGS_LOAD_TIMEOUT_MS, "league standings"),
@@ -17946,9 +17998,39 @@ async function loadStandings(deps) {
       const playoffByTeamId = new Map(playoffRows.map((row) => [getNumber(row, ["TEAM_ID", "TeamID"]), row]));
       const mappedRows = sourceRows.map((row) => mapStandingsRow(row, playoffByTeamId.get(getNumber(row, ["TeamID", "TEAM_ID"])))).filter((row) => row !== null);
       if (mappedRows.length >= 20 && mappedRows.some((row) => row.gamesPlayed > 0)) {
+        const missingForm = mappedRows.some((row) => row.lastTen === "--" || row.streak === "--");
+        if (missingForm) {
+          const scheduleState = await withTimeout(
+            loadScheduleSnapshotGames(deps),
+            STANDINGS_LOAD_TIMEOUT_MS,
+            "standings form"
+          );
+          const scheduleRowsByTeam = new Map(
+            buildStandingsFromScheduleSnapshot(scheduleState.value).map((row) => [row.teamId, row])
+          );
+          return mappedRows.map((row) => {
+            const scheduleRow = scheduleRowsByTeam.get(row.teamId);
+            return {
+              ...row,
+              lastTen: row.lastTen === "--" ? scheduleRow?.lastTen ?? row.lastTen : row.lastTen,
+              streak: row.streak === "--" ? scheduleRow?.streak ?? row.streak : row.streak
+            };
+          }).sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
+        }
         return mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
       }
     } catch {
+    }
+    if (deps.client.getGamesSchedule) {
+      try {
+        const response = await deps.client.getGamesSchedule(getIsoDateDaysAgo(45), getIsoDateDaysAgo(0));
+        const espnGames = mapEspnScoreboardGames({ events: response.data ?? [] });
+        if (espnGames.length > 0) {
+          return buildStandingsFromScheduleSnapshot(espnGames);
+        }
+      } catch (error48) {
+        console.warn("[standings] ESPN range fallback failed", error48 instanceof Error ? error48.message : error48);
+      }
     }
     try {
       const scheduleState = await withTimeout(
@@ -18332,6 +18414,19 @@ async function loadScheduleSnapshotGames(deps) {
   });
 }
 __name(loadScheduleSnapshotGames, "loadScheduleSnapshotGames");
+async function loadRecentGames(deps, days = 45) {
+  if (!deps.client.getGamesSchedule) {
+    return [];
+  }
+  try {
+    const response = await deps.client.getGamesSchedule(getIsoDateDaysAgo(days), getIsoDateDaysAgo(0));
+    return mapEspnScoreboardGames({ events: response.data ?? [] });
+  } catch (error48) {
+    console.warn("[games] ESPN recent-games fallback failed", error48 instanceof Error ? error48.message : error48);
+    return [];
+  }
+}
+__name(loadRecentGames, "loadRecentGames");
 async function loadCalendarRange(deps, from, to) {
   const range = clampToSeason(from, to);
   const key = `calendar:v2:${range.from}:${range.to}`;
@@ -18581,8 +18676,8 @@ function normalizePlayerName(value) {
 }
 __name(normalizePlayerName, "normalizePlayerName");
 async function reconcileEspnPlayerIds(detail, deps) {
-  const syntheticPlayers = [...detail.homePlayers, ...detail.awayPlayers].filter((player) => player.playerId < 0);
-  if (syntheticPlayers.length === 0) {
+  const allPlayers = [...detail.homePlayers, ...detail.awayPlayers];
+  if (allPlayers.length === 0) {
     return detail;
   }
   let catalog;
@@ -18599,7 +18694,7 @@ async function reconcileEspnPlayerIds(detail, deps) {
     catalog.value.map((player) => [normalizePlayerName(player.fullName), player.playerId])
   );
   const resolvedIds = /* @__PURE__ */ new Map();
-  for (const player of syntheticPlayers) {
+  for (const player of allPlayers) {
     const playerId = playersByName.get(normalizePlayerName(player.fullName));
     if (playerId) {
       resolvedIds.set(player.playerId, playerId);
@@ -19313,6 +19408,17 @@ function createPlayoffsService(deps) {
 __name(createPlayoffsService, "createPlayoffsService");
 
 // src/modules/players/service.ts
+function getInfoValue(row, keys) {
+  for (const key of keys) {
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    const value = actualKey ? row[actualKey] : void 0;
+    if (value !== void 0 && value !== null && value !== "") {
+      return String(value);
+    }
+  }
+  return "";
+}
+__name(getInfoValue, "getInfoValue");
 function createPlayersService(deps) {
   return {
     async getPlayers(filters) {
@@ -19341,18 +19447,26 @@ function createPlayersService(deps) {
       );
     },
     async getPlayerDetail(playerId) {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v3:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
         const base = catalogState.value.find((player) => player.playerId === playerId);
         if (!base) {
           throw new Error(`Player ${playerId} not found`);
         }
-        const [infoResult, gameLogsResult, playoffGameLogsResult] = await Promise.allSettled([
+        const [infoResult, gameLogsResult, playoffGameLogsResult, rosterResult] = await Promise.allSettled([
           deps.client.getCommonPlayerInfo(playerId),
           deps.client.getPlayerGameLogs(playerId),
-          deps.client.getPlayerGameLogs(playerId, "Playoffs")
+          deps.client.getPlayerGameLogs(playerId, "Playoffs"),
+          base.team && deps.client.getEspnRoster ? deps.client.getEspnRoster(base.team.teamId) : Promise.reject(new Error("Roster fallback unavailable"))
         ]);
-        const info = infoResult.status === "fulfilled" ? mapStatsRows(infoResult.value)[0] ?? {} : {};
+        const info = infoResult.status === "fulfilled" ? mapAllStatsRows(infoResult.value).find(
+          (row) => getInfoValue(row, ["DISPLAY_FIRST_LAST", "BIRTHDATE", "BIRTH_DATE", "COUNTRY"]).length > 0
+        ) ?? mapStatsRows(infoResult.value)[0] ?? {} : {};
+        const normalizedName = base.fullName.trim().toLowerCase();
+        const rosterAthlete = rosterResult.status === "fulfilled" ? (rosterResult.value.athletes ?? []).find(
+          (athlete) => String(athlete.fullName ?? athlete.displayName ?? "").trim().toLowerCase() === normalizedName
+        ) : void 0;
+        const rosterPosition = rosterAthlete?.position;
         const allGameLogs = [
           ...playoffGameLogsResult.status === "fulfilled" ? mapStatsRows(playoffGameLogsResult.value) : [],
           ...gameLogsResult.status === "fulfilled" ? mapStatsRows(gameLogsResult.value) : []
@@ -19361,7 +19475,7 @@ function createPlayersService(deps) {
           const dateB = new Date(String(b.GAME_DATE ?? 0)).getTime();
           return dateB - dateA;
         });
-        const recentGames = allGameLogs.slice(0, 5).map((row) => ({
+        let recentGames = allGameLogs.slice(0, 5).map((row) => ({
           gameId: String(row.GAME_ID ?? ""),
           gameDate: new Date(String(row.GAME_DATE ?? (/* @__PURE__ */ new Date()).toISOString())).toISOString(),
           matchup: String(row.MATCHUP ?? ""),
@@ -19373,19 +19487,73 @@ function createPlayersService(deps) {
           steals: safeNumber(row.STL),
           blocks: safeNumber(row.BLK)
         }));
-        const birthDate = String(info.BIRTHDATE ?? info.BIRTH_DATE ?? "") || null;
+        if (recentGames.length === 0 && base.team && deps.client.getEspnTeamSchedule && deps.client.getEspnGameSummary) {
+          const scheduleResult = await Promise.allSettled([
+            deps.client.getEspnTeamSchedule(base.team.teamId)
+          ]);
+          const events = scheduleResult[0].status === "fulfilled" ? scheduleResult[0].value.events ?? [] : [];
+          const completedEvents = events.filter((event) => {
+            const status = event.competitions?.[0]?.status;
+            return status?.type && status.type.completed === true;
+          }).sort((left, right) => String(right.date ?? "").localeCompare(String(left.date ?? ""))).slice(0, 5);
+          const summaries = await Promise.allSettled(
+            completedEvents.map((event) => deps.client.getEspnGameSummary(String(event.id)))
+          );
+          const normalizedName2 = base.fullName.trim().toLowerCase();
+          recentGames = summaries.flatMap((summary, index) => {
+            if (summary.status !== "fulfilled") {
+              return [];
+            }
+            const payload = summary.value;
+            const playerGroup = payload.boxscore?.players?.find(
+              (group) => (group.statistics ?? []).some(
+                (stat) => (stat.athletes ?? []).some(
+                  (athlete2) => String(athlete2.athlete?.displayName ?? "").trim().toLowerCase() === normalizedName2
+                )
+              )
+            );
+            const athlete = (playerGroup?.statistics ?? []).flatMap((stat) => stat.athletes ?? []).find(
+              (candidate) => String(candidate.athlete?.displayName ?? "").trim().toLowerCase() === normalizedName2
+            );
+            if (!athlete) {
+              return [];
+            }
+            const stats = athlete.stats ?? [];
+            const competition = completedEvents[index].competitions?.[0];
+            const competitors = competition?.competitors ?? [];
+            const result = competitors.find(
+              (competitor) => String(competitor.team?.abbreviation ?? "").toLowerCase() === base.team?.code.toLowerCase()
+            );
+            return [{
+              gameId: String(completedEvents[index].id ?? ""),
+              gameDate: new Date(String(completedEvents[index].date ?? (/* @__PURE__ */ new Date()).toISOString())).toISOString(),
+              matchup: String(completedEvents[index].name ?? ""),
+              result: result?.winner === true ? "W" : "L",
+              minutes: round(safeNumber(stats[0])),
+              points: safeNumber(stats[1]),
+              rebounds: safeNumber(stats[5]),
+              assists: safeNumber(stats[6]),
+              steals: safeNumber(stats[8]),
+              blocks: safeNumber(stats[9])
+            }];
+          });
+        }
+        const birthDate = getInfoValue(info, ["BIRTHDATE", "BIRTH_DATE"]) || getInfoValue(rosterAthlete ?? {}, ["birthDate", "dateOfBirth"]) || null;
         const draftParts = [
-          info.DRAFT_YEAR ? `Anno ${info.DRAFT_YEAR}` : "",
-          info.DRAFT_ROUND ? `Round ${info.DRAFT_ROUND}` : "",
-          info.DRAFT_NUMBER ? `Pick ${info.DRAFT_NUMBER}` : ""
+          getInfoValue(info, ["DRAFT_YEAR"]) ? `Anno ${getInfoValue(info, ["DRAFT_YEAR"])}` : "",
+          getInfoValue(info, ["DRAFT_ROUND"]) ? `Round ${getInfoValue(info, ["DRAFT_ROUND"])}` : "",
+          getInfoValue(info, ["DRAFT_NUMBER"]) ? `Pick ${getInfoValue(info, ["DRAFT_NUMBER"])}` : ""
         ].filter(Boolean);
         return {
           ...base,
+          position: base.position ?? (String(rosterPosition?.abbreviation ?? "") || null),
+          height: base.height ?? (String(rosterAthlete?.displayHeight ?? "") || null),
+          weight: base.weight ?? (String(rosterAthlete?.displayWeight ?? "") || null),
           birthDate,
           age: calculateAge(birthDate),
-          country: String(info.COUNTRY ?? info.COUNTRY_CODE ?? "") || null,
-          school: String(info.SCHOOL ?? info.COLLEGE ?? "") || null,
-          experience: String(info.SEASON_EXP ?? info.EXPERIENCE ?? "") || null,
+          country: getInfoValue(info, ["COUNTRY", "COUNTRY_CODE"]) || null,
+          school: getInfoValue(info, ["SCHOOL", "COLLEGE"]) || null,
+          experience: getInfoValue(info, ["SEASON_EXP", "EXPERIENCE"]) || null,
           draft: draftParts.length > 0 ? draftParts.join(" - ") : null,
           recentGames
         };
@@ -19569,7 +19737,7 @@ function createTeamsService(deps) {
       );
     },
     async getTeamDetail(teamId) {
-      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:${teamId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`team-detail:v2:${getCurrentSeason()}:${teamId}`, TTL.profile, async () => {
         const standingsState = await loadStandings(deps);
         const [teamStatsResult, scheduleResult, teamInfoResult, rosterResult, teamGameLogResult, playoffGameLogResult] = await Promise.allSettled([
           loadTeamStats(deps),
@@ -19583,9 +19751,11 @@ function createTeamsService(deps) {
         if (!base) {
           throw new Error(`Team ${teamId} not found`);
         }
-        const teamInfo = teamInfoResult.status === "fulfilled" ? mapStatsRows(teamInfoResult.value)[0] ?? {} : {};
-        const rosterRows = rosterResult.status === "fulfilled" ? mapStatsRows(rosterResult.value) : [];
-        const roster = rosterRows.map((row) => {
+        const teamInfo = teamInfoResult.status === "fulfilled" ? mapAllStatsRows(teamInfoResult.value).find(
+          (row) => Object.keys(row).some((key) => key.toLowerCase() === "arena" || key.toLowerCase() === "headcoach")
+        ) ?? mapStatsRows(teamInfoResult.value)[0] ?? {} : {};
+        const rosterRows = rosterResult.status === "fulfilled" ? mapAllStatsRows(rosterResult.value) : [];
+        let roster = rosterRows.map((row) => {
           const playerId = Number(row.PLAYER_ID ?? row.PlayerID ?? 0);
           const birthDate = row.BIRTH_DATE ? new Date(String(row.BIRTH_DATE)) : null;
           const age = birthDate && !Number.isNaN(birthDate.getTime()) ? Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1e3)) : null;
@@ -19600,7 +19770,24 @@ function createTeamsService(deps) {
             headshot: buildPlayerHeadshotUrl(playerId)
           };
         }).filter((player) => player.playerId > 0 && player.fullName.length > 0);
-        const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : [];
+        if (roster.length === 0) {
+          try {
+            const catalog = await loadPlayerCatalog(deps);
+            roster = catalog.value.filter((player) => player.team?.teamId === teamId).map((player) => ({
+              playerId: player.playerId,
+              fullName: player.fullName,
+              position: player.position,
+              jersey: player.jersey,
+              height: player.height,
+              weight: player.weight,
+              age: null,
+              headshot: player.headshot
+            }));
+          } catch (error48) {
+            console.warn("[teams] roster catalog fallback unavailable", error48 instanceof Error ? error48.message : error48);
+          }
+        }
+        const scheduleGames = scheduleResult.status === "fulfilled" ? scheduleResult.value.value : await loadRecentGames(deps);
         const scheduleByGameId = new Map(scheduleGames.map((game) => [game.gameId, game]));
         const recentRows = [
           ...playoffGameLogResult.status === "fulfilled" ? mapStatsRows(playoffGameLogResult.value) : [],
@@ -19755,7 +19942,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-8rcTf5/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-rjhpVG/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -19787,7 +19974,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-8rcTf5/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-rjhpVG/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

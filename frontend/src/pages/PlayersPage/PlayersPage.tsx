@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { formatHeight, formatNumber, formatPosition } from "../../lib/format";
@@ -70,7 +70,6 @@ export function PlayersPage() {
         </div>
       </SurfaceCard>
 
-      {query.isLoading ? <LoadingState label="Sto caricando la lista giocatori..." /> : null}
       {query.error ? <ErrorState message={query.error.message} /> : null}
 
       {query.data ? (

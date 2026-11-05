@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { Badge, DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { StandingsTable } from "../../components/tables/StandingsTable";
 import { apiGet } from "../../lib/api";
-import { formatGameDateLabel, formatGameStatusText, formatStatusLabel, formatTime, formatVenue } from "../../lib/format";
+import { formatGameDateLabel, formatGameStatusText, formatStatusLabel, formatTime } from "../../lib/format";
 import {
   btRecord,
   getFinalsSummary,
@@ -591,7 +591,6 @@ function PlayoffCalendar({
                   </div>
 
                   <div className="calendar-game-info">
-                    <strong>{formatVenue(game.arena)}</strong>
                     <span>{formatGameStatusText(game)}</span>
                   </div>
                 </Link>
@@ -634,7 +633,6 @@ export function PlayoffsPage() {
         description="Quadro della postseason NBA: classifiche playoff Est/Ovest, tabellone e calendario partite."
       />
 
-      {query.isLoading ? <LoadingState label="Sto caricando il quadro playoff..." /> : null}
       {query.error ? <ErrorState message={query.error.message} /> : null}
 
       {query.data ? (

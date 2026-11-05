@@ -65,7 +65,7 @@ export function createPlayersService(deps: ServiceDeps) {
     },
 
     async getPlayerDetail(playerId: number): Promise<ApiEnvelope<PlayerDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v2:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v3:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
         const base = catalogState.value.find((player) => player.playerId === playerId);
         if (!base) {
@@ -100,7 +100,7 @@ export function createPlayersService(deps: ServiceDeps) {
           return dateB - dateA;
         });
 
-        const recentGames = allGameLogs
+        let recentGames = allGameLogs
           .slice(0, 5)
           .map((row) => ({
             gameId: String(row.GAME_ID ?? ""),
@@ -114,6 +114,73 @@ export function createPlayersService(deps: ServiceDeps) {
             steals: safeNumber(row.STL),
             blocks: safeNumber(row.BLK)
           }));
+
+        if (recentGames.length === 0 && base.team && deps.client.getEspnTeamSchedule && deps.client.getEspnGameSummary) {
+          const scheduleResult = await Promise.allSettled([
+            deps.client.getEspnTeamSchedule(base.team.teamId)
+          ]);
+          const events = scheduleResult[0].status === "fulfilled"
+            ? ((scheduleResult[0].value as { events?: Array<Record<string, unknown>> }).events ?? [])
+            : [];
+          const completedEvents = events
+            .filter((event) => {
+              const status = (event.competitions as Array<Record<string, unknown>> | undefined)?.[0]
+                ?.status as Record<string, unknown> | undefined;
+              return status?.type && (status.type as Record<string, unknown>).completed === true;
+            })
+            .sort((left, right) => String(right.date ?? "").localeCompare(String(left.date ?? "")))
+            .slice(0, 5);
+          const summaries = await Promise.allSettled(
+            completedEvents.map((event) => deps.client.getEspnGameSummary!(String(event.id)))
+          );
+          const normalizedName = base.fullName.trim().toLowerCase();
+          recentGames = summaries.flatMap((summary, index) => {
+            if (summary.status !== "fulfilled") {
+              return [];
+            }
+            const payload = summary.value as {
+              boxscore?: { players?: Array<Record<string, unknown>> };
+            };
+            const playerGroup = payload.boxscore?.players?.find((group) =>
+              ((group.statistics as Array<Record<string, unknown>> | undefined) ?? []).some((stat) =>
+                ((stat.athletes as Array<Record<string, unknown>> | undefined) ?? []).some((athlete) =>
+                  String((athlete.athlete as Record<string, unknown> | undefined)?.displayName ?? "")
+                    .trim()
+                    .toLowerCase() === normalizedName
+                )
+              )
+            );
+            const athlete = ((playerGroup?.statistics as Array<Record<string, unknown>> | undefined) ?? [])
+              .flatMap((stat) => (stat.athletes as Array<Record<string, unknown>> | undefined) ?? [])
+              .find((candidate) =>
+                String((candidate.athlete as Record<string, unknown> | undefined)?.displayName ?? "")
+                  .trim()
+                  .toLowerCase() === normalizedName
+              ) as Record<string, unknown> | undefined;
+            if (!athlete) {
+              return [];
+            }
+            const stats = (athlete.stats as string[] | undefined) ?? [];
+            const competition = (completedEvents[index].competitions as Array<Record<string, unknown>> | undefined)?.[0];
+            const competitors = (competition?.competitors as Array<Record<string, unknown>> | undefined) ?? [];
+            const result = competitors.find((competitor) =>
+              String((competitor.team as Record<string, unknown> | undefined)?.abbreviation ?? "").toLowerCase() ===
+              base.team?.code.toLowerCase()
+            );
+            return [{
+              gameId: String(completedEvents[index].id ?? ""),
+              gameDate: new Date(String(completedEvents[index].date ?? new Date().toISOString())).toISOString(),
+              matchup: String(completedEvents[index].name ?? ""),
+              result: result?.winner === true ? "W" : "L",
+              minutes: round(safeNumber(stats[0])),
+              points: safeNumber(stats[1]),
+              rebounds: safeNumber(stats[5]),
+              assists: safeNumber(stats[6]),
+              steals: safeNumber(stats[8]),
+              blocks: safeNumber(stats[9])
+            }];
+          });
+        }
 
         const birthDate =
           getInfoValue(info, ["BIRTHDATE", "BIRTH_DATE"]) ||

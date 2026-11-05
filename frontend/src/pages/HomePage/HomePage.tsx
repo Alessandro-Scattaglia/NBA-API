@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { apiGet } from "../../lib/api";
 import type { HomeResponse } from "../../lib/types";
-import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { LeaderPanel } from "../../components/cards/LeaderPanel";
 import { GameList } from "../../components/tables/GameList";
@@ -20,10 +20,6 @@ export function HomePage() {
     queryKey: ["standings"],
     queryFn: () => apiGet<StandingsResponse>("/api/standings")
   });
-
-  if (homeQuery.isLoading) {
-    return <LoadingState label="Sto caricando la home..." />;
-  }
 
   if (homeQuery.error) {
     return <ErrorState message={homeQuery.error.message} />;
@@ -53,7 +49,6 @@ export function HomePage() {
             Vista completa
           </Link>
         </div>
-        {standingsQuery.isLoading ? <LoadingState label="Sto caricando la classifica..." /> : null}
         {standingsQuery.error ? <ErrorState message={standingsQuery.error.message} /> : null}
         {standingsQuery.data ? (
           <div className="grid-2 home-standings-grid">

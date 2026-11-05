@@ -332,10 +332,6 @@ export function formatGameStatusText(game: Pick<GameSummary, "status" | "statusT
   return translateRawGameText(game.statusText) || "Finita";
 }
 
-export function formatVenue(arena: string | null | undefined) {
-  return arena?.trim() ? arena : "Sede non disponibile";
-}
-
 export function formatNumber(value: number | null | undefined, digits = 1) {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "--";
