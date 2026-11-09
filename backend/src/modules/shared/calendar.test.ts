@@ -37,8 +37,8 @@ describe("calendar provider merge", () => {
           competitions: [{
             date: "2026-10-01T00:00:00Z",
             competitors: [
-              { homeAway: "home", score: "100", team: { abbreviation: "BOS" } },
-              { homeAway: "away", score: "98", team: { abbreviation: "LAL" } }
+              { homeAway: "home", team: { abbreviation: "BOS" } },
+              { homeAway: "away", team: { abbreviation: "LAL" } }
             ],
             status: { type: { state: "post", description: "Final" } }
           }]
@@ -77,6 +77,7 @@ describe("calendar provider merge", () => {
     expect(new Set(state.value.map((game) => game.gameId)).size).toBe(1);
     expect(state.value.map((game) => game.gameId)).toEqual(["espn-1"]);
     expect(state.value.every((game) => game.canonicalId?.startsWith("game:"))).toBe(true);
-    expect(state.value.find((game) => game.gameId === "espn-1")?.homeTeam.score).toBe(100);
+    expect(state.value.find((game) => game.gameId === "espn-1")?.homeTeam.score).toBe(90);
+    expect(state.value.find((game) => game.gameId === "espn-1")?.awayTeam.score).toBe(98);
   });
 });

@@ -1095,10 +1095,6 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
       console.warn("[calendar] ESPN failed; using NBA CDN schedule fallback.", error instanceof Error ? error.message : error);
     }
 
-    if (espnGames.length > 0) {
-      return espnGames.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
-    }
-
     let cdnGames: GameSummary[] = [];
     try {
       const snapshot = await loadScheduleSnapshotGames(deps);
@@ -1112,24 +1108,33 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
 
     const buildMergeKey = (game: GameSummary) =>
       `${game.dateTimeUtc.slice(0, 10)}:${[game.homeTeam.code, game.awayTeam.code].sort().join(":")}`;
-    const merged = new Map<string, { game: GameSummary; source: "cdn" | "espn" }>();
-    for (const game of cdnGames) {
-      merged.set(buildMergeKey(game), { game, source: "cdn" });
-    }
-    for (const game of espnGames) {
-      const key = buildMergeKey(game);
-      if (!merged.has(key)) {
-        merged.set(key, { game, source: "espn" });
+    const mergeGameData = (primary: GameSummary, secondary: GameSummary): GameSummary => ({
+      ...primary,
+      status: primary.status === "scheduled" && secondary.status !== "scheduled" ? secondary.status : primary.status,
+      statusText: primary.status === "scheduled" && secondary.status !== "scheduled" ? secondary.statusText : primary.statusText,
+      clock: primary.clock ?? secondary.clock,
+      period: primary.period ?? secondary.period,
+      homeTeam: {
+        ...primary.homeTeam,
+        score: primary.homeTeam.score ?? secondary.homeTeam.score,
+        record: primary.homeTeam.record ?? secondary.homeTeam.record
+      },
+      awayTeam: {
+        ...primary.awayTeam,
+        score: primary.awayTeam.score ?? secondary.awayTeam.score,
+        record: primary.awayTeam.record ?? secondary.awayTeam.record
       }
-    }
+    });
+    const cdnByKey = new Map(cdnGames.map((game) => [buildMergeKey(game), game]));
+    const merged = espnGames.length > 0
+      ? espnGames.map((game) => mergeGameData(game, cdnByKey.get(buildMergeKey(game)) ?? game))
+      : cdnGames;
 
-    if (merged.size === 0) {
+    if (merged.length === 0) {
       throw new Error("ESPN and NBA CDN returned an empty or invalid calendar response.");
     }
 
-    return [...merged.values()]
-      .map((entry) => entry.game)
-      .sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
+    return merged.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
   }, true, (games) => games.length > 0);
 }
 

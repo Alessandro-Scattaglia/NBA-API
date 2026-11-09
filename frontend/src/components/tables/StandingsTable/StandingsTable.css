@@ -200,11 +200,11 @@
 
 @media (max-width: 980px) {
   .standings-table-rich {
-    min-width: 640px;
+    min-width: 760px;
   }
 
   .standings-table-no-status {
-    min-width: 580px;
+    min-width: 680px;
   }
 
   .standings-table {
@@ -227,11 +227,12 @@
   }
 
   .standings-team-name {
-    display: none;
+    display: block;
+    font-size: 0.78rem;
   }
 
   .standings-team-code {
-    display: block;
+    display: none;
   }
 
   .mini-record,
@@ -244,11 +245,11 @@
 
 @media (max-width: 720px) {
   .standings-table-rich {
-    min-width: 620px;
+    min-width: 740px;
   }
 
   .standings-table-no-status {
-    min-width: 560px;
+    min-width: 660px;
   }
 
   .standings-table {
@@ -261,8 +262,8 @@
   }
 
   .standings-team-logo {
-    width: 13px;
-    height: 13px;
+    width: 18px;
+    height: 18px;
   }
 
   .standings-table-rich th:nth-child(2),

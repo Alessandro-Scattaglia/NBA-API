@@ -569,11 +569,6 @@
     padding: 9px 4px;
   }
 
-  .game-table-wrap .detail-table th:nth-child(6),
-  .game-table-wrap .detail-table td:nth-child(6) {
-    display: none;
-  }
-
   .game-table-wrap .detail-table th:first-child,
   .game-table-wrap .detail-table td:first-child {
     width: 48%;

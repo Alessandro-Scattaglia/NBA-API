@@ -264,6 +264,13 @@
   border-color: transparent;
 }
 
+.sidebar-collapsed .nav-link-active .nav-link-icon {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #090909;
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+
 .sidebar-collapsed .sidebar-toggle-icon {
   transform: rotate(180deg);
 }
@@ -506,6 +513,10 @@
     padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 8px;
     background: #090909;
     border-bottom: 1px solid rgba(var(--accent-rgb), 0.1);
+  }
+
+  .mobile-actions {
+    order: -1;
   }
 
   .mobile-brand {
