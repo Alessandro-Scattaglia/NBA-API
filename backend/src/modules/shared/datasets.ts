@@ -1081,7 +1081,7 @@ export async function loadRecentGames(deps: ServiceDeps, days = 45) {
 
 export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string) {
   const range = clampToSeason(from, to);
-  const key = `calendar:v2:${range.from}:${range.to}`;
+  const key = `calendar:v3:${range.from}:${range.to}`;
 
   return getCache(deps).getOrLoad(key, TTL.calendar, async () => {
     let espnGames: GameSummary[] = [];

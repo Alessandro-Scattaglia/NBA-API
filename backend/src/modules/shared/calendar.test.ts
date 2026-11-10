@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MemoryCache } from "../../cache/memoryCache.js";
 import { loadCalendarRange } from "./datasets.js";
 
 describe("calendar provider merge", () => {
@@ -79,5 +80,30 @@ describe("calendar provider merge", () => {
     expect(state.value.every((game) => game.canonicalId?.startsWith("game:"))).toBe(true);
     expect(state.value.find((game) => game.gameId === "espn-1")?.homeTeam.score).toBe(90);
     expect(state.value.find((game) => game.gameId === "espn-1")?.awayTeam.score).toBe(98);
+  });
+
+  it("uses a new cache namespace after calendar data source changes", async () => {
+    const cache = new MemoryCache();
+    const client = {
+      getGamesSchedule: async () => ({
+        data: [{
+          id: "espn-cache-key",
+          date: "2026-10-03T00:00:00Z",
+          competitions: [{
+            date: "2026-10-03T00:00:00Z",
+            competitors: [
+              { homeAway: "home", team: { abbreviation: "BOS" } },
+              { homeAway: "away", team: { abbreviation: "LAL" } }
+            ],
+            status: { type: { state: "post", description: "Final" } }
+          }]
+        }]
+      }),
+      getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [] } })
+    } as never;
+
+    await loadCalendarRange({ client, cache }, "2026-10-03", "2026-10-03");
+
+    expect(cache.getStats().keys).toContain("calendar:v3:2026-10-03:2026-10-03");
   });
 });
