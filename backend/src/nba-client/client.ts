@@ -15,7 +15,7 @@ export interface NbaApiClient {
   getPlayerGameLogs(playerId: number, seasonType?: string): Promise<unknown>;
   getTeamInfoCommon(teamId: number): Promise<unknown>;
   getCommonTeamRoster(teamId: number): Promise<unknown>;
-  getLeagueDashTeamStats(): Promise<unknown>;
+  getLeagueDashTeamStats(measureType?: "Base" | "Advanced"): Promise<unknown>;
   getTeamGameLog(teamId: number, seasonType?: string): Promise<unknown>;
   getLeagueStandings(): Promise<unknown>;
   getPlayoffPicture(): Promise<unknown>;
@@ -265,7 +265,7 @@ function buildLeagueDashPlayerStatsParams(season: string) {
   };
 }
 
-function buildLeagueDashTeamStatsParams(season: string) {
+function buildLeagueDashTeamStatsParams(season: string, measureType: "Base" | "Advanced") {
   return {
     Conference: "",
     DateFrom: "",
@@ -276,7 +276,7 @@ function buildLeagueDashTeamStatsParams(season: string) {
     LastNGames: 0,
     LeagueID: "00",
     Location: "",
-    MeasureType: "Base",
+    MeasureType: measureType,
     Month: 0,
     OpponentTeamID: 0,
     PaceAdjust: "N",
@@ -431,8 +431,12 @@ export function createNbaApiClient(fetchImpl: FetchImpl = fetch, runtimeEnv = cr
       return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 
-    getLeagueDashTeamStats() {
-      const url = buildUrl(runtimeEnv.statsBaseUrl, "leaguedashteamstats", buildLeagueDashTeamStatsParams(runtimeEnv.nbaSeason));
+    getLeagueDashTeamStats(measureType = "Base") {
+      const url = buildUrl(
+        runtimeEnv.statsBaseUrl,
+        "leaguedashteamstats",
+        buildLeagueDashTeamStatsParams(runtimeEnv.nbaSeason, measureType)
+      );
       return requestJson(fetchImpl, url, STATS_HEADERS, runtimeEnv);
     },
 

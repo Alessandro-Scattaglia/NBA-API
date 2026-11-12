@@ -18,6 +18,10 @@ Ritorna la stagione corrente e la fase rilevata.
 
 Homepage con partite del giorno, prossime partite, leader e spotlight in base alla fase.
 
+### `/api/insights`
+
+Dashboard aggregata con squadra più in forma, miglior attacco, miglior difesa, giocatore in evidenza e partite più interessanti dei prossimi sette giorni.
+
 ### `/api/teams`
 
 Elenco squadre della stagione attiva o del parametro `season` validato.

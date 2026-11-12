@@ -88,6 +88,16 @@ const navItems = [
         <path d="M7.6 9.3H6A1.8 1.8 0 0 0 6.2 13h1.9M16.4 9.3H18a1.8 1.8 0 0 1-.2 3.7h-1.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </SidebarIcon>
     )
+  },
+  {
+    to: "/insights",
+    label: "Analisi",
+    icon: (
+      <SidebarIcon>
+        <path d="M12 4.5v3M12 16.5v3M4.5 12h3M16.5 12h3M6.7 6.7l2.1 2.1M15.2 15.2l2.1 2.1M17.3 6.7l-2.1 2.1M8.8 15.2l-2.1 2.1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      </SidebarIcon>
+    )
   }
 ];
 
@@ -149,12 +159,6 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          <div className="sidebar-footer-copy">
-            <p>Solo API pubbliche gratuite NBA</p>
-            <p>UI in italiano</p>
-          </div>
-        </div>
       </aside>
       {sidebarOpen ? (
         <button

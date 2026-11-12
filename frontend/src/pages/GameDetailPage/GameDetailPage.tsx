@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Badge, DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
+import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { buildPlayerHeadshotUrl } from "../../lib/assets";
@@ -414,6 +414,10 @@ export function GameDetailPage() {
 
   if (query.error) {
     return <ErrorState message={query.error.message} />;
+  }
+
+  if (query.isLoading) {
+    return <LoadingState label="Sto caricando il dettaglio della partita..." />;
   }
 
   if (!query.data) {

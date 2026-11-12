@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Badge, DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
+import { Badge, DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { getBroadcastLinks } from "../../lib/broadcast";
@@ -245,7 +245,9 @@ export function CalendarPage() {
 
       {query.error ? <ErrorState message={query.error.message} /> : null}
 
-      {query.data ? (
+      {query.isLoading ? <LoadingState label="Sto caricando il calendario..." /> : null}
+
+      {query.data && !query.isLoading ? (
         <>
           <DataStamp updatedAt={query.data.meta.updatedAt} stale={query.data.meta.stale} />
           {query.data.data.items.length > 0 ? (

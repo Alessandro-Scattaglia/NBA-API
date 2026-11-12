@@ -16748,6 +16748,9 @@ function createApiRouter(services) {
       throw error48;
     }
   });
+  router.get("/insights", async (c) => {
+    return c.json(await services.insights.getInsights());
+  });
   router.get("/teams", async (c) => {
     try {
       const seasonValue = requireValidSeason(c.req.query("season"));
@@ -17185,7 +17188,7 @@ function buildLeagueDashPlayerStatsParams(season) {
   };
 }
 __name(buildLeagueDashPlayerStatsParams, "buildLeagueDashPlayerStatsParams");
-function buildLeagueDashTeamStatsParams(season) {
+function buildLeagueDashTeamStatsParams(season, measureType) {
   return {
     Conference: "",
     DateFrom: "",
@@ -17196,7 +17199,7 @@ function buildLeagueDashTeamStatsParams(season) {
     LastNGames: 0,
     LeagueID: "00",
     Location: "",
-    MeasureType: "Base",
+    MeasureType: measureType,
     Month: 0,
     OpponentTeamID: 0,
     PaceAdjust: "N",
@@ -17333,8 +17336,12 @@ function createNbaApiClient(fetchImpl = fetch, runtimeEnv = createRuntimeEnv()) 
       });
       return requestJson(fetchImpl, url2, STATS_HEADERS, runtimeEnv);
     },
-    getLeagueDashTeamStats() {
-      const url2 = buildUrl(runtimeEnv.statsBaseUrl, "leaguedashteamstats", buildLeagueDashTeamStatsParams(runtimeEnv.nbaSeason));
+    getLeagueDashTeamStats(measureType = "Base") {
+      const url2 = buildUrl(
+        runtimeEnv.statsBaseUrl,
+        "leaguedashteamstats",
+        buildLeagueDashTeamStatsParams(runtimeEnv.nbaSeason, measureType)
+      );
       return requestJson(fetchImpl, url2, STATS_HEADERS, runtimeEnv);
     },
     getTeamGameLog(teamId, seasonType = REGULAR_SEASON_LABEL) {
@@ -17639,6 +17646,18 @@ function getString(row, keys, fallback = "") {
   return fallback;
 }
 __name(getString, "getString");
+function getOptionalNumber(row, keys, multiplier = 1) {
+  for (const key of keys) {
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    const value = actualKey ? row[actualKey] : void 0;
+    if (value !== void 0 && value !== null && value !== "") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? round(parsed * multiplier) : null;
+    }
+  }
+  return null;
+}
+__name(getOptionalNumber, "getOptionalNumber");
 function resolveTeamReference(teamId, code = "") {
   const team = getTeamIdentity(teamId);
   if (!team) {
@@ -18229,23 +18248,35 @@ async function loadPlayerCatalog(deps) {
 }
 __name(loadPlayerCatalog, "loadPlayerCatalog");
 async function loadTeamStats(deps) {
-  return getCache(deps).getOrLoad("team-stats-dataset", TTL.stats, async () => {
-    const response = await deps.client.getLeagueDashTeamStats();
-    const rows = mapStatsRows(response);
+  return getCache(deps).getOrLoad("team-stats-dataset:v2", TTL.stats, async () => {
+    const [baseResult, advancedResult] = await Promise.allSettled([
+      deps.client.getLeagueDashTeamStats("Base"),
+      deps.client.getLeagueDashTeamStats("Advanced")
+    ]);
+    const baseRows = baseResult.status === "fulfilled" ? mapStatsRows(baseResult.value) : [];
+    const advancedRows = advancedResult.status === "fulfilled" ? mapStatsRows(advancedResult.value) : [];
+    const rows = baseRows.length > 0 ? baseRows : advancedRows;
+    const advancedByTeamId = new Map(
+      advancedRows.map((row) => [getNumber(row, ["TEAM_ID"]), row])
+    );
     return new Map(
       rows.map((row) => {
         const teamId = getNumber(row, ["TEAM_ID"]);
+        const advancedRow = advancedByTeamId.get(teamId) ?? {};
+        const pointsPerGame = getNumber(row, ["PTS"]);
+        const plusMinus = getOptionalNumber(row, ["PLUS_MINUS"]);
+        const opponentPointsPerGame = getOptionalNumber(row, ["OPP_PTS"]) ?? (plusMinus !== null ? round(pointsPerGame - plusMinus) : 0);
         const values = {
-          pointsPerGame: round(getNumber(row, ["PTS"])),
-          opponentPointsPerGame: round(getNumber(row, ["OPP_PTS"])),
+          pointsPerGame: round(pointsPerGame),
+          opponentPointsPerGame,
           reboundsPerGame: round(getNumber(row, ["REB"])),
           assistsPerGame: round(getNumber(row, ["AST"])),
-          netRating: row.NET_RATING !== void 0 ? round(getNumber(row, ["NET_RATING"])) : null,
-          offensiveRating: row.OFF_RATING !== void 0 ? round(getNumber(row, ["OFF_RATING"])) : null,
-          defensiveRating: row.DEF_RATING !== void 0 ? round(getNumber(row, ["DEF_RATING"])) : null,
-          pace: row.PACE !== void 0 ? round(getNumber(row, ["PACE"])) : null,
-          fgPct: row.FG_PCT !== void 0 ? round(getNumber(row, ["FG_PCT"]) * 100, 1) : null,
-          threePct: row.FG3_PCT !== void 0 ? round(getNumber(row, ["FG3_PCT"]) * 100, 1) : null
+          netRating: getOptionalNumber(advancedRow, ["NET_RATING"]),
+          offensiveRating: getOptionalNumber(advancedRow, ["OFF_RATING"]),
+          defensiveRating: getOptionalNumber(advancedRow, ["DEF_RATING"]),
+          pace: getOptionalNumber(advancedRow, ["PACE"]),
+          fgPct: getOptionalNumber(row, ["FG_PCT"], 100),
+          threePct: getOptionalNumber(row, ["FG3_PCT"], 100)
         };
         return [teamId, values];
       })
@@ -19011,6 +19042,200 @@ function createHomeService(deps) {
   };
 }
 __name(createHomeService, "createHomeService");
+
+// src/modules/insights/service.ts
+function parseRecord(value) {
+  const match2 = value.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!match2) {
+    return null;
+  }
+  const wins = Number(match2[1]);
+  const losses = Number(match2[2]);
+  const games = wins + losses;
+  return games > 0 ? { wins, losses, winPct: wins / games } : null;
+}
+__name(parseRecord, "parseRecord");
+function getTeamMetric(team, stats, key, fallback) {
+  const value = stats.get(team.teamId)?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+__name(getTeamMetric, "getTeamMetric");
+function chooseMostInFormTeam(teams) {
+  return teams.map((team) => ({ team, record: parseRecord(team.lastTen) })).sort((left, right) => {
+    const leftPct = left.record?.winPct ?? left.team.winPct;
+    const rightPct = right.record?.winPct ?? right.team.winPct;
+    return rightPct - leftPct || right.team.wins - left.team.wins;
+  })[0]?.team ?? null;
+}
+__name(chooseMostInFormTeam, "chooseMostInFormTeam");
+function buildInsightTeam(team, stats, metric, metricLabel) {
+  return team ? { team, stats: stats.get(team.teamId) ?? null, metric, metricLabel } : null;
+}
+__name(buildInsightTeam, "buildInsightTeam");
+function buildInsightPlayer(player) {
+  return player.averages ? {
+    player,
+    metric: player.averages.points,
+    metricLabel: "punti di media"
+  } : null;
+}
+__name(buildInsightPlayer, "buildInsightPlayer");
+function buildRecentTeamMetrics(games) {
+  const metrics = /* @__PURE__ */ new Map();
+  for (const game of games) {
+    if (game.status !== "final" || game.homeTeam.score === null || game.awayTeam.score === null) {
+      continue;
+    }
+    const home = metrics.get(game.homeTeam.teamId) ?? { games: 0, pointsFor: 0, pointsAgainst: 0 };
+    home.games += 1;
+    home.pointsFor += game.homeTeam.score;
+    home.pointsAgainst += game.awayTeam.score;
+    metrics.set(game.homeTeam.teamId, home);
+    const away = metrics.get(game.awayTeam.teamId) ?? { games: 0, pointsFor: 0, pointsAgainst: 0 };
+    away.games += 1;
+    away.pointsFor += game.awayTeam.score;
+    away.pointsAgainst += game.homeTeam.score;
+    metrics.set(game.awayTeam.teamId, away);
+  }
+  return metrics;
+}
+__name(buildRecentTeamMetrics, "buildRecentTeamMetrics");
+function buildInterestingGames(games, teams) {
+  const standingsByTeamId = new Map(teams.map((team) => [team.teamId, team]));
+  return games.map((game) => {
+    const home = standingsByTeamId.get(game.homeTeam.teamId);
+    const away = standingsByTeamId.get(game.awayTeam.teamId);
+    const rankedTeams = [home, away].filter((team) => Boolean(team));
+    const rankScore = rankedTeams.reduce((score, team) => score + Math.max(0, 13 - team.conferenceRank), 0);
+    const matchupBonus = home && away && home.conferenceRank <= 10 && away.conferenceRank <= 10 ? 4 : 0;
+    const tvBonus = game.nationalTv.length > 0 ? 3 : 0;
+    const liveBonus = game.status === "live" ? 5 : 0;
+    const interestScore = rankScore + matchupBonus + tvBonus + liveBonus;
+    const reasons = [];
+    if (home && away && home.conferenceRank <= 10 && away.conferenceRank <= 10) {
+      reasons.push("sfida tra squadre in zona postseason");
+    } else if (rankedTeams.some((team) => team.conferenceRank <= 4)) {
+      reasons.push("in campo una delle migliori della conference");
+    }
+    if (game.nationalTv.length > 0) {
+      reasons.push("trasmessa a livello nazionale");
+    }
+    return {
+      game,
+      interestScore,
+      reason: reasons.join(" \xB7 ") || "partita della settimana"
+    };
+  }).sort((left, right) => right.interestScore - left.interestScore || left.game.dateTimeUtc.localeCompare(right.game.dateTimeUtc)).slice(0, 6);
+}
+__name(buildInterestingGames, "buildInterestingGames");
+function createInsightsService(deps) {
+  return {
+    async getInsights() {
+      const from = toIsoDate(/* @__PURE__ */ new Date());
+      const to = toIsoDate(new Date(Date.now() + 7 * 864e5));
+      const [standingsResult, teamStatsResult, playersResult, calendarResult, recentGamesResult] = await Promise.allSettled([
+        loadStandings(deps),
+        loadTeamStats(deps),
+        loadPlayerCatalog(deps),
+        loadCalendarRange(deps, from, to),
+        loadRecentGames(deps)
+      ]);
+      const fulfilledCount = [standingsResult, teamStatsResult, playersResult, calendarResult, recentGamesResult].filter(
+        (result) => result.status === "fulfilled"
+      ).length;
+      if (fulfilledCount === 0) {
+        throw new Error("Unable to load insights datasets");
+      }
+      const teams = standingsResult.status === "fulfilled" ? standingsResult.value.value : [];
+      const teamStats = teamStatsResult.status === "fulfilled" ? teamStatsResult.value.value : /* @__PURE__ */ new Map();
+      const players = playersResult.status === "fulfilled" ? playersResult.value.value : [];
+      const games = calendarResult.status === "fulfilled" ? calendarResult.value.value : [];
+      const recentTeamMetrics = recentGamesResult.status === "fulfilled" ? buildRecentTeamMetrics(recentGamesResult.value) : /* @__PURE__ */ new Map();
+      const getRecentAttack = /* @__PURE__ */ __name((team) => {
+        const metric = recentTeamMetrics.get(team.teamId);
+        return metric && metric.games > 0 ? metric.pointsFor / metric.games : 0;
+      }, "getRecentAttack");
+      const getRecentDefense = /* @__PURE__ */ __name((team) => {
+        const metric = recentTeamMetrics.get(team.teamId);
+        return metric && metric.games > 0 ? metric.pointsAgainst / metric.games : 0;
+      }, "getRecentDefense");
+      const getAttackValue = /* @__PURE__ */ __name((team) => getTeamMetric(team, teamStats, "offensiveRating", 0) || getRecentAttack(team) || 0, "getAttackValue");
+      const getDefenseValue = /* @__PURE__ */ __name((team) => getTeamMetric(team, teamStats, "defensiveRating", 0) || getRecentDefense(team) || 0, "getDefenseValue");
+      const getAttackLabel = /* @__PURE__ */ __name((team) => getTeamMetric(team, teamStats, "offensiveRating", 0) > 0 ? "offensive rating" : "punti segnati nelle ultime 45 giornate", "getAttackLabel");
+      const getDefenseLabel = /* @__PURE__ */ __name((team) => getTeamMetric(team, teamStats, "defensiveRating", 0) > 0 ? "defensive rating" : "punti subiti nelle ultime 45 giornate", "getDefenseLabel");
+      const teamFormRanking = teams.slice().sort((left, right) => {
+        const leftRecord = parseRecord(left.lastTen);
+        const rightRecord = parseRecord(right.lastTen);
+        return (rightRecord?.winPct ?? right.winPct) - (leftRecord?.winPct ?? left.winPct) || right.wins - left.wins;
+      }).slice(0, 5).map(
+        (team) => buildInsightTeam(team, teamStats, parseRecord(team.lastTen)?.winPct ?? team.winPct, "percentuale vittorie ultime 10")
+      ).filter((insight) => Boolean(insight));
+      const attackRanking = teams.slice().filter((team) => getAttackValue(team) > 0).sort(
+        (left, right) => getAttackValue(right) - getAttackValue(left)
+      ).slice(0, 5).map(
+        (team) => buildInsightTeam(
+          team,
+          teamStats,
+          getAttackValue(team),
+          getAttackLabel(team)
+        )
+      ).filter((insight) => Boolean(insight));
+      const defenseRanking = teams.slice().filter((team) => getDefenseValue(team) > 0).sort(
+        (left, right) => getDefenseValue(left) - getDefenseValue(right)
+      ).slice(0, 5).map(
+        (team) => buildInsightTeam(
+          team,
+          teamStats,
+          getDefenseValue(team),
+          getDefenseLabel(team)
+        )
+      ).filter((insight) => Boolean(insight));
+      const rankedPlayers = players.filter((player) => Boolean(player.averages)).sort((left, right) => right.averages.points - left.averages.points || right.averages.assists - left.averages.assists).slice(0, 5).map(buildInsightPlayer).filter((insight) => Boolean(insight));
+      const finalGames = games.filter(
+        (game) => game.status === "final" && game.homeTeam.score !== null && game.awayTeam.score !== null
+      );
+      const averageTotalPoints = finalGames.length > 0 ? finalGames.reduce((total, game) => total + (game.homeTeam.score ?? 0) + (game.awayTeam.score ?? 0), 0) / finalGames.length : null;
+      const mostInFormTeam = teamFormRanking[0]?.team ?? chooseMostInFormTeam(teams);
+      const bestAttackTeam = attackRanking[0]?.team ?? null;
+      const bestDefenseTeam = defenseRanking[0]?.team ?? null;
+      const hottestPlayer = rankedPlayers[0] ?? null;
+      const updatedAt = [
+        standingsResult.status === "fulfilled" ? standingsResult.value.updatedAt : null,
+        teamStatsResult.status === "fulfilled" ? teamStatsResult.value.updatedAt : null,
+        playersResult.status === "fulfilled" ? playersResult.value.updatedAt : null,
+        calendarResult.status === "fulfilled" ? calendarResult.value.updatedAt : null
+      ].filter((value) => Boolean(value)).sort().at(-1) ?? (/* @__PURE__ */ new Date()).toISOString();
+      return toEnvelope(
+        {
+          season: getCurrentSeason(),
+          period: { from, to },
+          overview: {
+            games: games.length,
+            scheduledGames: games.filter((game) => game.status === "scheduled").length,
+            liveGames: games.filter((game) => game.status === "live").length,
+            nationalTvGames: games.filter((game) => game.nationalTv.length > 0).length,
+            averageTotalPoints: averageTotalPoints === null ? null : Math.round(averageTotalPoints * 10) / 10
+          },
+          mostInFormTeam: teamFormRanking[0] ?? null,
+          bestAttackTeam: attackRanking[0] ?? null,
+          bestDefenseTeam: defenseRanking[0] ?? null,
+          hottestPlayer,
+          teamFormRanking,
+          attackRanking,
+          defenseRanking,
+          playerRanking: rankedPlayers,
+          interestingGames: buildInterestingGames(games, teams)
+        },
+        updatedAt,
+        [standingsResult, teamStatsResult, playersResult, calendarResult].some(
+          (result) => result.status === "fulfilled" && result.value.stale
+        ) || fulfilledCount < 4,
+        ["stats.nba.com/leaguestandings", "stats.nba.com/leaguedashteamstats", "stats.nba.com/leaguedashplayerstats", "ESPN scoreboard"]
+      );
+    }
+  };
+}
+__name(createInsightsService, "createInsightsService");
 
 // src/modules/playoffs/service.ts
 var POSTSEASON_START_DATE = `${SEASON_END_YEAR}-04-14`;
@@ -19838,6 +20063,7 @@ function createServices(runtimeEnv, client = createNbaApiClient(fetch, runtimeEn
   return {
     client,
     home: createHomeService(deps),
+    insights: createInsightsService(deps),
     teams: createTeamsService(deps),
     players: createPlayersService(deps),
     standings: createStandingsService(deps),
@@ -19946,7 +20172,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-kQtiPQ/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-cDq3kP/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -19978,7 +20204,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-kQtiPQ/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-cDq3kP/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

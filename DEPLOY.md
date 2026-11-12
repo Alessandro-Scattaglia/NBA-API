@@ -26,6 +26,7 @@ Con il preview aperto, verificare:
 - home;
 - `/NBA-API/standings`;
 - `/NBA-API/players`;
+- `/NBA-API/insights`;
 - una pagina di dettaglio giocatore o squadra;
 - layout su larghezza desktop, tablet e telefono;
 - refresh diretto delle pagine interne.
@@ -70,6 +71,7 @@ In un secondo terminale controllare almeno:
 curl http://127.0.0.1:4001/api/health
 curl http://127.0.0.1:4001/api/standings
 curl http://127.0.0.1:4001/api/players
+curl http://127.0.0.1:4001/api/insights
 ```
 
 Se i controlli sono corretti, pubblicare il Worker:
@@ -88,6 +90,7 @@ Usare l'URL realmente stampato da Wrangler per verificare le API pubbliche:
 curl https://<worker-pubblico>/api/health
 curl https://<worker-pubblico>/api/standings
 curl https://<worker-pubblico>/api/players
+curl https://<worker-pubblico>/api/insights
 ```
 
 Poi fare commit e push:
@@ -135,8 +138,8 @@ Usare questo ordine:
    npm run deploy --workspace backend
    ```
 
-5. Verificare l'URL pubblico del Worker con `/api/health`, `/api/standings` e
-   `/api/players`.
+5. Verificare l'URL pubblico del Worker con `/api/health`, `/api/standings`,
+   `/api/players` e `/api/insights`.
 
 6. Controllare che il secret GitHub Actions `VITE_API_BASE_URL` contenga
    esattamente l'URL pubblico del Worker, incluso `https://`.
@@ -189,4 +192,5 @@ Dopo il push:
 - [ ] sito pubblico aperto
 - [ ] refresh diretto di `/NBA-API/standings`
 - [ ] refresh diretto di `/NBA-API/players`
+- [ ] verifica della pagina Analisi e dell'endpoint `/api/insights`
 - [ ] verifica di una pagina dettaglio

@@ -51,6 +51,20 @@ function getString(row: StatsRow, keys: string[], fallback = "") {
   return fallback;
 }
 
+function getOptionalNumber(row: StatsRow, keys: string[], multiplier = 1) {
+  for (const key of keys) {
+    const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    const value = actualKey ? row[actualKey] : undefined;
+
+    if (value !== undefined && value !== null && value !== "") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? round(parsed * multiplier) : null;
+    }
+  }
+
+  return null;
+}
+
 function resolveTeamReference(teamId: number, code = ""): TeamReference | null {
   const team = getTeamIdentity(teamId);
   if (!team) {
@@ -850,24 +864,38 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
 }
 
 export async function loadTeamStats(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("team-stats-dataset", TTL.stats, async () => {
-    const response = await deps.client.getLeagueDashTeamStats();
-    const rows = mapStatsRows<StatsRow>(response);
+  return getCache(deps).getOrLoad("team-stats-dataset:v2", TTL.stats, async () => {
+    const [baseResult, advancedResult] = await Promise.allSettled([
+      deps.client.getLeagueDashTeamStats("Base"),
+      deps.client.getLeagueDashTeamStats("Advanced")
+    ]);
+    const baseRows = baseResult.status === "fulfilled" ? mapStatsRows<StatsRow>(baseResult.value) : [];
+    const advancedRows = advancedResult.status === "fulfilled" ? mapStatsRows<StatsRow>(advancedResult.value) : [];
+    const rows = baseRows.length > 0 ? baseRows : advancedRows;
+    const advancedByTeamId = new Map(
+      advancedRows.map((row) => [getNumber(row, ["TEAM_ID"]), row])
+    );
 
     return new Map<number, TeamSeasonStats>(
       rows.map((row) => {
         const teamId = getNumber(row, ["TEAM_ID"]);
+        const advancedRow = advancedByTeamId.get(teamId) ?? {};
+        const pointsPerGame = getNumber(row, ["PTS"]);
+        const plusMinus = getOptionalNumber(row, ["PLUS_MINUS"]);
+        const opponentPointsPerGame =
+          getOptionalNumber(row, ["OPP_PTS"]) ??
+          (plusMinus !== null ? round(pointsPerGame - plusMinus) : 0);
         const values: TeamSeasonStats = {
-          pointsPerGame: round(getNumber(row, ["PTS"])),
-          opponentPointsPerGame: round(getNumber(row, ["OPP_PTS"])),
+          pointsPerGame: round(pointsPerGame),
+          opponentPointsPerGame,
           reboundsPerGame: round(getNumber(row, ["REB"])),
           assistsPerGame: round(getNumber(row, ["AST"])),
-          netRating: row.NET_RATING !== undefined ? round(getNumber(row, ["NET_RATING"])) : null,
-          offensiveRating: row.OFF_RATING !== undefined ? round(getNumber(row, ["OFF_RATING"])) : null,
-          defensiveRating: row.DEF_RATING !== undefined ? round(getNumber(row, ["DEF_RATING"])) : null,
-          pace: row.PACE !== undefined ? round(getNumber(row, ["PACE"])) : null,
-          fgPct: row.FG_PCT !== undefined ? round(getNumber(row, ["FG_PCT"]) * 100, 1) : null,
-          threePct: row.FG3_PCT !== undefined ? round(getNumber(row, ["FG3_PCT"]) * 100, 1) : null
+          netRating: getOptionalNumber(advancedRow, ["NET_RATING"]),
+          offensiveRating: getOptionalNumber(advancedRow, ["OFF_RATING"]),
+          defensiveRating: getOptionalNumber(advancedRow, ["DEF_RATING"]),
+          pace: getOptionalNumber(advancedRow, ["PACE"]),
+          fgPct: getOptionalNumber(row, ["FG_PCT"], 100),
+          threePct: getOptionalNumber(row, ["FG3_PCT"], 100)
         };
 
         return [teamId, values];

@@ -410,6 +410,10 @@ export function createApiRouter(services: AppServices) {
     }
   });
 
+  router.get("/insights", async (c) => {
+    return c.json(await services.insights.getInsights());
+  });
+
   router.get("/teams", async (c) => {
     try {
       const seasonValue = requireValidSeason(c.req.query("season"));

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { DataStamp, EmptyState, ErrorState, PageHeader } from "../../components/common/States";
+import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
 import { formatDivision } from "../../lib/format";
@@ -45,6 +45,10 @@ export function TeamsPage() {
 
   if (query.error) {
     return <ErrorState message={query.error.message} />;
+  }
+
+  if (query.isLoading) {
+    return <LoadingState label="Sto caricando le squadre..." />;
   }
 
   if (!query.data) {

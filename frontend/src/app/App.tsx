@@ -4,6 +4,7 @@ import { AppShell } from "../components/layout/AppShell";
 import { CalendarPage } from "../pages/CalendarPage";
 import { GameDetailPage } from "../pages/GameDetailPage";
 import { HomePage } from "../pages/HomePage";
+import { InsightsPage } from "../pages/InsightsPage";
 import { LeadersPage } from "../pages/LeadersPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { PlayerDetailPage } from "../pages/PlayerDetailPage";
@@ -42,6 +43,7 @@ export function App() {
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/games/:gameId" element={<GameDetailPage />} />
             <Route path="/leaders" element={<LeadersPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

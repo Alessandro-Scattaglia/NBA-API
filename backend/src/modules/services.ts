@@ -4,6 +4,7 @@ import type { RuntimeEnv } from "../config/env.js";
 import { createCalendarService } from "./calendar/service.js";
 import { createGamesService } from "./games/service.js";
 import { createHomeService } from "./home/service.js";
+import { createInsightsService } from "./insights/service.js";
 import { createLeadersService } from "./leaders/service.js";
 import { createPlayoffsService } from "./playoffs/service.js";
 import { createPlayersService } from "./players/service.js";
@@ -13,6 +14,7 @@ import { createTeamsService } from "./teams/service.js";
 export interface AppServices {
   client: NbaApiClient;
   home: ReturnType<typeof createHomeService>;
+  insights: ReturnType<typeof createInsightsService>;
   teams: ReturnType<typeof createTeamsService>;
   players: ReturnType<typeof createPlayersService>;
   standings: ReturnType<typeof createStandingsService>;
@@ -34,6 +36,7 @@ export function createServices(runtimeEnv?: RuntimeEnv, client: NbaApiClient = c
   return {
     client,
     home: createHomeService(deps),
+    insights: createInsightsService(deps),
     teams: createTeamsService(deps),
     players: createPlayersService(deps),
     standings: createStandingsService(deps),
