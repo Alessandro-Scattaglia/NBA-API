@@ -139,15 +139,13 @@ export function PlayerDetailPage() {
                     <th>Rimbalzi</th>
                     <th>Assist</th>
                     <th>Min</th>
-                    <th>Rec</th>
-                    <th>Stoppate</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.recentGames.map((game: PlayerRecentGame) => (
                     <tr key={game.gameId}>
-                      <td>{formatDate(game.gameDate)}</td>
-                      <td>{formatMatchup(game.matchup)}</td>
+                      <td><Link to={`/games/${game.gameId}`}>{formatDate(game.gameDate)}</Link></td>
+                      <td><Link to={`/games/${game.gameId}`}>{formatMatchup(game.matchup)}</Link></td>
                       <td>
                         <span
                           className={`result-pill ${
@@ -165,8 +163,6 @@ export function PlayerDetailPage() {
                       <td>{game.rebounds}</td>
                       <td>{game.assists}</td>
                       <td>{game.minutes}</td>
-                      <td>{game.steals}</td>
-                      <td>{game.blocks}</td>
                     </tr>
                   ))}
                 </tbody>

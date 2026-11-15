@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { apiGet } from "../../lib/api";
+import { apiGet, apiPost } from "../../lib/api";
 import type { HomeResponse } from "../../lib/types";
 import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
@@ -12,13 +12,30 @@ import type { StandingsResponse } from "../../lib/types";
 import "./HomePage.css";
 
 export function HomePage() {
+  const queryClient = useQueryClient();
   const homeQuery = useQuery({
     queryKey: ["home"],
-    queryFn: () => apiGet<HomeResponse>("/api/home")
+    queryFn: () => apiGet<HomeResponse>("/api/home"),
+    refetchInterval: 60_000
   });
   const standingsQuery = useQuery({
     queryKey: ["standings"],
     queryFn: () => apiGet<StandingsResponse>("/api/standings")
+  });
+  const refreshMutation = useMutation({
+    mutationFn: () => apiPost<{ status: string }>("/api/refresh"),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["home"] }),
+        queryClient.invalidateQueries({ queryKey: ["standings"] }),
+        queryClient.invalidateQueries({ queryKey: ["insights"] })
+      ]);
+      window.setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ["home"] });
+        void queryClient.invalidateQueries({ queryKey: ["standings"] });
+        void queryClient.invalidateQueries({ queryKey: ["insights"] });
+      }, 4000);
+    }
   });
 
   if (homeQuery.error) {
@@ -39,9 +56,21 @@ export function HomePage() {
       <PageHeader
         title="Home"
         description="Dati NBA aggiornati, classifica e partite in un'unica vista."
+        actions={
+          <button
+            type="button"
+            className="button-primary"
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
+          >
+            {refreshMutation.isPending ? "Aggiornamento..." : "Aggiorna dati"}
+          </button>
+        }
       />
 
       <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
+      {refreshMutation.isSuccess ? <div className="state-card state-card-success">Aggiornamento richiesto. I dati verranno ricaricati appena disponibili.</div> : null}
+      {refreshMutation.error ? <ErrorState message={refreshMutation.error.message} /> : null}
 
       <section className="home-standings-section">
         <div className="home-section-heading">

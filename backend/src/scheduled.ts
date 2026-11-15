@@ -1,6 +1,6 @@
 import { createRuntimeEnv, type WorkerEnv } from "./config/env.js";
 import { createServices } from "./modules/services.js";
-import { loadCalendarRange, loadPlayerCatalog, loadStandings } from "./modules/shared/datasets.js";
+import { loadCalendarRange, loadPlayerCatalog, loadStandings, loadTeamStats, loadTodayGames } from "./modules/shared/datasets.js";
 import { SEASON_END_DATE, SEASON_START_DATE } from "./config/season.js";
 import { getCurrentSeason } from "./config/season.js";
 
@@ -23,13 +23,13 @@ function getGameSignature(games: Array<{
   );
 }
 
-function getRecentDateRange(days: number) {
-  const today = new Date();
-  const from = new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: today.toISOString().slice(0, 10)
-  };
+function isItalianNightGameWindow(date = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome",
+    hour: "2-digit",
+    hour12: false
+  }).format(date));
+  return hour >= 0 && hour < 9;
 }
 
 export async function scheduled(_controller: ScheduledController, env: WorkerEnv) {
@@ -37,10 +37,12 @@ export async function scheduled(_controller: ScheduledController, env: WorkerEnv
   const deps = { client: services.client, cache: services.cache };
 
   if (_controller.cron === "*/2 * * * *") {
+    if (!isItalianNightGameWindow()) {
+      return;
+    }
     try {
-      const range = getRecentDateRange(14);
-      const recent = await loadCalendarRange(deps, range.from, range.to);
-      const signature = getGameSignature(recent.value);
+      const todayGames = await loadTodayGames(deps, true);
+      const signature = getGameSignature(todayGames.value);
       let previousSignature = lastStandingsGameSignature;
       if (env.NBA_CACHE) {
         previousSignature =
@@ -48,9 +50,13 @@ export async function scheduled(_controller: ScheduledController, env: WorkerEnv
           previousSignature;
       }
 
-      const hasResultToSync = recent.value.some((game) => game.status === "live" || game.status === "final");
+      const hasResultToSync = todayGames.value.some((game) => game.status === "live" || game.status === "final");
       if (signature !== previousSignature && hasResultToSync) {
-        await loadStandings(deps, true);
+        await Promise.allSettled([
+          loadStandings(deps, true),
+          loadTeamStats(deps, true),
+          loadPlayerCatalog(deps, true)
+        ]);
       }
 
       lastStandingsGameSignature = signature;
@@ -70,18 +76,22 @@ export async function scheduled(_controller: ScheduledController, env: WorkerEnv
   const refreshers =
     _controller.cron === "0 */6 * * *"
       ? [async () => {
-          const calendar = await loadCalendarRange(deps, SEASON_START_DATE, SEASON_END_DATE);
+          const calendar = await loadCalendarRange(deps, SEASON_START_DATE, SEASON_END_DATE, true);
           const signature = getGameSignature(calendar.value);
           const key = `standings:full-game-signature:${getCurrentSeason()}`;
           const previous = env.NBA_CACHE ? await env.NBA_CACHE.get<string>(key, "json") : null;
           if (previous !== signature && calendar.value.some((game) => game.status === "final")) {
-            await loadStandings(deps, true);
+            await Promise.allSettled([
+              loadStandings(deps, true),
+              loadTeamStats(deps, true),
+              loadPlayerCatalog(deps, true)
+            ]);
           }
           if (env.NBA_CACHE) {
             await env.NBA_CACHE.put(key, JSON.stringify(signature), { expirationTtl: 60 * 60 * 24 * 10 });
           }
         }]
-      : [() => loadStandings(deps), () => loadPlayerCatalog(deps)];
+      : [() => loadStandings(deps, true), () => loadPlayerCatalog(deps, true), () => loadTeamStats(deps, true)];
 
   const results = await Promise.allSettled(refreshers.map((refresh) => refresh()));
   results

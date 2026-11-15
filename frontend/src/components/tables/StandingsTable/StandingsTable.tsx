@@ -52,8 +52,6 @@ export function StandingsTable({
             <th>Squadra</th>
             <th>W</th>
             <th>L</th>
-            <th>GP</th>
-            <th>Rim.</th>
             <th>%</th>
             <th>Ult. 10</th>
             <th>Serie</th>
@@ -75,8 +73,6 @@ export function StandingsTable({
               </td>
               <td className="cell-win">{team.wins}</td>
               <td className="cell-loss">{team.losses}</td>
-              <td>{"gamesPlayed" in team ? team.gamesPlayed : team.wins + team.losses}</td>
-              <td>{"remainingGames" in team ? team.remainingGames : Math.max(82 - team.wins - team.losses, 0)}</td>
               <td>{formatPercentage(team.winPct)}</td>
               <td>
                 <span className="mini-record">{team.lastTen}</span>

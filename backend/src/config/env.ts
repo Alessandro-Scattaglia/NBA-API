@@ -14,11 +14,10 @@ export interface WorkerEnv {
   FRONTEND_ORIGIN?: string;
 }
 
+import { resolveSeason } from "./season.js";
+
 function getDefaultNbaSeason(date = new Date()) {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth() + 1;
-  const seasonStartYear = month >= 9 ? year : year - 1;
-  return `${seasonStartYear}-${String((seasonStartYear + 1) % 100).padStart(2, "0")}`;
+  return resolveSeason(date);
 }
 
 export interface RuntimeEnv {

@@ -4,7 +4,7 @@ import { formatGameDateLabel, formatGameStatusText, formatStatusLabel } from "..
 import { Badge } from "../../common/States";
 import "./GameList.css";
 
-export function GameList({ games }: { games: GameSummary[] }) {
+export function GameList({ games, teamId }: { games: GameSummary[]; teamId?: number }) {
   return (
     <div className="game-list">
       {games.map((game) => (
@@ -32,6 +32,11 @@ export function GameList({ games }: { games: GameSummary[] }) {
 
           <div className="game-card-meta">
             <span>{formatGameStatusText(game)}</span>
+            {teamId && game.status === "final" && game.homeTeam.score !== null && game.awayTeam.score !== null ? (
+              <span className={teamId === (game.homeTeam.score > game.awayTeam.score ? game.homeTeam.teamId : game.awayTeam.teamId) ? "result-pill result-pill-win" : "result-pill result-pill-loss"}>
+                {teamId === (game.homeTeam.score > game.awayTeam.score ? game.homeTeam.teamId : game.awayTeam.teamId) ? "W" : "L"}
+              </span>
+            ) : null}
           </div>
         </Link>
       ))}

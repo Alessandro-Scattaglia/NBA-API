@@ -812,8 +812,9 @@ export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
     : cacheStore.getOrLoad(key, TTL.standings, loader, true, (rows) => rows.length === TEAM_DIRECTORY.length);
 }
 
-export async function loadPlayerCatalog(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad(`players-catalog:${getCurrentSeason()}`, TTL.stats, async () => {
+export async function loadPlayerCatalog(deps: ServiceDeps, forceRefresh = false) {
+  const key = `players-catalog:${getCurrentSeason()}`;
+  const loader = async () => {
     const leagueLeadersRequest = deps.client.getLeagueLeaders
       ? deps.client.getLeagueLeaders("PTS")
       : Promise.reject(new Error("leagueleaders endpoint not available"));
@@ -1007,11 +1008,15 @@ export async function loadPlayerCatalog(deps: ServiceDeps) {
     return Array.from(mergedByPlayerId.values())
       .filter((player) => player.team !== null || player.averages !== null)
       .sort((left, right) => left.fullName.localeCompare(right.fullName));
-  });
+  };
+  return forceRefresh
+    ? getCache(deps).refresh(key, TTL.stats, loader, (players) => players.length > 0)
+    : getCache(deps).getOrLoad(key, TTL.stats, loader);
 }
 
-export async function loadTeamStats(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("team-stats-dataset:v2", TTL.stats, async () => {
+export async function loadTeamStats(deps: ServiceDeps, forceRefresh = false) {
+  const key = "team-stats-dataset:v2";
+  const loader = async () => {
     const [baseResult, advancedResult] = await Promise.allSettled([
       deps.client.getLeagueDashTeamStats("Base"),
       deps.client.getLeagueDashTeamStats("Advanced")
@@ -1048,7 +1053,10 @@ export async function loadTeamStats(deps: ServiceDeps) {
         return [teamId, values];
       })
     );
-  });
+  };
+  return forceRefresh
+    ? getCache(deps).refresh(key, TTL.stats, loader, (stats) => stats.size > 0)
+    : getCache(deps).getOrLoad(key, TTL.stats, loader);
 }
 
 function mapLiveGame(game: Record<string, unknown>): GameSummary {
@@ -1216,11 +1224,15 @@ export function resolveNbaGameId(canonicalId: string) {
   return nbaGameIdsByCanonicalId.get(canonicalId) ?? null;
 }
 
-export async function loadTodayGames(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("today-games", TTL.live, async () => {
+export async function loadTodayGames(deps: ServiceDeps, forceRefresh = false) {
+  const key = "today-games";
+  const loader = async () => {
     const response = (await deps.client.getLiveScoreboard()) as { scoreboard?: { games?: Array<Record<string, unknown>> } };
     return (response.scoreboard?.games ?? []).map((game) => mapLiveGame(game));
-  });
+  };
+  return forceRefresh
+    ? getCache(deps).refresh(key, TTL.live, loader, (games) => games.length > 0)
+    : getCache(deps).getOrLoad(key, TTL.live, loader, true, () => true);
 }
 
 export async function loadScheduleSnapshotGames(deps: ServiceDeps) {
@@ -1254,11 +1266,11 @@ export async function loadRecentGames(deps: ServiceDeps, days = 45) {
   }
 }
 
-export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string) {
+export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string, forceRefresh = false) {
   const range = clampToSeason(from, to);
   const key = `calendar:v3:${range.from}:${range.to}`;
 
-  return getCache(deps).getOrLoad(key, TTL.calendar, async () => {
+  const loader = async () => {
     let espnGames: GameSummary[] = [];
     try {
       const response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: unknown[] };
@@ -1281,25 +1293,35 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
       console.warn("[calendar] NBA CDN schedule failed.", error instanceof Error ? error.message : error);
     }
 
-    const buildMergeKey = (game: GameSummary) =>
-      `${game.dateTimeUtc.slice(0, 10)}:${[game.homeTeam.code, game.awayTeam.code].sort().join(":")}`;
-    const mergeGameData = (primary: GameSummary, secondary: GameSummary): GameSummary => ({
-      ...primary,
-      status: primary.status === "scheduled" && secondary.status !== "scheduled" ? secondary.status : primary.status,
-      statusText: primary.status === "scheduled" && secondary.status !== "scheduled" ? secondary.statusText : primary.statusText,
-      clock: primary.clock ?? secondary.clock,
-      period: primary.period ?? secondary.period,
-      homeTeam: {
-        ...primary.homeTeam,
-        score: primary.homeTeam.score ?? secondary.homeTeam.score,
-        record: primary.homeTeam.record ?? secondary.homeTeam.record
-      },
-      awayTeam: {
-        ...primary.awayTeam,
-        score: primary.awayTeam.score ?? secondary.awayTeam.score,
-        record: primary.awayTeam.record ?? secondary.awayTeam.record
-      }
-    });
+    const buildMergeKey = (game: GameSummary) => {
+      const teamIds = [game.homeTeam.teamId, game.awayTeam.teamId].filter((id) => id > 0).sort((a, b) => a - b);
+      const codes = [game.homeTeam.code, game.awayTeam.code].filter(Boolean).sort();
+      return `${getCalendarDate(game.dateTimeUtc)}:${teamIds.join(":") || codes.join(":")}`;
+    };
+    const mergeGameData = (primary: GameSummary, secondary: GameSummary): GameSummary => {
+      const statusRank = { scheduled: 0, live: 1, final: 2 } as const;
+      const secondaryIsMoreAdvanced = statusRank[secondary.status] > statusRank[primary.status];
+      const useSecondaryStatus = secondaryIsMoreAdvanced;
+      const useSecondaryScores = secondary.status === "final" && primary.status !== "final";
+
+      return {
+        ...primary,
+        status: useSecondaryStatus ? secondary.status : primary.status,
+        statusText: useSecondaryStatus ? secondary.statusText : primary.statusText,
+        clock: useSecondaryScores ? secondary.clock : primary.clock ?? secondary.clock,
+        period: useSecondaryScores ? secondary.period : primary.period ?? secondary.period,
+        homeTeam: {
+          ...primary.homeTeam,
+          score: useSecondaryScores ? secondary.homeTeam.score : primary.homeTeam.score ?? secondary.homeTeam.score,
+          record: primary.homeTeam.record ?? secondary.homeTeam.record
+        },
+        awayTeam: {
+          ...primary.awayTeam,
+          score: useSecondaryScores ? secondary.awayTeam.score : primary.awayTeam.score ?? secondary.awayTeam.score,
+          record: primary.awayTeam.record ?? secondary.awayTeam.record
+        }
+      };
+    };
     const cdnByKey = new Map(cdnGames.map((game) => [buildMergeKey(game), game]));
     const merged = espnGames.length > 0
       ? espnGames.map((game) => mergeGameData(game, cdnByKey.get(buildMergeKey(game)) ?? game))
@@ -1310,7 +1332,10 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
     }
 
     return merged.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
-  }, true, (games) => games.length > 0);
+  };
+  return forceRefresh
+    ? getCache(deps).refresh(key, TTL.calendar, loader, (games) => games.length > 0)
+    : getCache(deps).getOrLoad(key, TTL.calendar, loader, true, (games) => games.length > 0);
 }
 
 export function splitByConference(rows: StandingsRow[]) {

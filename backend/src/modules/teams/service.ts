@@ -114,6 +114,14 @@ function buildRecentGamesFromSchedule(teamId: number, scheduleGames: GameSummary
     .slice(0, 5);
 }
 
+function buildUpcomingGamesFromSchedule(teamId: number, scheduleGames: GameSummary[]) {
+  return scheduleGames
+    .filter((game) => game.status === "scheduled")
+    .filter((game) => game.homeTeam.teamId === teamId || game.awayTeam.teamId === teamId)
+    .sort((left, right) => Date.parse(left.dateTimeUtc) - Date.parse(right.dateTimeUtc))
+    .slice(0, 5);
+}
+
 function mergeUniqueRecentGames(primary: GameSummary[], fallback: GameSummary[]) {
   const byGameId = new Map<string, GameSummary>();
 
@@ -244,6 +252,7 @@ export function createTeamsService(deps: ServiceDeps) {
         const recentGamesFromSchedule = buildRecentGamesFromSchedule(teamId, scheduleGames);
         const recentGamesFromLog = mapRecentGames(teamId, recentRows, scheduleByGameId);
         const recentGames = mergeUniqueRecentGames(recentGamesFromSchedule, recentGamesFromLog);
+        const upcomingGames = buildUpcomingGamesFromSchedule(teamId, scheduleGames);
 
         return {
           ...base,
@@ -252,7 +261,8 @@ export function createTeamsService(deps: ServiceDeps) {
           coaches: [String(teamInfo.HEADCOACH ?? teamInfo.HEAD_COACH ?? "")].filter(Boolean),
           stats: teamStatsResult.status === "fulfilled" ? teamStatsResult.value.value.get(teamId) ?? null : null,
           roster,
-          recentGames
+          recentGames,
+          upcomingGames
         } satisfies TeamDetail;
       });
 

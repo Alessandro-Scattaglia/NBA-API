@@ -148,17 +148,17 @@ export function createInsightsService(deps: ServiceDeps) {
         return metric && metric.games > 0 ? metric.pointsAgainst / metric.games : 0;
       };
       const getAttackValue = (team: TeamSummary) =>
-        getTeamMetric(team, teamStats, "offensiveRating", 0) || getRecentAttack(team) || 0;
+        getTeamMetric(team, teamStats, "pointsPerGame", 0) || getTeamMetric(team, teamStats, "offensiveRating", 0) || getRecentAttack(team) || 0;
       const getDefenseValue = (team: TeamSummary) =>
-        getTeamMetric(team, teamStats, "defensiveRating", 0) || getRecentDefense(team) || 0;
+        getTeamMetric(team, teamStats, "defensiveRating", 0) || getTeamMetric(team, teamStats, "opponentPointsPerGame", 0) || getRecentDefense(team) || 0;
       const getAttackLabel = (team: TeamSummary) =>
-        getTeamMetric(team, teamStats, "offensiveRating", 0) > 0
-          ? "offensive rating"
-          : "punti segnati nelle ultime 45 giornate";
+        getTeamMetric(team, teamStats, "pointsPerGame", 0) > 0
+          ? "punti segnati per partita"
+          : getTeamMetric(team, teamStats, "offensiveRating", 0) > 0 ? "offensive rating" : "punti segnati nelle ultime 45 giornate";
       const getDefenseLabel = (team: TeamSummary) =>
         getTeamMetric(team, teamStats, "defensiveRating", 0) > 0
           ? "defensive rating"
-          : "punti subiti nelle ultime 45 giornate";
+          : getTeamMetric(team, teamStats, "opponentPointsPerGame", 0) > 0 ? "punti subiti per partita" : "punti subiti nelle ultime 45 giornate";
       const teamFormRanking = teams
         .slice()
         .sort((left, right) => {

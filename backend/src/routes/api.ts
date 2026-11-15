@@ -278,7 +278,8 @@ function buildFallbackTeamDetailEnvelope(teamId: number): ApiEnvelope<TeamDetail
       coaches: [],
       stats: null,
       roster: [],
-      recentGames: []
+      recentGames: [],
+      upcomingGames: []
     },
     meta: getFallbackMeta()
   };
@@ -373,16 +374,11 @@ export function createApiRouter(services: AppServices) {
 
   router.get("/seasons", (c) => {
     const season = getCurrentSeason();
-    const currentYear = Number(season.slice(0, 4));
-    const seasons = Array.from({ length: 6 }, (_, index) => {
-      const startYear = currentYear - index;
-      return `${startYear}-${String(startYear + 1).slice(-2).padStart(2, "0")}`;
-    });
 
     return c.json({
       data: {
         current: season,
-        supported: seasons,
+        supported: [season],
         phase: "regular-season",
         timestamp: new Date().toISOString()
       },
@@ -409,6 +405,25 @@ export function createApiRouter(services: AppServices) {
     } catch (error) {
       throw error;
     }
+  });
+
+  router.post("/refresh", async (c) => {
+    const result = await services.refresh.request();
+    if (result.task) {
+      c.executionCtx.waitUntil(result.task.catch(() => undefined));
+    }
+
+    if (result.status === "cooldown") {
+      return c.json({
+        data: { status: result.status, remainingSeconds: result.remainingSeconds },
+        meta: buildApiMeta(getCurrentSeason(), false)
+      }, 429);
+    }
+
+    return c.json({
+      data: { status: result.status },
+      meta: buildApiMeta(getCurrentSeason(), false)
+    }, result.status === "accepted" ? 202 : 200);
   });
 
   router.get("/insights", async (c) => {

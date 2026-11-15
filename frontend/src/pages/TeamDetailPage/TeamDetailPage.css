@@ -25,6 +25,15 @@
   color: var(--ink-soft);
 }
 
+.team-detail-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.team-games-grid {
+  align-items: start;
+}
+
 @media (max-width: 720px) {
   .team-detail-hero {
     align-items: flex-start;

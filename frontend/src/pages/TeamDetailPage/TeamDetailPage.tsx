@@ -56,26 +56,17 @@ export function TeamDetailPage() {
 
       <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
 
-      <div className="stats-grid">
-        <div className="stat-box">
-          <span>Arena</span>
-          <strong>{data.arena ?? "--"}</strong>
-        </div>
-        <div className="stat-box">
-          <span>Allenatore</span>
-          <strong>{data.coaches[0] ?? "--"}</strong>
-        </div>
-        <div className="stat-box">
-          <span>Anno di fondazione</span>
-          <strong>{data.foundedYear ?? "--"}</strong>
-        </div>
+      {(data.arena || data.coaches.length > 0 || data.foundedYear) ? <div className="stats-grid">
+        {data.arena ? <div className="stat-box"><span>Arena</span><strong>{data.arena}</strong></div> : null}
+        {data.coaches.length > 0 ? <div className="stat-box"><span>Allenatore</span><strong>{data.coaches[0]}</strong></div> : null}
+        {data.foundedYear ? <div className="stat-box"><span>Anno di fondazione</span><strong>{data.foundedYear}</strong></div> : null}
         <div className="stat-box">
           <span>Casa / trasferta</span>
           <strong>
             {data.homeRecord} · {data.awayRecord}
           </strong>
         </div>
-      </div>
+      </div> : null}
 
       {data.stats ? (
         <SurfaceCard title="Statistiche di squadra">
@@ -108,7 +99,7 @@ export function TeamDetailPage() {
         </SurfaceCard>
       ) : null}
 
-      <div className="grid-2">
+      <div className="team-detail-sections">
         <SurfaceCard title="Rosa">
           {data.roster.length > 0 ? (
             <div className="entity-grid">
@@ -135,9 +126,14 @@ export function TeamDetailPage() {
           )}
         </SurfaceCard>
 
-        <SurfaceCard title="Ultime partite">
-          {data.recentGames.length > 0 ? <GameList games={data.recentGames} /> : <EmptyState label="Nessuna partita recente disponibile." />}
+        <div className="grid-2 team-games-grid">
+        <SurfaceCard title="Ultime 5 partite">
+          {data.recentGames.length > 0 ? <GameList games={data.recentGames} teamId={data.teamId} /> : <EmptyState label="Nessuna partita recente disponibile." />}
         </SurfaceCard>
+        <SurfaceCard title="Prossime 5 partite">
+          {data.upcomingGames.length > 0 ? <GameList games={data.upcomingGames} teamId={data.teamId} /> : <EmptyState label="Nessuna partita programmata disponibile." />}
+        </SurfaceCard>
+        </div>
       </div>
     </>
   );

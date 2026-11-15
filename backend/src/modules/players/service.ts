@@ -106,7 +106,7 @@ export function createPlayersService(deps: ServiceDeps) {
             gameId: String(row.GAME_ID ?? ""),
             gameDate: new Date(String(row.GAME_DATE ?? new Date().toISOString())).toISOString(),
             matchup: String(row.MATCHUP ?? ""),
-            result: String(row.WL ?? ""),
+            result: String(row.WL ?? "").trim().toUpperCase() === "W" ? "W" : String(row.WL ?? "").trim().toUpperCase() === "L" ? "L" : "",
             minutes: round(safeNumber(row.MIN)),
             points: safeNumber(row.PTS),
             rebounds: safeNumber(row.REB),

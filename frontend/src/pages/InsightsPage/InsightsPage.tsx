@@ -8,6 +8,7 @@ import type { InsightGame, InsightPlayer, InsightTeam, InsightsResponse } from "
 import "./InsightsPage.css";
 
 function TeamInsightCard({ title, insight }: { title: string; insight: InsightTeam | null }) {
+  if (!insight) return null;
   if (!insight) {
     return <SurfaceCard title={title}><EmptyState label="Dato non disponibile." /></SurfaceCard>;
   }
@@ -29,6 +30,7 @@ function TeamInsightCard({ title, insight }: { title: string; insight: InsightTe
 }
 
 function PlayerInsightCard({ insight }: { insight: InsightPlayer | null }) {
+  if (!insight) return null;
   if (!insight) {
     return <SurfaceCard title="Giocatore più caldo"><EmptyState label="Dato non disponibile." /></SurfaceCard>;
   }

@@ -18,7 +18,7 @@ function game(
   return {
     gameId: `test-${index}`,
     gameCode: null,
-    dateTimeUtc: `2026-11-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+    dateTimeUtc: new Date(Date.UTC(2026, 10, 1 + index)).toISOString(),
     dateLabel: "",
     status,
     statusText: status,
@@ -59,5 +59,53 @@ describe("standings schedule fallback", () => {
     expect(team.awayRecord).toBe("0-0");
     expect(team.lastTen).toBe("1-0");
     expect(team.streak).toBe("W1");
+  });
+
+  it("calculates Ult. 10 from the away team's perspective", () => {
+    const target = TEAM_DIRECTORY[0];
+    const opponent = TEAM_DIRECTORY[1];
+    const schedule = [
+      ...completeSchedule(),
+      game(30, opponent.teamId, target.teamId, 90, 100, "final", "1-1", "2-0"),
+      game(31, target.teamId, opponent.teamId, 90, 100, "final", "2-1", "2-1")
+    ];
+    const row = buildStandingsFromScheduleSnapshot(schedule)!.find((item) => item.teamId === target.teamId)!;
+
+    expect(row.lastTen).toBe("2-1");
+  });
+
+  it("calculates an away loss as a loss for the selected team", () => {
+    const target = TEAM_DIRECTORY[0];
+    const opponent = TEAM_DIRECTORY[1];
+    const schedule = [...completeSchedule(), game(30, opponent.teamId, target.teamId, 100, 90, "final", "2-0", "1-1")];
+    const row = buildStandingsFromScheduleSnapshot(schedule)!.find((item) => item.teamId === target.teamId)!;
+
+    expect(row.lastTen).toBe("1-1");
+  });
+
+  it("uses only available completed games and excludes scheduled games", () => {
+    const target = TEAM_DIRECTORY[0];
+    const opponent = TEAM_DIRECTORY[1];
+    const schedule = [
+      ...completeSchedule(),
+      game(30, opponent.teamId, target.teamId, 90, 100, "final", "1-1", "2-0"),
+      game(31, target.teamId, opponent.teamId, null, null, "scheduled", "2-1", "2-1")
+    ];
+    const row = buildStandingsFromScheduleSnapshot(schedule)!.find((item) => item.teamId === target.teamId)!;
+
+    expect(row.lastTen).toBe("2-0");
+  });
+
+  it("does not count a game twice for one team", () => {
+    const target = TEAM_DIRECTORY[0];
+    const opponent = TEAM_DIRECTORY[1];
+    const schedule = [
+      ...completeSchedule(),
+      game(30, opponent.teamId, target.teamId, 90, 100, "final", "1-1", "2-0")
+    ];
+    const row = buildStandingsFromScheduleSnapshot(schedule)!.find((item) => item.teamId === target.teamId)!;
+
+    expect(row.gamesPlayed).toBe(2);
+    expect(row.lastTen).toBe("2-0");
   });
 });

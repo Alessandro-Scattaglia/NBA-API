@@ -60,6 +60,7 @@ export interface TeamDetail extends TeamSummary {
   stats: TeamSeasonStats | null;
   roster: TeamRosterPlayer[];
   recentGames: GameSummary[];
+  upcomingGames: GameSummary[];
 }
 
 export interface StandingsRow extends TeamSummary {

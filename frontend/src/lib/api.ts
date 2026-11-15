@@ -65,3 +65,26 @@ export async function apiGet<T>(path: string): Promise<ApiEnvelope<T>> {
 
   return payload;
 }
+
+export async function apiPost<T>(path: string): Promise<ApiEnvelope<T>> {
+  const finalPath = `${apiBaseUrl}${normalizePath(path)}`;
+  let response: Response;
+
+  try {
+    response = await fetch(finalPath, { method: "POST" });
+  } catch {
+    throw new Error("Backend locale non raggiungibile su http://127.0.0.1:4001");
+  }
+
+  const payload = await readJsonSafely<ApiEnvelope<T> & { data?: { remainingSeconds?: number } }>(response);
+  if (!response.ok) {
+    const remaining = payload?.data?.remainingSeconds;
+    throw new Error(remaining ? `Aggiornamento già eseguito. Riprova tra ${remaining} secondi.` : `Errore API ${response.status}`);
+  }
+
+  if (!payload) {
+    throw new Error("Risposta API vuota dal backend locale");
+  }
+
+  return payload;
+}

@@ -10,6 +10,7 @@ import { createPlayoffsService } from "./playoffs/service.js";
 import { createPlayersService } from "./players/service.js";
 import { createStandingsService } from "./standings/service.js";
 import { createTeamsService } from "./teams/service.js";
+import { createRefreshService } from "./refresh/service.js";
 
 export interface AppServices {
   client: NbaApiClient;
@@ -22,6 +23,7 @@ export interface AppServices {
   calendar: ReturnType<typeof createCalendarService>;
   games: ReturnType<typeof createGamesService>;
   leaders: ReturnType<typeof createLeadersService>;
+  refresh: ReturnType<typeof createRefreshService>;
   cache: MemoryCache;
 }
 
@@ -44,6 +46,7 @@ export function createServices(runtimeEnv?: RuntimeEnv, client: NbaApiClient = c
     calendar: createCalendarService(deps),
     games: createGamesService(deps),
     leaders: createLeadersService(deps),
+    refresh: createRefreshService(deps),
     cache: serviceCache
   };
 }
