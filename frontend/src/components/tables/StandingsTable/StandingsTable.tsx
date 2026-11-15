@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { TeamSummary } from "../../../lib/types";
+import type { StandingsRow, TeamSummary } from "../../../lib/types";
 import { formatPercentage, formatPlayoffStatus } from "../../../lib/format";
 import { Badge } from "../../common/States";
 import "./StandingsTable.css";
@@ -36,7 +36,13 @@ function getStatusTone(status: TeamSummary["playoffStatus"]) {
   return "neutral" as const;
 }
 
-export function StandingsTable({ teams, showStatus = true }: { teams: TeamSummary[]; showStatus?: boolean }) {
+export function StandingsTable({
+  teams,
+  showStatus = true
+}: {
+  teams: Array<StandingsRow | TeamSummary>;
+  showStatus?: boolean;
+}) {
   return (
     <div className={`table-wrap standings-table-wrap ${showStatus ? "" : "standings-table-wrap-no-status"}`}>
       <table className={`standings-table standings-table-rich ${showStatus ? "" : "standings-table-no-status"}`}>
@@ -46,6 +52,8 @@ export function StandingsTable({ teams, showStatus = true }: { teams: TeamSummar
             <th>Squadra</th>
             <th>W</th>
             <th>L</th>
+            <th>GP</th>
+            <th>Rim.</th>
             <th>%</th>
             <th>Ult. 10</th>
             <th>Serie</th>
@@ -67,6 +75,8 @@ export function StandingsTable({ teams, showStatus = true }: { teams: TeamSummar
               </td>
               <td className="cell-win">{team.wins}</td>
               <td className="cell-loss">{team.losses}</td>
+              <td>{"gamesPlayed" in team ? team.gamesPlayed : team.wins + team.losses}</td>
+              <td>{"remainingGames" in team ? team.remainingGames : Math.max(82 - team.wins - team.losses, 0)}</td>
               <td>{formatPercentage(team.winPct)}</td>
               <td>
                 <span className="mini-record">{team.lastTen}</span>

@@ -27,7 +27,12 @@ export function createStandingsService(deps: ServiceDeps) {
           "stats.nba.com/leaguestandings",
           "stats.nba.com/playoffpicture",
           "cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json"
-        ]
+        ],
+        {
+          season: getCurrentSeason(),
+          lastSuccessfulSync: standingsState.stale ? undefined : standingsState.updatedAt,
+          dataStatus: standingsState.stale ? "stale" : "updated"
+        }
       );
     }
   };

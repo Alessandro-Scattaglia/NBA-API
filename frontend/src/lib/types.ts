@@ -2,8 +2,11 @@ export interface ApiEnvelope<T> {
   data: T;
   meta: {
     updatedAt: string;
+    lastSuccessfulSync?: string;
     stale: boolean;
     source: string[];
+    season?: string;
+    dataStatus?: "updated" | "stale" | "error" | "partial";
   };
 }
 
@@ -82,6 +85,7 @@ export interface StandingsRow extends TeamSummary {
   seed: number;
   gamesPlayed: number;
   remainingGames: number;
+  divisionRank: number;
 }
 
 export interface PlayerAverageLine {

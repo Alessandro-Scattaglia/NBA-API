@@ -94,6 +94,7 @@ function buildFallbackConferenceRows(conference: "East" | "West") {
         winPct: 0,
         gamesBehind: conferenceRank === 1 ? 0 : 0,
         conferenceRank,
+        divisionRank: index + 1,
         homeRecord: "--",
         awayRecord: "--",
         lastTen: "--",

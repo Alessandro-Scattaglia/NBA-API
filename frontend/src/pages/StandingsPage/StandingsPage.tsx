@@ -9,7 +9,8 @@ import "./StandingsPage.css";
 export function StandingsPage() {
   const query = useQuery({
     queryKey: ["standings"],
-    queryFn: () => apiGet<StandingsResponse>("/api/standings")
+    queryFn: () => apiGet<StandingsResponse>("/api/standings"),
+    refetchInterval: 120_000
   });
 
   if (query.error) {
@@ -32,7 +33,7 @@ export function StandingsPage() {
         title="Classifica"
         description="Tabelle Est e Ovest con posizione, stato playoff/play-in, serie aperta e note sul formato della postseason."
       />
-      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
+      <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} dataStatus={meta.dataStatus} />
 
       <div className="conference-stack standings-conference-stack">
         <div className="conference-pane">

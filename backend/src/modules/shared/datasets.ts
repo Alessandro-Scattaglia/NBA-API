@@ -86,7 +86,7 @@ function resolveTeamReference(teamId: number, code = ""): TeamReference | null {
   };
 }
 
-function derivePlayoffStatus(conferenceRank: number): PlayoffStatus {
+export function derivePlayoffStatus(conferenceRank: number): PlayoffStatus {
   if (conferenceRank <= 6) {
     return "playoff";
   }
@@ -137,10 +137,11 @@ function mapStandingsRow(row: StatsRow, playoffRow?: StatsRow): StandingsRow | n
     wins,
     losses,
     gamesPlayed,
-    remainingGames: getNumber(row, ["REMAINING_G"], Math.max(82 - gamesPlayed, 0)),
-    winPct: round(getNumber(row, ["WinPCT", "WIN_PCT", "WINPCT", "PCT"])),
+    remainingGames: Math.max(82 - gamesPlayed, 0),
+    winPct: gamesPlayed > 0 ? wins / gamesPlayed : 0,
     gamesBehind: round(getNumber(row, ["ConferenceGamesBack", "GB", "CONF_GB"]), 1),
     conferenceRank,
+    divisionRank: getNumber(row, ["DivisionRank", "DIV_RANK", "DIVISION_RANK"], 99),
     homeRecord: getString(row, ["HOME", "HomeRecord"], "--"),
     awayRecord: getString(row, ["ROAD", "AWAY", "RoadRecord"], "--"),
     lastTen: getString(row, ["L10", "LastTen"], "--"),
@@ -237,7 +238,7 @@ function buildConferenceRows(
         return left.losses - right.losses;
       }
 
-      return left.team.name.localeCompare(right.team.name);
+      return 0;
     });
 
   const leader = teams[0] ?? null;
@@ -255,12 +256,13 @@ function buildConferenceRows(
       losses: entry.losses,
       gamesPlayed,
       remainingGames: Math.max(82 - gamesPlayed, 0),
-      winPct: gamesPlayed > 0 ? round(entry.wins / gamesPlayed, 3) : 0,
+      winPct: gamesPlayed > 0 ? entry.wins / gamesPlayed : 0,
       gamesBehind:
         conferenceRank === 1
           ? 0
           : round((leaderWins - entry.wins + entry.losses - leaderLosses) / 2, 1),
       conferenceRank,
+      divisionRank: 0,
       homeRecord: "--",
       awayRecord: "--",
       lastTen: "--",
@@ -273,7 +275,14 @@ function buildConferenceRows(
   });
 }
 
-function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
+export function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]): StandingsRow[] | null {
+  const completedGames = scheduleGames.filter(
+    (game) => game.status === "final" && game.homeTeam.score !== null && game.awayTeam.score !== null
+  );
+  if (completedGames.length === 0) {
+    return null;
+  }
+
   const recordsByTeamId = new Map<number, TeamRecordSnapshot>();
 
   for (const game of scheduleGames) {
@@ -286,6 +295,10 @@ function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
     if (awayRecord) {
       upsertLatestRecord(recordsByTeamId, game.awayTeam.teamId, awayRecord, game.dateTimeUtc);
     }
+  }
+
+  if (recordsByTeamId.size !== TEAM_DIRECTORY.length) {
+    return null;
   }
 
   const rows = [...buildConferenceRows("East", recordsByTeamId), ...buildConferenceRows("West", recordsByTeamId)];
@@ -303,7 +316,7 @@ function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
     }
   }
 
-  return rows.map((row) => {
+  const rowsWithDivisionRanks = rows.map((row) => {
     const games = (gamesByTeam.get(row.teamId) ?? [])
       .sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc));
     const outcomes = games.map((game) => {
@@ -321,12 +334,129 @@ function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[]) {
       streakLength += 1;
     }
 
+    const homeGames = games.filter((game) => game.homeTeam.teamId === row.teamId);
+    const awayGames = games.filter((game) => game.awayTeam.teamId === row.teamId);
+    const formatRecord = (teamGames: GameSummary[]) => {
+      const wins = teamGames.filter((game) => {
+        const own = game.homeTeam.teamId === row.teamId ? game.homeTeam.score : game.awayTeam.score;
+        const opponent = game.homeTeam.teamId === row.teamId ? game.awayTeam.score : game.homeTeam.score;
+        return own !== null && opponent !== null && own > opponent;
+      }).length;
+      return `${wins}-${teamGames.length - wins}`;
+    };
+    const remainingGames = scheduleGames.filter(
+      (game) =>
+        game.status !== "final" &&
+        (game.homeTeam.teamId === row.teamId || game.awayTeam.teamId === row.teamId)
+    ).length;
+
     return {
       ...row,
+      remainingGames,
+      homeRecord: formatRecord(homeGames),
+      awayRecord: formatRecord(awayGames),
       lastTen: outcomes.length > 0 ? `${wins}-${losses}` : row.lastTen,
       streak: streakOutcome ? `${streakOutcome}${streakLength}` : row.streak
     };
   });
+
+  const rankedRows = assignDivisionRanks(rowsWithDivisionRanks);
+  return (['East', 'West'] as const).flatMap((conference) =>
+    rankedRows
+      .filter((row) => row.conference === conference)
+      .sort((left, right) => compareFallbackStandings(left, right, scheduleGames))
+      .map((row, index) => ({
+        ...row,
+        conferenceRank: index + 1,
+        seed: index + 1,
+        playoffStatus: derivePlayoffStatus(index + 1)
+      }))
+  );
+}
+
+function assignDivisionRanks(rows: StandingsRow[]) {
+  for (const conference of ["East", "West"] as const) {
+    const divisionGroups = new Map<string, StandingsRow[]>();
+    for (const row of rows.filter((candidate) => candidate.conference === conference)) {
+      const group = divisionGroups.get(row.division) ?? [];
+      group.push(row);
+      divisionGroups.set(row.division, group);
+    }
+    for (const divisionRows of divisionGroups.values()) {
+      divisionRows
+        .sort((left, right) => right.winPct - left.winPct || right.wins - left.wins || left.losses - right.losses)
+        .forEach((row, index) => {
+          if (row.divisionRank <= 0 || row.divisionRank >= 99) {
+            row.divisionRank = index + 1;
+          }
+        });
+    }
+  }
+  return rows;
+}
+
+function compareFallbackStandings(left: StandingsRow, right: StandingsRow, games: GameSummary[]) {
+  if (left.winPct !== right.winPct) return right.winPct - left.winPct;
+
+  const completed = games.filter((game) => game.status === "final" && game.homeTeam.score !== null && game.awayTeam.score !== null);
+  const headToHead = (teamId: number, opponentId: number) => {
+    let wins = 0;
+    let losses = 0;
+    for (const game of completed) {
+      if (!((game.homeTeam.teamId === teamId && game.awayTeam.teamId === opponentId) ||
+        (game.homeTeam.teamId === opponentId && game.awayTeam.teamId === teamId))) continue;
+      const own = game.homeTeam.teamId === teamId ? game.homeTeam.score : game.awayTeam.score;
+      const other = game.homeTeam.teamId === teamId ? game.awayTeam.score : game.homeTeam.score;
+      if (own! > other!) wins += 1;
+      else losses += 1;
+    }
+    return wins - losses;
+  };
+
+  const h2h = headToHead(left.teamId, right.teamId);
+  if (h2h !== 0) return h2h > 0 ? -1 : 1;
+
+  if (left.division !== right.division) {
+    const leftDivisionBest = left.divisionRank === 1;
+    const rightDivisionBest = right.divisionRank === 1;
+    if (leftDivisionBest !== rightDivisionBest) return leftDivisionBest ? -1 : 1;
+  }
+
+  const recordAgainst = (row: StandingsRow, predicate: (opponentId: number) => boolean) => {
+    let wins = 0;
+    let gamesPlayed = 0;
+    for (const game of completed) {
+      const isHome = game.homeTeam.teamId === row.teamId;
+      const isAway = game.awayTeam.teamId === row.teamId;
+      if (!isHome && !isAway) continue;
+      const opponentId = isHome ? game.awayTeam.teamId : game.homeTeam.teamId;
+      if (!predicate(opponentId)) continue;
+      const own = isHome ? game.homeTeam.score : game.awayTeam.score;
+      const other = isHome ? game.awayTeam.score : game.homeTeam.score;
+      gamesPlayed += 1;
+      if (own! > other!) wins += 1;
+    }
+    return gamesPlayed ? wins / gamesPlayed : null;
+  };
+  const sameDivision = left.division === right.division;
+  if (sameDivision) {
+    const leftRecord = recordAgainst(left, (id) => TEAM_DIRECTORY.find((team) => team.teamId === id)?.division === left.division);
+    const rightRecord = recordAgainst(right, (id) => TEAM_DIRECTORY.find((team) => team.teamId === id)?.division === right.division);
+    if (leftRecord !== null && rightRecord !== null && leftRecord !== rightRecord) return rightRecord - leftRecord;
+  }
+
+  const leftConference = recordAgainst(left, (id) => TEAM_DIRECTORY.find((team) => team.teamId === id)?.conference === left.conference);
+  const rightConference = recordAgainst(right, (id) => TEAM_DIRECTORY.find((team) => team.teamId === id)?.conference === right.conference);
+  if (leftConference !== null && rightConference !== null && leftConference !== rightConference) {
+    return rightConference - leftConference;
+  }
+
+  const pointDifferential = (row: StandingsRow) => completed.reduce((total, game) => {
+    if (game.homeTeam.teamId === row.teamId) return total + game.homeTeam.score! - game.awayTeam.score!;
+    if (game.awayTeam.teamId === row.teamId) return total + game.awayTeam.score! - game.homeTeam.score!;
+    return total;
+  }, 0);
+  return pointDifferential(right) - pointDifferential(left);
 }
 
 function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-season"): GameSummary[] {
@@ -547,8 +677,9 @@ function getCache(deps: ServiceDeps) {
   return deps.cache ?? cache;
 }
 
-export async function loadStandings(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad(`standings-dataset:v5-${getCurrentSeason()}-espn-fallback`, TTL.standings, async () => {
+export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
+  const key = `standings-dataset:v6-${getCurrentSeason()}-espn-fallback`;
+  const loader = async () => {
     try {
       const [standingsResponseResult, playoffPictureResponseResult] = await Promise.allSettled([
         withTimeout(deps.client.getLeagueStandings(), STANDINGS_LOAD_TIMEOUT_MS, "league standings"),
@@ -573,7 +704,7 @@ export async function loadStandings(deps: ServiceDeps) {
         .map((row) => mapStandingsRow(row, playoffByTeamId.get(getNumber(row, ["TeamID", "TEAM_ID"]))))
         .filter((row): row is StandingsRow => row !== null);
 
-      if (mappedRows.length >= 20 && mappedRows.some((row) => row.gamesPlayed > 0)) {
+      if (mappedRows.length === TEAM_DIRECTORY.length && mappedRows.some((row) => row.gamesPlayed > 0)) {
         const missingForm = mappedRows.some((row) => row.lastTen === "--" || row.streak === "--");
         if (missingForm) {
           const scheduleState = await withTimeout(
@@ -582,9 +713,9 @@ export async function loadStandings(deps: ServiceDeps) {
             "standings form"
           );
           const scheduleRowsByTeam = new Map(
-            buildStandingsFromScheduleSnapshot(scheduleState.value).map((row) => [row.teamId, row])
+            (buildStandingsFromScheduleSnapshot(scheduleState.value) ?? []).map((row) => [row.teamId, row])
           );
-          return mappedRows
+          return assignDivisionRanks(mappedRows
             .map((row) => {
               const scheduleRow = scheduleRowsByTeam.get(row.teamId);
               return {
@@ -593,10 +724,12 @@ export async function loadStandings(deps: ServiceDeps) {
                 streak: row.streak === "--" ? scheduleRow?.streak ?? row.streak : row.streak
               };
             })
-            .sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
+            .sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed));
         }
 
-        return mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed);
+        return assignDivisionRanks(
+          mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed)
+        );
       }
     } catch {
       // Fall back to schedule snapshot when stats endpoints are unavailable or too slow.
@@ -609,7 +742,8 @@ export async function loadStandings(deps: ServiceDeps) {
         };
         const espnGames = mapEspnScoreboardGames({ events: response.data ?? [] });
         if (espnGames.length > 0) {
-          return buildStandingsFromScheduleSnapshot(espnGames);
+          const fallback = buildStandingsFromScheduleSnapshot(espnGames);
+          if (fallback) return fallback;
         }
       } catch (error) {
         console.warn("[standings] ESPN range fallback failed", error instanceof Error ? error.message : error);
@@ -633,36 +767,49 @@ export async function loadStandings(deps: ServiceDeps) {
           );
         }
       );
-      if (hasScheduleRecords) return buildStandingsFromScheduleSnapshot(scheduleState.value);
+      if (hasScheduleRecords) {
+        const fallback = buildStandingsFromScheduleSnapshot(scheduleState.value);
+        if (fallback) return fallback;
+      }
 
       if (deps.client.getEspnScoreboardByDate) {
         try {
           const espnGames = mapEspnScoreboardGames(
             await deps.client.getEspnScoreboardByDate(`${SEASON_END_YEAR}-04-12`)
           );
-          if (espnGames.length > 0) return buildStandingsFromScheduleSnapshot(espnGames);
+          if (espnGames.length > 0) {
+            const fallback = buildStandingsFromScheduleSnapshot(espnGames);
+            if (fallback) return fallback;
+          }
           console.warn("[standings] ESPN fallback returned no mappable games");
         } catch (error) {
           console.warn("[standings] ESPN fallback failed", error instanceof Error ? error.message : error);
         }
       }
 
-      return buildStandingsFromScheduleSnapshot([]);
+      throw new Error("No complete standings snapshot is available.");
     } catch {
       if (deps.client.getEspnScoreboardByDate) {
         try {
           const espnGames = mapEspnScoreboardGames(
             await deps.client.getEspnScoreboardByDate(`${SEASON_END_YEAR}-04-12`)
           );
-          if (espnGames.length > 0) return buildStandingsFromScheduleSnapshot(espnGames);
+          if (espnGames.length > 0) {
+            const fallback = buildStandingsFromScheduleSnapshot(espnGames);
+            if (fallback) return fallback;
+          }
         } catch {
           // Continue with the directory fallback below.
         }
       }
 
-      return buildStandingsFromScheduleSnapshot([]);
+      throw new Error("No complete standings snapshot is available.");
     }
-  });
+  };
+  const cacheStore = getCache(deps);
+  return forceRefresh
+    ? cacheStore.refresh(key, TTL.standings, loader, (rows) => rows.length === TEAM_DIRECTORY.length)
+    : cacheStore.getOrLoad(key, TTL.standings, loader, true, (rows) => rows.length === TEAM_DIRECTORY.length);
 }
 
 export async function loadPlayerCatalog(deps: ServiceDeps) {

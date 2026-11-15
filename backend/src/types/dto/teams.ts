@@ -66,6 +66,7 @@ export interface StandingsRow extends TeamSummary {
   seed: number;
   gamesPlayed: number;
   remainingGames: number;
+  divisionRank: number;
 }
 
 export interface TeamScoreLine {

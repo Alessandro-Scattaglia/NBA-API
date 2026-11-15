@@ -116,6 +116,7 @@ export class MemoryCache {
         console.warn(`[cache] KV read failed for ${key}`, error instanceof Error ? error.message : error);
         cached = undefined;
       }
+
     }
 
     const freshUntil = cached?.freshUntil ?? cached?.expiresAt ?? 0;
@@ -170,6 +171,21 @@ export class MemoryCache {
 
       throw error;
     }
+  }
+
+  async refresh<T>(
+    key: string,
+    freshTtlMs: number,
+    loader: () => Promise<T>,
+    validate: (value: T) => boolean = isUsableValue,
+    retentionTtlMs = DEFAULT_RETENTION_TTL_MS
+  ): Promise<CacheState<T>> {
+    const entry = await this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs);
+    return {
+      value: entry.value,
+      updatedAt: entry.updatedAt,
+      stale: false
+    };
   }
 }
 

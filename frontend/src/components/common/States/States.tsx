@@ -69,11 +69,23 @@ export function PageHeader({
   );
 }
 
-export function DataStamp({ updatedAt, stale }: { updatedAt: string; stale: boolean }) {
+export function DataStamp({
+  updatedAt,
+  stale,
+  dataStatus
+}: {
+  updatedAt: string;
+  stale: boolean;
+  dataStatus?: "updated" | "stale" | "error" | "partial";
+}) {
   return (
     <div className="data-stamp">
       <span>Ultimo aggiornamento: {formatDateTimeWithSeconds(updatedAt)}</span>
-      {stale ? <span className="badge badge-warning">Cache non aggiornata</span> : null}
+      {stale || dataStatus === "stale" ? (
+        <span className="badge badge-warning">Dati non aggiornati</span>
+      ) : dataStatus === "partial" ? (
+        <span className="badge badge-warning">Dati parziali</span>
+      ) : null}
     </div>
   );
 }
