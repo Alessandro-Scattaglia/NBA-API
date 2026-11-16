@@ -144,13 +144,20 @@ function mapStandingsRow(row: StatsRow, playoffRow?: StatsRow): StandingsRow | n
     divisionRank: getNumber(row, ["DivisionRank", "DIV_RANK", "DIVISION_RANK"], 99),
     homeRecord: getString(row, ["HOME", "HomeRecord"], "--"),
     awayRecord: getString(row, ["ROAD", "AWAY", "RoadRecord"], "--"),
-    lastTen: getString(row, ["L10", "LastTen"], "--"),
-    streak: getString(row, ["strCurrentStreak", "CurrentStreak", "Streak"], "--"),
+    lastTen: normalizeStandingForm(getString(row, ["L10", "LastTen"], "--")),
+    streak: normalizeStandingForm(getString(row, ["strCurrentStreak", "CurrentStreak", "Streak"], "--")),
     playoffStatus,
     clinchedPlayoff: playoffFlags.clinchedPlayoff,
     clinchedDivision: playoffFlags.clinchedDivision,
     clinchedConference: playoffFlags.clinchedConference
   };
+}
+
+function normalizeStandingForm(value: string) {
+  const normalized = value.trim();
+  return !normalized || normalized === "-" || normalized === "—" || normalized.toLowerCase() === "n/a"
+    ? "--"
+    : normalized;
 }
 
 function extractPlayoffPictureStandingsRows(response: unknown) {
