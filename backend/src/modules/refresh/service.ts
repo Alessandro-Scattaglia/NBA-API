@@ -7,14 +7,15 @@ import {
   loadTodayGames
 } from "../shared/datasets.js";
 import type { ServiceDeps } from "../shared/types.js";
+import { addCalendarDays, getItalianDate } from "../../utils/date.js";
 
 const REFRESH_KEY = `manual-refresh:${getCurrentSeason()}`;
 const REFRESH_COOLDOWN_SECONDS = 5 * 60;
 const refreshInFlight = new Map<string, Promise<void>>();
 
 async function refreshDatasets(deps: ServiceDeps) {
-  const today = new Date().toISOString().slice(0, 10);
-  const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  const today = getItalianDate();
+  const nextWeek = addCalendarDays(today, 7);
   const results = await Promise.allSettled([
     loadTodayGames(deps, true),
     loadStandings(deps, true),
@@ -23,8 +24,8 @@ async function refreshDatasets(deps: ServiceDeps) {
     loadTeamStats(deps, true)
   ]);
   const failures = results.filter((result) => result.status === "rejected");
-  if (failures.length === results.length) {
-    throw new Error("Nessun dataset è stato aggiornato.");
+  if (failures.length > 0) {
+    throw new Error(`${failures.length} dataset essenziali non sono stati aggiornati.`);
   }
 }
 

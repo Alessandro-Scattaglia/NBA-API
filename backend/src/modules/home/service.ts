@@ -1,6 +1,6 @@
 import type { ApiEnvelope, HomeResponse } from "../../types/dto/index.js";
 import { getCurrentSeason, getHomeSpotlightMode } from "../../config/season.js";
-import { toIsoDate } from "../../utils/date.js";
+import { addCalendarDays, getItalianDate } from "../../utils/date.js";
 import { buildLeaderCategories } from "../leaders/service.js";
 import { loadCalendarRange, loadPlayerCatalog, loadStandings, loadTodayGames, splitByConference } from "../shared/datasets.js";
 import { toEnvelope } from "../shared/envelope.js";
@@ -13,8 +13,8 @@ function getLatestUpdatedAt(values: string[]) {
 export function createHomeService(deps: ServiceDeps) {
   return {
     async getHome(): Promise<ApiEnvelope<HomeResponse>> {
-      const today = toIsoDate(new Date());
-      const nextWeek = toIsoDate(new Date(Date.now() + 7 * 86_400_000));
+      const today = getItalianDate();
+      const nextWeek = addCalendarDays(today, 7);
       const [todayResult, standingsResult, calendarResult, playersResult] = await Promise.allSettled([
         loadTodayGames(deps),
         loadStandings(deps),

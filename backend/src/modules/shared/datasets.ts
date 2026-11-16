@@ -1,7 +1,7 @@
 import { cache } from "../../cache/memoryCache.js";
 import { createRuntimeEnv } from "../../config/env.js";
 import { TEAM_DIRECTORY, getTeamIdentity, getTeamIdentityByCode } from "../../config/teams.js";
-import { getCurrentSeason, SEASON_END_YEAR, TTL } from "../../config/season.js";
+import { getCurrentSeason, SEASON_END_DATE, SEASON_END_YEAR, SEASON_START_DATE, TTL } from "../../config/season.js";
 import type {
   GamePhase,
   GameSummary,
@@ -12,7 +12,7 @@ import type {
   TeamSeasonStats
 } from "../../types/dto/index.js";
 import { buildPlayerHeadshotUrl } from "../../utils/assets.js";
-import { clampToSeason, enumerateDates, round, safeNumber, parseNbaDate } from "../../utils/date.js";
+import { addCalendarDays, clampToSeason, enumerateDates, round, safeNumber, parseNbaDate, getItalianDate } from "../../utils/date.js";
 import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
 import type { NbaApiClient } from "../../nba-client/client.js";
 import type { ServiceDeps } from "./types.js";
@@ -527,12 +527,7 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
 }
 
 function getCalendarDate(dateTimeUtc: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Rome",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date(dateTimeUtc));
+  return getItalianDate(dateTimeUtc);
 }
 
 function getIsoDateDaysAgo(days: number) {
@@ -1235,8 +1230,63 @@ export async function loadTodayGames(deps: ServiceDeps, forceRefresh = false) {
     : getCache(deps).getOrLoad(key, TTL.live, loader, true, () => true);
 }
 
-export async function loadScheduleSnapshotGames(deps: ServiceDeps) {
-  return getCache(deps).getOrLoad("schedule-snapshot-games", TTL.calendar, async () => {
+export async function loadResultCheckGames(deps: ServiceDeps, italianDate: string, forceRefresh = false) {
+  let live: Awaited<ReturnType<typeof loadTodayGames>>;
+  let liveFailed = false;
+  try {
+    live = await loadTodayGames(deps, forceRefresh);
+  } catch (error) {
+    liveFailed = true;
+    console.warn("[results] live scoreboard failed", error instanceof Error ? error.message : error);
+    live = { value: [], updatedAt: new Date().toISOString(), stale: true };
+  }
+  let previousDayGames: GameSummary[] = [];
+  let previousDayFailed = false;
+  try {
+    if (deps.client.getEspnScoreboardByDate) {
+      previousDayGames = mapEspnScoreboardGames(await deps.client.getEspnScoreboardByDate(addCalendarDays(italianDate, -1)));
+    }
+  } catch (error) {
+    previousDayFailed = true;
+    console.warn("[results] ESPN previous-day scoreboard failed", error instanceof Error ? error.message : error);
+  }
+
+  const needsCdnFallback = true;
+  let cdnFailed = false;
+  if (needsCdnFallback) {
+    try {
+      const snapshot = await loadScheduleSnapshotGames(deps, forceRefresh);
+      const cdnGames = snapshot.value.filter((game) => {
+        const date = getCalendarDate(game.dateTimeUtc);
+        return date === addCalendarDays(italianDate, -1) || date === italianDate;
+      });
+      const mergedPrevious = new Map(previousDayGames.map((game) => [game.canonicalId, game]));
+      for (const game of cdnGames) {
+        const current = mergedPrevious.get(game.canonicalId);
+        if (!current || (game.status === "final" && current.status !== "final")) mergedPrevious.set(game.canonicalId, game);
+      }
+      previousDayGames = Array.from(mergedPrevious.values());
+    } catch (error) {
+      cdnFailed = true;
+      console.warn("[results] NBA CDN result fallback failed", error instanceof Error ? error.message : error);
+    }
+  }
+
+  if (liveFailed && previousDayFailed && cdnFailed) {
+    throw new Error("All result sources failed.");
+  }
+
+  const byId = new Map(live.value.map((game) => [game.canonicalId, game]));
+  for (const game of previousDayGames) {
+    const key = game.canonicalId;
+    const current = byId.get(key);
+    if (!current || (game.status === "final" && current.status !== "final")) byId.set(key, game);
+  }
+  return { ...live, value: Array.from(byId.values()), liveSourceFailed: liveFailed };
+}
+
+export async function loadScheduleSnapshotGames(deps: ServiceDeps, forceRefresh = false) {
+  const loader = async () => {
     const scheduleSnapshot = (await deps.client.getScheduleSnapshot()) as {
       leagueSchedule?: {
         gameDates?: Array<{ gameDate: string; games: Array<Record<string, unknown>> }>;
@@ -1247,7 +1297,8 @@ export async function loadScheduleSnapshotGames(deps: ServiceDeps) {
       .flatMap((entry) => entry.games)
       .map((game) => mapScheduleSnapshotGame(game))
       .sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
-  });
+  };
+  return forceRefresh ? getCache(deps).refresh("schedule-snapshot-games", TTL.calendar, loader, (games) => games.length > 0) : getCache(deps).getOrLoad("schedule-snapshot-games", TTL.calendar, loader, true, (games) => games.length > 0);
 }
 
 export async function loadRecentGames(deps: ServiceDeps, days = 45) {
@@ -1268,15 +1319,16 @@ export async function loadRecentGames(deps: ServiceDeps, days = 45) {
 
 export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string, forceRefresh = false) {
   const range = clampToSeason(from, to);
-  const key = `calendar:v3:${range.from}:${range.to}`;
+  const seasonRange = clampToSeason(SEASON_START_DATE, SEASON_END_DATE);
+  const key = `calendar:v4:${seasonRange.from}:${seasonRange.to}`;
 
   const loader = async () => {
     let espnGames: GameSummary[] = [];
     try {
-      const response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: unknown[] };
+      const response = (await deps.client.getGamesSchedule(seasonRange.from, seasonRange.to)) as { data?: unknown[] };
       espnGames = mapEspnScoreboardGames({ events: response.data ?? [] }).filter((game) => {
         const date = getCalendarDate(game.dateTimeUtc);
-        return date >= range.from && date <= range.to;
+        return date >= seasonRange.from && date <= seasonRange.to;
       });
     } catch (error) {
       console.warn("[calendar] ESPN failed; using NBA CDN schedule fallback.", error instanceof Error ? error.message : error);
@@ -1284,10 +1336,10 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
 
     let cdnGames: GameSummary[] = [];
     try {
-      const snapshot = await loadScheduleSnapshotGames(deps);
+      const snapshot = await loadScheduleSnapshotGames(deps, forceRefresh);
       cdnGames = snapshot.value.filter((game) => {
         const date = getCalendarDate(game.dateTimeUtc);
-        return date >= range.from && date <= range.to;
+        return date >= seasonRange.from && date <= seasonRange.to;
       });
     } catch (error) {
       console.warn("[calendar] NBA CDN schedule failed.", error instanceof Error ? error.message : error);
@@ -1322,10 +1374,14 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
         }
       };
     };
-    const cdnByKey = new Map(cdnGames.map((game) => [buildMergeKey(game), game]));
-    const merged = espnGames.length > 0
-      ? espnGames.map((game) => mergeGameData(game, cdnByKey.get(buildMergeKey(game)) ?? game))
-      : cdnGames;
+    const espnByKey = new Map(espnGames.map((game) => [buildMergeKey(game), game]));
+    const mergedByKey = new Map<string, GameSummary>();
+    for (const game of espnGames) mergedByKey.set(buildMergeKey(game), game);
+    for (const game of cdnGames) {
+      const key = buildMergeKey(game);
+      mergedByKey.set(key, espnByKey.has(key) ? mergeGameData(espnByKey.get(key)!, game) : game);
+    }
+    const merged = Array.from(mergedByKey.values());
 
     if (merged.length === 0) {
       throw new Error("ESPN and NBA CDN returned an empty or invalid calendar response.");
@@ -1333,9 +1389,8 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
 
     return merged.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
   };
-  return forceRefresh
-    ? getCache(deps).refresh(key, TTL.calendar, loader, (games) => games.length > 0)
-    : getCache(deps).getOrLoad(key, TTL.calendar, loader, true, (games) => games.length > 0);
+  const state = forceRefresh ? await getCache(deps).refresh(key, TTL.calendar, loader, (games) => games.length > 0) : await getCache(deps).getOrLoad(key, TTL.calendar, loader, true, (games) => games.length > 0);
+  return { ...state, value: state.value.filter((game) => { const date = getCalendarDate(game.dateTimeUtc); return date >= range.from && date <= range.to; }) };
 }
 
 export function splitByConference(rows: StandingsRow[]) {

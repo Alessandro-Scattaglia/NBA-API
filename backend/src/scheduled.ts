@@ -1,14 +1,50 @@
 import { createRuntimeEnv, type WorkerEnv } from "./config/env.js";
 import { createServices } from "./modules/services.js";
-import { loadCalendarRange, loadPlayerCatalog, loadStandings, loadTeamStats, loadTodayGames } from "./modules/shared/datasets.js";
+import { loadCalendarRange, loadPlayerCatalog, loadResultCheckGames, loadStandings, loadTeamStats } from "./modules/shared/datasets.js";
 import { SEASON_END_DATE, SEASON_START_DATE } from "./config/season.js";
 import { getCurrentSeason } from "./config/season.js";
+import { addCalendarDays, getItalianDate } from "./utils/date.js";
 
 interface ScheduledController {
   cron?: string;
 }
 
 let lastStandingsGameSignature = "";
+let syncStateWrite = Promise.resolve();
+
+interface SyncState {
+  liveSignature?: string;
+  fullSignature?: string;
+  lastSuccessfulAt?: string;
+  live?: { status: "success" | "failed"; source: string; at: string };
+  full?: { status: "success" | "failed"; source: string; at: string };
+}
+
+function syncStateKey() {
+  return `standings:sync-state:${getCurrentSeason()}`;
+}
+
+async function readSyncState(env: WorkerEnv): Promise<SyncState> {
+  if (!env.NBA_CACHE) return {};
+  try {
+    const value = await env.NBA_CACHE.get<SyncState>(syncStateKey(), "json");
+    return value && typeof value === "object" ? value : {};
+  } catch (error) {
+    console.warn("[scheduled] sync state read failed", error instanceof Error ? error.message : error);
+    return {};
+  }
+}
+
+async function writeSyncState(env: WorkerEnv, patch: Partial<SyncState>, successful = true) {
+  if (!env.NBA_CACHE) return;
+  const write = syncStateWrite.then(async () => {
+    const state = { ...(await readSyncState(env)), ...patch };
+    if (successful) state.lastSuccessfulAt = new Date().toISOString();
+    await env.NBA_CACHE!.put(syncStateKey(), JSON.stringify(state), { expirationTtl: 60 * 60 * 24 * 10 });
+  });
+  syncStateWrite = write.catch(() => undefined);
+  await write;
+}
 
 function getGameSignature(games: Array<{
   gameId: string;
@@ -23,52 +59,35 @@ function getGameSignature(games: Array<{
   );
 }
 
-function isItalianNightGameWindow(date = new Date()) {
-  const hour = Number(new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Rome",
-    hour: "2-digit",
-    hour12: false
-  }).format(date));
-  return hour >= 0 && hour < 9;
-}
-
 export async function scheduled(_controller: ScheduledController, env: WorkerEnv) {
   const services = createServices(createRuntimeEnv(env));
   const deps = { client: services.client, cache: services.cache };
 
   if (_controller.cron === "*/2 * * * *") {
-    if (!isItalianNightGameWindow()) {
-      return;
-    }
     try {
-      const todayGames = await loadTodayGames(deps, true);
-      const signature = getGameSignature(todayGames.value);
-      let previousSignature = lastStandingsGameSignature;
-      if (env.NBA_CACHE) {
-        previousSignature =
-          (await env.NBA_CACHE.get<string>(`standings:last-game-signature:${getCurrentSeason()}`, "json")) ??
-          previousSignature;
-      }
+      const italianToday = getItalianDate();
+      const results = await loadResultCheckGames(deps, italianToday, true);
+      const signature = getGameSignature(results.value);
+      const state = await readSyncState(env);
+      const previousSignature = state.liveSignature ?? lastStandingsGameSignature;
 
-      const hasResultToSync = todayGames.value.some((game) => game.status === "live" || game.status === "final");
+      const hasResultToSync = results.value.some((game) => game.status === "live" || game.status === "final");
       if (signature !== previousSignature && hasResultToSync) {
-        await Promise.allSettled([
+        await Promise.all([
           loadStandings(deps, true),
           loadTeamStats(deps, true),
           loadPlayerCatalog(deps, true)
         ]);
       }
 
-      lastStandingsGameSignature = signature;
-      if (env.NBA_CACHE) {
-        await env.NBA_CACHE.put(
-          `standings:last-game-signature:${getCurrentSeason()}`,
-          JSON.stringify(signature),
-          { expirationTtl: 60 * 60 * 24 * 10 }
-        );
+      if (results.liveSourceFailed || results.stale) {
+        throw new Error("Live scoreboard was not refreshed; result signature was not persisted.");
       }
+      lastStandingsGameSignature = signature;
+      await writeSyncState(env, { liveSignature: signature, live: { status: "success", source: "live-scoreboard", at: new Date().toISOString() } });
     } catch (error) {
       console.error("[scheduled] scoreboard synchronization failed", error instanceof Error ? error.message : error);
+      await writeSyncState(env, { live: { status: "failed", source: "live-scoreboard", at: new Date().toISOString() } }, false).catch(() => undefined);
     }
     return;
   }
@@ -78,17 +97,16 @@ export async function scheduled(_controller: ScheduledController, env: WorkerEnv
       ? [async () => {
           const calendar = await loadCalendarRange(deps, SEASON_START_DATE, SEASON_END_DATE, true);
           const signature = getGameSignature(calendar.value);
-          const key = `standings:full-game-signature:${getCurrentSeason()}`;
-          const previous = env.NBA_CACHE ? await env.NBA_CACHE.get<string>(key, "json") : null;
+          const previous = (await readSyncState(env)).fullSignature ?? null;
           if (previous !== signature && calendar.value.some((game) => game.status === "final")) {
-            await Promise.allSettled([
+            await Promise.all([
               loadStandings(deps, true),
               loadTeamStats(deps, true),
               loadPlayerCatalog(deps, true)
             ]);
           }
           if (env.NBA_CACHE) {
-            await env.NBA_CACHE.put(key, JSON.stringify(signature), { expirationTtl: 60 * 60 * 24 * 10 });
+            await writeSyncState(env, { fullSignature: signature, full: { status: "success", source: "calendar-merge", at: new Date().toISOString() } });
           }
         }]
       : [() => loadStandings(deps, true), () => loadPlayerCatalog(deps, true), () => loadTeamStats(deps, true)];

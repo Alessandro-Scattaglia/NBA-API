@@ -1,8 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { MemoryCache } from "../../cache/memoryCache.js";
+import { SEASON_END_DATE, SEASON_START_DATE } from "../../config/season.js";
 import { loadCalendarRange } from "./datasets.js";
 
 describe("calendar provider merge", () => {
+  it("requests the complete season range, including future games", async () => {
+    let requested: [string, string] | undefined;
+    const client = {
+      getGamesSchedule: async (from: string, to: string) => {
+        requested = [from, to];
+        return { data: [{
+          id: "future-game",
+          date: "2027-07-01T18:00:00Z",
+          competitions: [{ date: "2027-07-01T18:00:00Z", competitors: [
+            { homeAway: "home", team: { abbreviation: "BOS" } },
+            { homeAway: "away", team: { abbreviation: "LAL" } }
+          ], status: { type: { state: "pre", description: "Scheduled" } } }]
+        }] };
+      },
+      getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [] } })
+    } as never;
+
+    const state = await loadCalendarRange({ client, cache: new MemoryCache() }, SEASON_START_DATE, SEASON_END_DATE, true);
+    expect(requested).toEqual([SEASON_START_DATE, SEASON_END_DATE]);
+    expect(state.value.some((game) => game.gameId === "future-game")).toBe(true);
+  });
+
   it("maps ESPN abbreviated team codes", async () => {
     const client = {
       getGamesSchedule: async () => ({
@@ -22,7 +45,7 @@ describe("calendar provider merge", () => {
       getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [] } })
     } as never;
 
-    const state = await loadCalendarRange({ client, cache: undefined }, "2026-10-02", "2026-10-02");
+    const state = await loadCalendarRange({ client, cache: new MemoryCache() }, "2026-10-02", "2026-10-02");
 
     expect(state.value).toHaveLength(1);
     expect(state.value[0]?.homeTeam.code).toBe("NYK");
@@ -34,9 +57,9 @@ describe("calendar provider merge", () => {
       getGamesSchedule: async () => ({
         data: [{
           id: "espn-1",
-          date: "2026-10-01T00:00:00Z",
+          date: "2026-10-01T12:00:00Z",
           competitions: [{
-            date: "2026-10-01T00:00:00Z",
+            date: "2026-10-01T12:00:00Z",
             competitors: [
               { homeAway: "home", team: { abbreviation: "BOS" } },
               { homeAway: "away", team: { abbreviation: "LAL" } }
@@ -72,14 +95,14 @@ describe("calendar provider merge", () => {
       })
     } as never;
 
-    const state = await loadCalendarRange({ client, cache: undefined }, "2026-10-01", "2026-10-01");
-
-    expect(state.value).toHaveLength(1);
-    expect(new Set(state.value.map((game) => game.gameId)).size).toBe(1);
-    expect(state.value.map((game) => game.gameId)).toEqual(["espn-1"]);
+    const state = await loadCalendarRange({ client, cache: new MemoryCache() }, "2026-10-01", "2026-10-01");
+    expect(state.value).toHaveLength(2);
+    expect(new Set(state.value.map((game) => game.gameId)).size).toBe(2);
+    expect(state.value.map((game) => game.gameId)).toContain("espn-1");
     expect(state.value.every((game) => game.canonicalId?.startsWith("game:"))).toBe(true);
     expect(state.value.find((game) => game.gameId === "espn-1")?.homeTeam.score).toBe(90);
     expect(state.value.find((game) => game.gameId === "espn-1")?.awayTeam.score).toBe(98);
+    expect(state.value.find((game) => game.gameId === "0022600002")?.status).toBe("scheduled");
   });
 
   it("uses a new cache namespace after calendar data source changes", async () => {
@@ -104,7 +127,7 @@ describe("calendar provider merge", () => {
 
     await loadCalendarRange({ client, cache }, "2026-10-03", "2026-10-03");
 
-    expect(cache.getStats().keys).toContain("calendar:v3:2026-10-03:2026-10-03");
+    expect(cache.getStats().keys.some((key) => key.startsWith("calendar:v4:"))).toBe(true);
   });
 
   it("merges providers by team IDs even when their codes differ", async () => {

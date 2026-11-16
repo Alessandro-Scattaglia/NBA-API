@@ -63,6 +63,19 @@ export function toIsoDate(value: Date | string) {
   return date.toISOString().slice(0, 10);
 }
 
+export function getItalianDate(value: Date | string = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(value instanceof Date ? value : new Date(value));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function addCalendarDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 export function toScoreboardDate(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
