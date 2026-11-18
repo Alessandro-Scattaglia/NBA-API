@@ -26,7 +26,36 @@ export class MemoryCache {
   private readonly store = new Map<string, CacheEntry<unknown>>();
   private readonly refreshInFlight = new Map<string, Promise<void>>();
 
-  constructor(private readonly kv?: KVNamespace) {}
+  constructor(private readonly kv?: KVNamespace, private readonly allowKvPut = false) {}
+
+  private signatures = new Map<string, string>();
+
+  private signature(value: unknown) {
+    const normalize = (item: unknown): unknown => {
+      if (item instanceof Map) return Array.from(item.entries()).sort(([a], [b]) => String(a).localeCompare(String(b))).map(([key, entry]) => [key, normalize(entry)]);
+      if (Array.isArray(item)) return item.map(normalize);
+      if (item && typeof item === "object") return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => [key, normalize(entry)]));
+      return item;
+    };
+    return JSON.stringify(normalize(value));
+  }
+
+  private async shouldPersist(key: string, value: unknown) {
+    if (!this.kv || !this.allowKvPut) return false;
+    const signature = this.signature(value);
+    const memorySignature = this.signatures.get(key);
+    if (memorySignature === signature) return false;
+    try {
+      const previous = await this.kv?.get<CacheEntry<unknown>>(key, "json");
+      if (previous && this.signature(previous.value) === signature) {
+        this.signatures.set(key, signature);
+        return false;
+      }
+    } catch (error) {
+      console.warn(`[cache] KV comparison failed for ${key}`, error instanceof Error ? error.message : error);
+    }
+    return true;
+  }
 
   getStats() {
     return {
@@ -36,12 +65,26 @@ export class MemoryCache {
     };
   }
 
+  async set<T>(key: string, value: T, freshTtlMs: number, updatedAt = new Date().toISOString(), persist = false, retentionTtlMs = DEFAULT_RETENTION_TTL_MS) {
+    const entry: CacheEntry<T> = { value, updatedAt, freshUntil: Date.now() + freshTtlMs };
+    this.store.set(key, entry);
+    if (persist && await this.shouldPersist(key, value)) {
+      try {
+        await this.kv!.put(key, JSON.stringify(entry), { expirationTtl: Math.max(1, Math.ceil(retentionTtlMs / 1000)) });
+        this.signatures.set(key, this.signature(value));
+      } catch (error) {
+        console.warn(`[cache] KV write failed for ${key}`, error instanceof Error ? error.message : error);
+      }
+    }
+  }
+
   private async loadFreshValue<T>(
     key: string,
     freshTtlMs: number,
     loader: () => Promise<T>,
     validate: (value: T) => boolean,
-    retentionTtlMs: number
+    retentionTtlMs: number,
+    persist = true
   ) {
     const value = await loader();
     if (!validate(value)) {
@@ -54,11 +97,12 @@ export class MemoryCache {
     };
 
     this.store.set(key, entry);
-    if (this.kv) {
+    if (persist && await this.shouldPersist(key, value)) {
       try {
-        await this.kv.put(key, JSON.stringify(entry), {
+        await this.kv!.put(key, JSON.stringify(entry), {
           expirationTtl: Math.max(1, Math.ceil(retentionTtlMs / 1000))
         });
+        this.signatures.set(key, this.signature(value));
       } catch (error) {
         console.warn(`[cache] KV write failed for ${key}`, error instanceof Error ? error.message : error);
       }
@@ -74,12 +118,31 @@ export class MemoryCache {
     return entry;
   }
 
+  async getCached<T>(key: string): Promise<CacheState<T> | null> {
+    let entry = this.store.get(key) as CacheEntry<T> | undefined;
+    if (!entry) {
+      try {
+        entry = (await this.loadFromKv<T>(key)) ?? undefined;
+      } catch (error) {
+        console.warn(`[cache] KV read failed for ${key}`, error instanceof Error ? error.message : error);
+        return null;
+      }
+    }
+    if (!entry) return null;
+    return {
+      value: entry.value,
+      updatedAt: entry.updatedAt,
+      stale: (entry.freshUntil ?? entry.expiresAt ?? 0) <= Date.now()
+    };
+  }
+
   private startBackgroundRefresh<T>(
     key: string,
     freshTtlMs: number,
     loader: () => Promise<T>,
     validate: (value: T) => boolean,
-    retentionTtlMs: number
+    retentionTtlMs: number,
+    persist = true
   ) {
     const running = this.refreshInFlight.get(key);
 
@@ -87,7 +150,7 @@ export class MemoryCache {
       return running;
     }
 
-    const refreshPromise = this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs)
+    const refreshPromise = this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs, persist)
       .then(() => undefined)
       .catch(() => undefined)
       .finally(() => {
@@ -104,7 +167,8 @@ export class MemoryCache {
     loader: () => Promise<T>,
     allowStaleOnError = true,
     validate: (value: T) => boolean = isUsableValue,
-    retentionTtlMs = DEFAULT_RETENTION_TTL_MS
+    retentionTtlMs = DEFAULT_RETENTION_TTL_MS,
+    persist = true
   ): Promise<CacheState<T>> {
     const now = Date.now();
     let cached = this.store.get(key) as CacheEntry<T> | undefined;
@@ -129,7 +193,7 @@ export class MemoryCache {
     }
 
     if (cached && allowStaleOnError) {
-      void this.startBackgroundRefresh(key, freshTtlMs, loader, validate, retentionTtlMs);
+      void this.startBackgroundRefresh(key, freshTtlMs, loader, validate, retentionTtlMs, persist);
 
       return {
         value: cached.value,
@@ -153,7 +217,7 @@ export class MemoryCache {
     }
 
     try {
-      const entry = await this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs);
+      const entry = await this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs, persist);
 
       return {
         value: entry.value,
@@ -178,9 +242,10 @@ export class MemoryCache {
     freshTtlMs: number,
     loader: () => Promise<T>,
     validate: (value: T) => boolean = isUsableValue,
-    retentionTtlMs = DEFAULT_RETENTION_TTL_MS
+    retentionTtlMs = DEFAULT_RETENTION_TTL_MS,
+    persist = true
   ): Promise<CacheState<T>> {
-    const entry = await this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs);
+    const entry = await this.loadFreshValue(key, freshTtlMs, loader, validate, retentionTtlMs, persist);
     return {
       value: entry.value,
       updatedAt: entry.updatedAt,

@@ -6,4 +6,5 @@ export interface ServiceDeps {
   client: NbaApiClient;
   cache?: MemoryCache;
   runtimeEnv?: RuntimeEnv;
+  allowKvPut?: boolean;
 }

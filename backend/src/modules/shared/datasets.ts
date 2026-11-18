@@ -1227,14 +1227,86 @@ export function resolveNbaGameId(canonicalId: string) {
 }
 
 export async function loadTodayGames(deps: ServiceDeps, forceRefresh = false) {
-  const key = "today-games";
+  const key = `today-games:${getItalianDate()}`;
   const loader = async () => {
     const response = (await deps.client.getLiveScoreboard()) as { scoreboard?: { games?: Array<Record<string, unknown>> } };
     return (response.scoreboard?.games ?? []).map((game) => mapLiveGame(game));
   };
-  return forceRefresh
-    ? getCache(deps).refresh(key, TTL.live, loader, (games) => games.length > 0)
-    : getCache(deps).getOrLoad(key, TTL.live, loader, true, () => true);
+  const cacheStore = getCache(deps);
+  const cached = await cacheStore.getCached<GameSummary[]>(key);
+  if (!forceRefresh && cached && !cached.stale && !cached.value.some((game) => game.status === "live")) return cached;
+  try {
+    const value = await loader();
+    const now = Date.now();
+    const updatedAt = new Date().toISOString();
+    let previousPersisted: { value?: GameSummary[]; updatedAt?: string } | null = null;
+    let persistedReadFailed = false;
+    if (deps.runtimeEnv?.cache) {
+      try {
+        previousPersisted = await deps.runtimeEnv.cache.get<{ value?: GameSummary[]; updatedAt?: string }>(key, "json");
+      } catch {
+        persistedReadFailed = true;
+      }
+    }
+    const persistedGames = previousPersisted?.value ?? [];
+    const oldById = new Map(persistedGames.map((game) => [game.gameId, game]));
+    const finalized = value.some((game) => game.status === "final" && oldById.get(game.gameId)?.status !== "final");
+    let persist = false;
+    if (deps.allowKvPut && !persistedReadFailed) {
+      const lastPersistedAt = previousPersisted?.updatedAt ? Date.parse(previousPersisted.updatedAt) : 0;
+      const neverPersisted = !previousPersisted?.updatedAt;
+      const structurallyChanged = !previousPersisted?.value || hasMeaningfulGameChange(persistedGames, value);
+      const urgent = finalized || (previousPersisted?.value ? hasAddedOrRemovedGames(persistedGames, value) : false);
+      persist = structurallyChanged && (Boolean(urgent) || neverPersisted || now - lastPersistedAt >= 5 * 60_000);
+    }
+    const retainedUpdatedAt = persist
+      ? updatedAt
+      : previousPersisted?.updatedAt ?? (persistedReadFailed ? updatedAt : cached?.updatedAt ?? updatedAt);
+    await cacheStore.set(key, value, TTL.live, retainedUpdatedAt, persist, 7 * 24 * 60 * 60 * 1000);
+    return { value, updatedAt: retainedUpdatedAt, stale: false };
+  } catch (error) {
+    if (cached) return { ...cached, stale: true };
+    throw error;
+  }
+}
+
+export async function fetchTodayGamesFromProvider(deps: ServiceDeps) {
+  const date = getItalianDate();
+  const key = `today-games:${date}`;
+  const loader = async () => {
+    const response = (await deps.client.getLiveScoreboard()) as { scoreboard?: { games?: Array<Record<string, unknown>> } };
+    return (response.scoreboard?.games ?? []).map((game) => mapLiveGame(game));
+  };
+  const cached = await getCache(deps).getOrLoad(key, TTL.live, loader, true, () => true);
+  if (Date.now() - Date.parse(cached.updatedAt) <= TTL.live && !cached.value.some((game) => game.status === "live")) return cached;
+  try {
+    const value = await loader();
+    const updatedAt = new Date().toISOString();
+    await getCache(deps).set(key, value, TTL.live, updatedAt, false);
+    return { value, updatedAt, stale: false };
+  } catch {
+    return { ...cached, stale: true };
+  }
+}
+
+export function liveStandingsSignature(games: GameSummary[]) {
+  return JSON.stringify(games.map((game) => [game.gameId, game.status, game.homeTeam.score, game.awayTeam.score])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+}
+
+export function liveVisualSignature(games: GameSummary[]) {
+  return JSON.stringify(games.map((game) => [game.gameId, game.status, game.statusText, game.period, game.clock, game.homeTeam.teamId, game.awayTeam.teamId, game.homeTeam.score, game.awayTeam.score, game.dateTimeUtc])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+}
+
+function hasAddedOrRemovedGames(previous: GameSummary[], next: GameSummary[]) {
+  const previousIds = new Set(previous.map((game) => game.gameId));
+  const nextIds = new Set(next.map((game) => game.gameId));
+  return previousIds.size !== nextIds.size || Array.from(previousIds).some((id) => !nextIds.has(id));
+}
+
+function hasMeaningfulGameChange(previous: GameSummary[], next: GameSummary[]) {
+  return liveStandingsSignature(previous) !== liveStandingsSignature(next);
 }
 
 export async function loadResultCheckGames(deps: ServiceDeps, italianDate: string, forceRefresh = false) {

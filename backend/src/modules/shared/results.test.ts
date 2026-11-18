@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryCache } from "../../cache/memoryCache.js";
-import { loadResultCheckGames } from "./datasets.js";
+import { liveStandingsSignature, liveVisualSignature, loadResultCheckGames, loadTodayGames } from "./datasets.js";
 
 function liveGame(status: number, score = 0) {
   return {
@@ -92,5 +92,72 @@ describe("result check window", () => {
     } as never;
 
     await expect(loadResultCheckGames({ client, cache: new MemoryCache() }, "2026-11-16", true)).rejects.toThrow("All result sources failed");
+  });
+});
+
+describe("live signatures", () => {
+  const game: any = { gameId: "g1", status: "live", statusText: "Q1", period: 1, clock: "10:00", dateTimeUtc: "2026-11-16T00:00:00Z", homeTeam: { teamId: 1, score: 10 }, awayTeam: { teamId: 2, score: 9 } };
+
+  it("sorts games so input order does not affect signatures", () => {
+    const other = { ...game, gameId: "g2" };
+    expect(liveVisualSignature([game, other])).toBe(liveVisualSignature([other, game]));
+    expect(liveStandingsSignature([game, other])).toBe(liveStandingsSignature([other, game]));
+  });
+
+  it("tracks clock visually but not in standings signatures", () => {
+    const changed = { ...game, clock: "9:00" } as never;
+    expect(liveVisualSignature([game])).not.toBe(liveVisualSignature([changed]));
+    expect(liveStandingsSignature([game])).toBe(liveStandingsSignature([changed]));
+  });
+
+  it("tracks score, status, additions, and removals in standings signatures", () => {
+    expect(liveStandingsSignature([game])).not.toBe(liveStandingsSignature([{ ...game, status: "final" } as never]));
+    expect(liveStandingsSignature([game])).not.toBe(liveStandingsSignature([{ ...game, homeTeam: { teamId: 1, score: 11 } } as never]));
+    expect(liveStandingsSignature([game])).not.toBe(liveStandingsSignature([]));
+  });
+});
+
+describe("live persistence cadence", () => {
+  it("persists a local update after five minutes even without a new provider change", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-18T12:00:00Z"));
+    const values = new Map<string, unknown>();
+    const puts: Array<{ key: string; value: { value: Array<{ homeTeam: { score: number } }>; updatedAt: string } }> = [];
+    let score = 10;
+    let calls = 0;
+    const kv = {
+      async get<T>(key: string) { return (values.get(key) as T | undefined) ?? null; },
+      async put(key: string, value: string) {
+        const parsed = JSON.parse(value);
+        values.set(key, parsed);
+        puts.push({ key, value: parsed });
+      }
+    };
+    const client = {
+      getLiveScoreboard: async () => {
+        calls += 1;
+        return { scoreboard: { games: [{ gameId: "g1", gameStatus: 2, gameStatusText: "Q1", gameDateTimeUTC: "2026-11-18T12:00:00Z", period: 1, gameClock: "10:00", homeTeam: { teamId: 1, score }, awayTeam: { teamId: 2, score: 9 } }] } };
+      }
+    } as never;
+    const deps = { client, cache: new MemoryCache(kv, true), runtimeEnv: { cache: kv } as never, allowKvPut: true };
+
+    await loadTodayGames(deps, true);
+    expect(puts).toHaveLength(1);
+    score = 11;
+    vi.advanceTimersByTime(2 * 60_000);
+    await loadTodayGames(deps, true);
+    expect(puts).toHaveLength(1);
+    vi.advanceTimersByTime(2 * 60_000);
+    await loadTodayGames(deps, true);
+    expect(puts).toHaveLength(1);
+    vi.advanceTimersByTime(2 * 60_000);
+    await loadTodayGames(deps, true);
+    expect(puts).toHaveLength(2);
+    expect(puts[1].value.value[0].homeTeam.score).toBe(11);
+
+    const snapshot = Array.from(values.values()).find((entry) => entry && typeof entry === "object" && "value" in entry) as { value: Array<{ homeTeam: { score: number } }> };
+    expect(calls).toBe(4);
+    expect(snapshot.value[0].homeTeam.score).toBe(11);
+    vi.useRealTimers();
   });
 });

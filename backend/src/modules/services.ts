@@ -27,12 +27,13 @@ export interface AppServices {
   cache: MemoryCache;
 }
 
-export function createServices(runtimeEnv?: RuntimeEnv, client: NbaApiClient = createNbaApiClient(fetch, runtimeEnv)): AppServices {
-  const serviceCache = new MemoryCache(runtimeEnv?.cache);
+export function createServices(runtimeEnv?: RuntimeEnv, client: NbaApiClient = createNbaApiClient(fetch, runtimeEnv), allowKvPut = false): AppServices {
+  const serviceCache = new MemoryCache(runtimeEnv?.cache, allowKvPut);
   const deps = {
     client,
     cache: serviceCache,
-    runtimeEnv
+    runtimeEnv,
+    allowKvPut
   };
 
   return {

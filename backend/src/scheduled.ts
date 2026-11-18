@@ -1,6 +1,6 @@
 import { createRuntimeEnv, type WorkerEnv } from "./config/env.js";
 import { createServices } from "./modules/services.js";
-import { loadCalendarRange, loadPlayerCatalog, loadResultCheckGames, loadStandings, loadTeamStats } from "./modules/shared/datasets.js";
+import { loadCalendarRange, loadPlayerCatalog, loadResultCheckGames, loadStandings, loadTeamStats, liveStandingsSignature, liveVisualSignature } from "./modules/shared/datasets.js";
 import { SEASON_END_DATE, SEASON_START_DATE } from "./config/season.js";
 import { getCurrentSeason } from "./config/season.js";
 import { addCalendarDays, getItalianDate } from "./utils/date.js";
@@ -14,6 +14,8 @@ let syncStateWrite = Promise.resolve();
 
 interface SyncState {
   liveSignature?: string;
+  liveStandingsSignature?: string;
+  liveFinalSignature?: string;
   fullSignature?: string;
   lastSuccessfulAt?: string;
   live?: { status: "success" | "failed"; source: string; at: string };
@@ -60,34 +62,38 @@ function getGameSignature(games: Array<{
 }
 
 export async function scheduled(_controller: ScheduledController, env: WorkerEnv) {
-  const services = createServices(createRuntimeEnv(env));
-  const deps = { client: services.client, cache: services.cache };
+  const services = createServices(createRuntimeEnv(env), undefined, true);
+  const deps = { client: services.client, cache: services.cache, runtimeEnv: createRuntimeEnv(env), allowKvPut: true };
 
   if (_controller.cron === "*/2 * * * *") {
     try {
       const italianToday = getItalianDate();
       const results = await loadResultCheckGames(deps, italianToday, true);
-      const signature = getGameSignature(results.value);
+      const signature = liveVisualSignature(results.value);
+      const standingsSignature = liveStandingsSignature(results.value);
       const state = await readSyncState(env);
       const previousSignature = state.liveSignature ?? lastStandingsGameSignature;
+      const previousStandingsSignature = state.liveStandingsSignature ?? "";
+      const finalSignature = liveStandingsSignature(results.value.filter((game) => game.status === "final"));
+      const previousFinalSignature = state.liveFinalSignature ?? "";
 
       const hasResultToSync = results.value.some((game) => game.status === "live" || game.status === "final");
-      if (signature !== previousSignature && hasResultToSync) {
-        await Promise.all([
-          loadStandings(deps, true),
-          loadTeamStats(deps, true),
-          loadPlayerCatalog(deps, true)
-        ]);
+      const standingsChanged = standingsSignature !== previousStandingsSignature;
+      const finalChanged = finalSignature !== previousFinalSignature;
+      if (standingsChanged && hasResultToSync) {
+        await Promise.all([loadStandings(deps, true), loadTeamStats(deps, true)]);
+        if (finalChanged) await loadPlayerCatalog(deps, true);
       }
 
       if (results.liveSourceFailed || results.stale) {
         throw new Error("Live scoreboard was not refreshed; result signature was not persisted.");
       }
       lastStandingsGameSignature = signature;
-      await writeSyncState(env, { liveSignature: signature, live: { status: "success", source: "live-scoreboard", at: new Date().toISOString() } });
+      if (standingsSignature !== previousStandingsSignature) {
+        await writeSyncState(env, { liveSignature: signature, liveStandingsSignature: standingsSignature, liveFinalSignature: finalSignature, live: { status: "success", source: "live-scoreboard", at: new Date().toISOString() } }).catch(() => undefined);
+      }
     } catch (error) {
       console.error("[scheduled] scoreboard synchronization failed", error instanceof Error ? error.message : error);
-      await writeSyncState(env, { live: { status: "failed", source: "live-scoreboard", at: new Date().toISOString() } }, false).catch(() => undefined);
     }
     return;
   }
