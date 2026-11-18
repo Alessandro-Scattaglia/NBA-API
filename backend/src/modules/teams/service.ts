@@ -32,6 +32,10 @@ function getRecentGameScores(row: StatsRow) {
   };
 }
 
+function hasReliableFinalScore(game: GameSummary) {
+  return game.status === "final" && game.homeTeam.score !== null && game.awayTeam.score !== null && game.homeTeam.score + game.awayTeam.score > 0;
+}
+
 function buildFallbackRecentGame(teamId: number, row: StatsRow): GameSummary {
   const team = getTeamIdentity(teamId);
   const matchup = String(row.MATCHUP ?? "");
@@ -74,7 +78,7 @@ function buildFallbackRecentGame(teamId: number, row: StatsRow): GameSummary {
   };
 }
 
-function mergeRecentGame(
+export function mergeRecentGame(
   fallbackGame: GameSummary,
   row: StatsRow,
   scheduledGame: GameSummary | undefined
@@ -85,14 +89,15 @@ function mergeRecentGame(
 
   return {
     ...scheduledGame,
+    status: hasReliableFinalScore(scheduledGame) ? scheduledGame.status : fallbackGame.status,
     statusText: String(row.WL ?? "") || scheduledGame.statusText,
     homeTeam: {
       ...scheduledGame.homeTeam,
-      score: scheduledGame.homeTeam.score ?? fallbackGame.homeTeam.score
+      score: hasReliableFinalScore(scheduledGame) ? scheduledGame.homeTeam.score : fallbackGame.homeTeam.score
     },
     awayTeam: {
       ...scheduledGame.awayTeam,
-      score: scheduledGame.awayTeam.score ?? fallbackGame.awayTeam.score
+      score: hasReliableFinalScore(scheduledGame) ? scheduledGame.awayTeam.score : fallbackGame.awayTeam.score
     }
   } satisfies GameSummary;
 }
@@ -109,7 +114,7 @@ function buildRecentGamesFromSchedule(teamId: number, scheduleGames: GameSummary
 
   return scheduleGames
     .filter((game) => game.homeTeam.teamId === teamId || game.awayTeam.teamId === teamId)
-    .filter((game) => Date.parse(game.dateTimeUtc) <= now || game.status !== "scheduled")
+    .filter((game) => game.status === "final" && Date.parse(game.dateTimeUtc) <= now)
     .sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc))
     .slice(0, 5);
 }
@@ -122,7 +127,7 @@ function buildUpcomingGamesFromSchedule(teamId: number, scheduleGames: GameSumma
     .slice(0, 5);
 }
 
-function mergeUniqueRecentGames(primary: GameSummary[], fallback: GameSummary[]) {
+export function mergeUniqueRecentGames(primary: GameSummary[], fallback: GameSummary[]) {
   const byGameId = new Map<string, GameSummary>();
 
   for (const game of primary) {
@@ -138,15 +143,16 @@ function mergeUniqueRecentGames(primary: GameSummary[], fallback: GameSummary[])
 
     byGameId.set(game.gameId, {
       ...current,
-      statusText: game.statusText || current.statusText,
+      status: hasReliableFinalScore(current) ? current.status : game.status,
+      statusText: hasReliableFinalScore(current) ? current.statusText : game.statusText || current.statusText,
       homeTeam: {
         ...current.homeTeam,
-        score: current.homeTeam.score ?? game.homeTeam.score,
+        score: hasReliableFinalScore(current) ? current.homeTeam.score : game.homeTeam.score,
         record: current.homeTeam.record ?? game.homeTeam.record
       },
       awayTeam: {
         ...current.awayTeam,
-        score: current.awayTeam.score ?? game.awayTeam.score,
+        score: hasReliableFinalScore(current) ? current.awayTeam.score : game.awayTeam.score,
         record: current.awayTeam.record ?? game.awayTeam.record
       }
     });

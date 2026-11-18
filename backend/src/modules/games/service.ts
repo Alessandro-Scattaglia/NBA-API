@@ -58,7 +58,25 @@ function isUnavailableLiveBoxscoreError(error: unknown) {
 
   const match = error.message.match(/API (\d+)/i);
   const status = match ? Number(match[1]) : null;
-  return status === 403 || status === 404;
+  return status === 403 || status === 404 || error.message.includes("incomplete");
+}
+
+function isUsableBoxscore(game: unknown): game is BoxscoreGame {
+  if (!game || typeof game !== "object") return false;
+  const value = game as BoxscoreGame;
+  const home = value.homeTeam as Record<string, unknown> | undefined;
+  const away = value.awayTeam as Record<string, unknown> | undefined;
+  if (!value.gameId || !home?.teamId || !away?.teamId) return false;
+  const statusText = String(value.gameStatusText ?? "").toLowerCase();
+  const statusValue = Number(value.gameStatus);
+  if (!statusText.includes("final") && (!Number.isFinite(statusValue) || statusValue < 3)) return true;
+  return readScore(home.score) !== null && readScore(away.score) !== null;
+}
+
+function readScore(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function mapPlayer(player: BoxscorePlayer): GamePlayerLine {
@@ -247,7 +265,10 @@ async function findEspnEventId(
   return events.find((event) => {
     const competition = (event.competitions as Array<Record<string, unknown>> | undefined)?.[0];
     const competitors = competition?.competitors as Array<Record<string, unknown>> | undefined;
-    const codes = competitors?.map((competitor) => String((competitor.team as Record<string, unknown>)?.abbreviation ?? "")) ?? [];
+    const codes = competitors?.map((competitor) => {
+      const code = String((competitor.team as Record<string, unknown>)?.abbreviation ?? "");
+      return getTeamIdentityByCode(code)?.code ?? code;
+    }) ?? [];
     return codes.includes(game.homeTeam.code) && codes.includes(game.awayTeam.code);
   });
 }
@@ -299,7 +320,7 @@ export function mapEspnSummaryToBoxscore(response: unknown, requestedGameId: str
       teamCity: String(team.location ?? ""),
       teamName: String(team.name ?? ""),
       teamTricode: String(team.abbreviation ?? ""),
-      score: safeNumber(competitor.score),
+      score: readScore(competitor.score),
       players
     };
   };
@@ -324,13 +345,15 @@ export function createGamesService(deps: ServiceDeps) {
       const state = await (deps.cache ?? cache).getOrLoad(`game-detail:v3:${gameId}`, TTL.live, async () => {
         const identity = resolveGameIdentity(gameId);
         const canonical = parseCanonicalGameId(gameId);
-        let nbaGameId = identity.nbaGameId;
+        let nbaGameId = identity.nbaGameId ?? (/^\d{10}$/.test(gameId) ? gameId : null);
 
         if (identity.espnEventId && deps.client.getEspnGameSummary) {
           const response = await deps.client.getEspnGameSummary(identity.espnEventId);
+          const boxscore = mapEspnSummaryToBoxscore(response, gameId);
+          if (!isUsableBoxscore(boxscore)) throw new Error("ESPN boxscore response is incomplete.");
           return {
             detail: await reconcileEspnPlayerIds(
-              buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, gameId), gameId),
+              buildBoxscoreDetail(boxscore, gameId),
               deps
             ),
             source: ["ESPN summary"]
@@ -354,9 +377,12 @@ export function createGamesService(deps: ServiceDeps) {
           const response = (await deps.client.getLiveBoxscore(nbaGameId)) as {
             game?: BoxscoreGame;
           };
+          if (!isUsableBoxscore(response.game)) {
+            throw new Error("NBA boxscore response is incomplete.");
+          }
 
           return {
-            detail: buildBoxscoreDetail(response.game ?? {}, gameId),
+            detail: buildBoxscoreDetail(response.game, gameId),
             source: ["cdn.nba.com/static/json/liveData/boxscore"]
           } satisfies GameDetailState;
         } catch (error) {
@@ -366,9 +392,11 @@ export function createGamesService(deps: ServiceDeps) {
 
           if (deps.client.getEspnGameSummary && identity.espnEventId) {
             const response = await deps.client.getEspnGameSummary(identity.espnEventId);
+            const boxscore = mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId);
+            if (!isUsableBoxscore(boxscore)) throw new Error("ESPN boxscore response is incomplete.");
             return {
               detail: await reconcileEspnPlayerIds(
-                buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+                buildBoxscoreDetail(boxscore, gameId),
                 deps
               ),
               source: ["ESPN summary"]
@@ -390,9 +418,11 @@ export function createGamesService(deps: ServiceDeps) {
               const eventId = String(event?.id ?? "");
               if (eventId) {
                 const response = await deps.client.getEspnGameSummary(eventId);
+                const boxscore = mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId);
+                if (!isUsableBoxscore(boxscore)) throw new Error("ESPN boxscore response is incomplete.");
                 return {
                   detail: await reconcileEspnPlayerIds(
-                    buildBoxscoreDetail(mapEspnSummaryToBoxscore(response, nbaGameId ?? gameId), gameId),
+                    buildBoxscoreDetail(boxscore, gameId),
                     deps
                   ),
                   source: ["ESPN summary", "NBA CDN schedule"]
@@ -404,6 +434,10 @@ export function createGamesService(deps: ServiceDeps) {
                 fallbackError instanceof Error ? fallbackError.message : fallbackError
               );
             }
+          }
+
+          if (scheduledGame.status === "final") {
+            throw new Error("No valid boxscore is available for this final game.");
           }
 
           return {

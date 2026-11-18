@@ -127,7 +127,7 @@ describe("calendar provider merge", () => {
 
     await loadCalendarRange({ client, cache }, "2026-10-03", "2026-10-03");
 
-    expect(cache.getStats().keys.some((key) => key.startsWith("calendar:v4:"))).toBe(true);
+    expect(cache.getStats().keys.some((key) => key.startsWith("calendar:v5:"))).toBe(true);
   });
 
   it("merges providers by team IDs even when their codes differ", async () => {
@@ -172,5 +172,17 @@ describe("calendar provider merge", () => {
     expect(state.value[0]?.status).toBe("final");
     expect(state.value[0]?.homeTeam.score).toBe(112);
     expect(state.value[0]?.awayTeam.score).toBe(108);
+  });
+
+  it("keeps missing ESPN scores absent instead of converting them to zero", async () => {
+    const client = {
+      getGamesSchedule: async () => ({ data: [{ id: "espn-no-score", date: "2026-10-08T18:00:00Z", competitions: [{ date: "2026-10-08T18:00:00Z", competitors: [{ homeAway: "home", team: { abbreviation: "BOS" } }, { homeAway: "away", team: { abbreviation: "LAL" } }], status: { type: { state: "pre", description: "Scheduled" } } }] }] }),
+      getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [] } })
+    } as never;
+
+    const state = await loadCalendarRange({ client, cache: new MemoryCache() }, "2026-10-08", "2026-10-08");
+    expect(state.value[0]?.status).toBe("scheduled");
+    expect(state.value[0]?.homeTeam.score).toBeNull();
+    expect(state.value[0]?.awayTeam.score).toBeNull();
   });
 });

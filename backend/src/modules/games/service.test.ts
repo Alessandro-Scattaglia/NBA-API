@@ -4,6 +4,49 @@ import { createGamesService } from "./service.js";
 import { MemoryCache } from "../../cache/memoryCache.js";
 
 describe("ESPN boxscore normalization", () => {
+  it("keeps missing and invalid ESPN scores null", () => {
+    const game = mapEspnSummaryToBoxscore({
+      header: { competitions: [{ date: "2026-11-01T00:00:00Z", status: { type: { description: "Scheduled" } }, competitors: [
+        { homeAway: "home", score: "", team: { abbreviation: "BOS" } },
+        { homeAway: "away", score: "not-a-score", team: { abbreviation: "LAL" } }
+      ] }] }
+    }, "401-missing-score");
+
+    expect((game.homeTeam as Record<string, unknown>).score).toBeNull();
+    expect((game.awayTeam as Record<string, unknown>).score).toBeNull();
+  });
+
+  it("falls back to ESPN when the NBA boxscore is HTTP 200 but incomplete", async () => {
+    const client = {
+      getLiveBoxscore: async () => ({ game: {} }),
+      getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [{ games: [{
+        gameId: "0022600240",
+        gameDateTimeUTC: "2026-11-01T00:00:00Z",
+        gameStatus: 3,
+        gameStatusText: "Final",
+        homeTeam: { teamId: 1610612757, teamTricode: "POR", score: 101 },
+        awayTeam: { teamId: 1610612759, teamTricode: "SAS", score: 99 }
+      }] }] } }),
+      getEspnScoreboardByDate: async () => ({ events: [{ id: "401-fallback", competitions: [{ competitors: [
+        { homeAway: "home", team: { abbreviation: "POR" } },
+        { homeAway: "away", team: { abbreviation: "SA" } }
+      ] }] }] }),
+      getEspnGameSummary: async () => ({
+        header: { competitions: [{ date: "2026-11-01T00:00:00Z", status: { type: { description: "Final" } }, competitors: [
+          { homeAway: "home", score: "101", team: { id: "1", abbreviation: "POR", location: "Portland", name: "Trail Blazers" } },
+          { homeAway: "away", score: "99", team: { id: "2", abbreviation: "SA", location: "San Antonio", name: "Spurs" } }
+        ] }] },
+        boxscore: { players: [] }
+      })
+    } as never;
+    const service = createGamesService({ client, cache: new MemoryCache() });
+
+    const result = await service.getGameDetail("0022600240");
+
+    expect(result.data.game.homeTeam.score).toBe(101);
+    expect(result.meta.source).toContain("ESPN summary");
+  });
+
   it("maps labelled statistics and never uses ESPN ids as NBA ids", () => {
     const game = mapEspnSummaryToBoxscore({
       header: {

@@ -381,6 +381,42 @@ export function buildStandingsFromScheduleSnapshot(scheduleGames: GameSummary[])
   );
 }
 
+export function buildScheduleFormByTeam(scheduleGames: GameSummary[]) {
+  const gamesByTeam = new Map<number, GameSummary[]>();
+  for (const game of scheduleGames) {
+    if (
+      game.status !== "final" ||
+      !Number.isFinite(game.homeTeam.score) ||
+      !Number.isFinite(game.awayTeam.score)
+    ) continue;
+    for (const teamId of [game.homeTeam.teamId, game.awayTeam.teamId]) {
+      const games = gamesByTeam.get(teamId) ?? [];
+      games.push(game);
+      gamesByTeam.set(teamId, games);
+    }
+  }
+  return new Map([...gamesByTeam.entries()].map(([teamId, games]) => {
+    const ordered = games.sort((left, right) => Date.parse(right.dateTimeUtc) - Date.parse(left.dateTimeUtc));
+    const outcomes = ordered.map((game) => {
+      const own = game.homeTeam.teamId === teamId ? game.homeTeam.score : game.awayTeam.score;
+      const opponent = game.homeTeam.teamId === teamId ? game.awayTeam.score : game.homeTeam.score;
+      if (typeof own !== "number" || typeof opponent !== "number" || !Number.isFinite(own) || !Number.isFinite(opponent)) return null;
+      return own > opponent ? "W" : "L";
+    }).filter((outcome): outcome is "W" | "L" => outcome !== null);
+    const recent = outcomes.slice(0, 10);
+    const streakOutcome = outcomes[0];
+    let streakLength = 0;
+    for (const outcome of outcomes) {
+      if (outcome !== streakOutcome) break;
+      streakLength += 1;
+    }
+    return [teamId, {
+      lastTen: `${recent.filter((outcome) => outcome === "W").length}-${recent.filter((outcome) => outcome === "L").length}`,
+      streak: streakOutcome ? `${streakOutcome}${streakLength}` : "--"
+    }];
+  }));
+}
+
 function assignDivisionRanks(rows: StandingsRow[]) {
   for (const conference of ["East", "West"] as const) {
     const divisionGroups = new Map<string, StandingsRow[]>();
@@ -490,14 +526,21 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
     const eventId = String(event.id ?? "");
     if (!eventId) return [];
 
+    const statusState = String(statusType?.state ?? "").toLowerCase();
+    const statusDescription = String(statusType?.description ?? "").toLowerCase();
+    const isFinal = statusState === "post" || statusState === "final" || Boolean(statusType?.completed) || statusDescription.includes("final");
+    const readScore = (value: unknown) => {
+      if (value === undefined || value === null || value === "") return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
     const mapped = {
       gameId: eventId,
       canonicalId: canonicalGameId(dateTimeUtc, homeIdentity.code, awayIdentity.code),
       gameCode: null,
       dateTimeUtc: new Date(dateTimeUtc).toISOString(),
       dateLabel: new Date(dateTimeUtc).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }),
-      status: String(statusType?.state ?? "").toLowerCase() === "in" ? "live" :
-        String(statusType?.description ?? "").toLowerCase().includes("final") ? "final" : "scheduled",
+      status: statusState === "in" ? "live" : isFinal ? "final" : "scheduled",
       statusText: String(statusType?.description ?? "Final"),
       phase,
       arena: null,
@@ -509,7 +552,7 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
         name: homeIdentity.name,
         code: homeIdentity.code,
         logo: homeIdentity.logo,
-        score: home.score !== undefined ? safeNumber(home.score) : null,
+        score: readScore(home.score),
         record: String(homeRecord?.summary ?? "") || null
       },
       awayTeam: {
@@ -517,7 +560,7 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
         name: awayIdentity.name,
         code: awayIdentity.code,
         logo: awayIdentity.logo,
-        score: away.score !== undefined ? safeNumber(away.score) : null,
+        score: readScore(away.score),
         record: String(awayRecord?.summary ?? "") || null
       }
     } satisfies GameSummary;
@@ -714,9 +757,7 @@ export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
             STANDINGS_LOAD_TIMEOUT_MS,
             "standings form"
           );
-          const scheduleRowsByTeam = new Map(
-            (buildStandingsFromScheduleSnapshot(scheduleState.value) ?? []).map((row) => [row.teamId, row])
-          );
+          const scheduleRowsByTeam = buildScheduleFormByTeam(scheduleState.value);
           return assignDivisionRanks(mappedRows
             .map((row) => {
               const scheduleRow = scheduleRowsByTeam.get(row.teamId);
@@ -769,7 +810,7 @@ export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
           );
         }
       );
-      if (hasScheduleRecords) {
+      if (hasScheduleRecords || scheduleState.value.some((game) => game.status === "final")) {
         const fallback = buildStandingsFromScheduleSnapshot(scheduleState.value);
         if (fallback) return fallback;
       }
@@ -1032,21 +1073,21 @@ export async function loadTeamStats(deps: ServiceDeps, forceRefresh = false) {
 
     return new Map<number, TeamSeasonStats>(
       rows.map((row) => {
-        const teamId = getNumber(row, ["TEAM_ID"]);
+        const teamId = getNumber(row, ["TEAM_ID", "TeamID"]);
         const advancedRow = advancedByTeamId.get(teamId) ?? {};
-        const pointsPerGame = getNumber(row, ["PTS"]);
-        const plusMinus = getOptionalNumber(row, ["PLUS_MINUS"]);
+        const pointsPerGame = getOptionalNumber(row, ["PTS", "PTS_PER_GAME", "PTS_PG"]);
+        const plusMinus = getOptionalNumber(row, ["PLUS_MINUS", "PLUS_MINUS_PER_GAME"]);
         const opponentPointsPerGame =
-          getOptionalNumber(row, ["OPP_PTS"]) ??
-          (plusMinus !== null ? round(pointsPerGame - plusMinus) : 0);
+          getOptionalNumber(row, ["OPP_PTS", "OPP_PTS_PER_GAME", "OPP_PTS_PG"]) ??
+          (plusMinus !== null && pointsPerGame !== null ? round(pointsPerGame - plusMinus) : null);
         const values: TeamSeasonStats = {
-          pointsPerGame: round(pointsPerGame),
-          opponentPointsPerGame,
+          pointsPerGame: pointsPerGame === null ? 0 : round(pointsPerGame),
+          opponentPointsPerGame: opponentPointsPerGame ?? 0,
           reboundsPerGame: round(getNumber(row, ["REB"])),
           assistsPerGame: round(getNumber(row, ["AST"])),
           netRating: getOptionalNumber(advancedRow, ["NET_RATING"]),
-          offensiveRating: getOptionalNumber(advancedRow, ["OFF_RATING"]),
-          defensiveRating: getOptionalNumber(advancedRow, ["DEF_RATING"]),
+          offensiveRating: getOptionalNumber(advancedRow, ["OFF_RATING", "OFF_RTG", "OFFENSIVE_RATING"]),
+          defensiveRating: getOptionalNumber(advancedRow, ["DEF_RATING", "DEF_RTG", "DEFENSIVE_RATING"]),
           pace: getOptionalNumber(advancedRow, ["PACE"]),
           fgPct: getOptionalNumber(row, ["FG_PCT"], 100),
           threePct: getOptionalNumber(row, ["FG3_PCT"], 100)
@@ -1399,7 +1440,7 @@ export async function loadRecentGames(deps: ServiceDeps, days = 45) {
 export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string, forceRefresh = false) {
   const range = clampToSeason(from, to);
   const seasonRange = clampToSeason(SEASON_START_DATE, SEASON_END_DATE);
-  const key = `calendar:v4:${seasonRange.from}:${seasonRange.to}`;
+  const key = `calendar:v5:${seasonRange.from}:${seasonRange.to}`;
 
   const loader = async () => {
     let espnGames: GameSummary[] = [];

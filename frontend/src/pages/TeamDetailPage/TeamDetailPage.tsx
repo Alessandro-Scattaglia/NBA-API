@@ -29,6 +29,10 @@ export function TeamDetailPage() {
   }
 
   const { data, meta } = query.data;
+  const coaches = Array.isArray(data.coaches) ? data.coaches : [];
+  const roster = Array.isArray(data.roster) ? data.roster : [];
+  const recentGames = Array.isArray(data.recentGames) ? data.recentGames : [];
+  const upcomingGames = Array.isArray(data.upcomingGames) ? data.upcomingGames : [];
 
   return (
     <>
@@ -56,9 +60,9 @@ export function TeamDetailPage() {
 
       <DataStamp updatedAt={meta.updatedAt} stale={meta.stale} />
 
-      {(data.arena || data.coaches.length > 0 || data.foundedYear) ? <div className="stats-grid">
+      {(data.arena || coaches.length > 0 || data.foundedYear) ? <div className="stats-grid">
         {data.arena ? <div className="stat-box"><span>Arena</span><strong>{data.arena}</strong></div> : null}
-        {data.coaches.length > 0 ? <div className="stat-box"><span>Allenatore</span><strong>{data.coaches[0]}</strong></div> : null}
+        {coaches.length > 0 ? <div className="stat-box"><span>Allenatore</span><strong>{coaches[0]}</strong></div> : null}
         {data.foundedYear ? <div className="stat-box"><span>Anno di fondazione</span><strong>{data.foundedYear}</strong></div> : null}
         <div className="stat-box">
           <span>Casa / trasferta</span>
@@ -101,11 +105,11 @@ export function TeamDetailPage() {
 
       <div className="team-detail-sections">
         <SurfaceCard title="Rosa">
-          {data.roster.length > 0 ? (
-            <div className="entity-grid">
-              {data.roster.map((player) => (
-                <Link key={player.playerId} to={`/players/${player.playerId}`} className="entity-card">
-                  <div className="entity-card-head">
+          {roster.length > 0 ? (
+            <div className="team-roster-grid">
+              {roster.map((player) => (
+                <Link key={player.playerId} to={`/players/${player.playerId}`} className="team-roster-card">
+                  <div className="team-roster-card-head">
                     <img src={player.headshot} alt="" className="player-headshot-large" />
                     <div>
                       <strong>{player.fullName}</strong>
@@ -114,7 +118,7 @@ export function TeamDetailPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="entity-meta">
+                  <div className="team-roster-meta">
                     <span>{formatHeight(player.height)}</span>
                     <span>{player.age ?? "--"} anni</span>
                   </div>
@@ -128,10 +132,10 @@ export function TeamDetailPage() {
 
         <div className="grid-2 team-games-grid">
         <SurfaceCard title="Ultime 5 partite">
-          {data.recentGames.length > 0 ? <GameList games={data.recentGames} teamId={data.teamId} /> : <EmptyState label="Nessuna partita recente disponibile." />}
+          {recentGames.length > 0 ? <GameList games={recentGames} teamId={data.teamId} /> : <EmptyState label="Nessuna partita recente disponibile." />}
         </SurfaceCard>
         <SurfaceCard title="Prossime 5 partite">
-          {data.upcomingGames.length > 0 ? <GameList games={data.upcomingGames} teamId={data.teamId} /> : <EmptyState label="Nessuna partita programmata disponibile." />}
+          {upcomingGames.length > 0 ? <GameList games={upcomingGames} teamId={data.teamId} /> : <EmptyState label="Nessuna partita programmata disponibile." />}
         </SurfaceCard>
         </div>
       </div>

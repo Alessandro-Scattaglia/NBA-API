@@ -34,6 +34,64 @@
   align-items: start;
 }
 
+.team-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.team-roster-card {
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.team-roster-card:hover {
+  background: var(--surface-strong);
+  border-color: rgba(255, 212, 0, 0.3);
+}
+
+.team-roster-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.team-roster-card .player-headshot-large {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+}
+
+.team-roster-card strong,
+.team-roster-card p {
+  overflow-wrap: anywhere;
+}
+
+.team-roster-card p {
+  margin: 3px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.team-roster-meta {
+  display: grid;
+  gap: 2px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .team-detail-hero {
     align-items: flex-start;

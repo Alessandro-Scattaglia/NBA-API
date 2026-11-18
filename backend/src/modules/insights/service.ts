@@ -20,7 +20,7 @@ function parseRecord(value: string) {
 
 function getTeamMetric(team: TeamSummary, stats: Map<number, TeamSeasonStats>, key: keyof TeamSeasonStats, fallback: number) {
   const value = stats.get(team.teamId)?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function chooseMostInFormTeam(teams: TeamSummary[]) {
@@ -50,6 +50,52 @@ function buildInsightPlayer(player: PlayerSummary) {
         metricLabel: "punti di media"
       }
     : null;
+}
+
+export function rankInsightsTeams(
+  teams: TeamSummary[],
+  stats: Map<number, TeamSeasonStats>,
+  recentMetrics = new Map<number, { games: number; pointsFor: number; pointsAgainst: number }>()
+) {
+  const recentAttack = (team: TeamSummary) => {
+    const metric = recentMetrics.get(team.teamId);
+    return metric && metric.games > 0 ? metric.pointsFor / metric.games : 0;
+  };
+  const recentDefense = (team: TeamSummary) => {
+    const metric = recentMetrics.get(team.teamId);
+    return metric && metric.games > 0 ? metric.pointsAgainst / metric.games : 0;
+  };
+  const attack = teams
+    .map((team) => {
+      const points = getTeamMetric(team, stats, "pointsPerGame", 0);
+      const rating = getTeamMetric(team, stats, "offensiveRating", 0);
+      const value = points || rating || recentAttack(team);
+      return {
+        team,
+        value,
+        label: points > 0 ? "punti segnati per partita" : rating > 0 ? "offensive rating" : "punti segnati nelle ultime 45 giornate"
+      };
+    })
+    .filter((item) => item.value > 0)
+    .sort((left, right) => right.value - left.value)
+    .map((item) => buildInsightTeam(item.team, stats, item.value, item.label))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const defense = teams
+    .map((team) => {
+      const rating = getTeamMetric(team, stats, "defensiveRating", 0);
+      const points = getTeamMetric(team, stats, "opponentPointsPerGame", 0);
+      const value = rating || points || recentDefense(team);
+      return {
+        team,
+        value,
+        label: rating > 0 ? "defensive rating" : points > 0 ? "punti subiti per partita" : "punti subiti nelle ultime 45 giornate"
+      };
+    })
+    .filter((item) => item.value > 0)
+    .sort((left, right) => left.value - right.value)
+    .map((item) => buildInsightTeam(item.team, stats, item.value, item.label))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  return { attack, defense };
 }
 
 function buildRecentTeamMetrics(games: GameSummary[]) {
@@ -171,38 +217,15 @@ export function createInsightsService(deps: ServiceDeps) {
           buildInsightTeam(team, teamStats, parseRecord(team.lastTen)?.winPct ?? team.winPct, "percentuale vittorie ultime 10")
         )
         .filter((insight): insight is NonNullable<typeof insight> => Boolean(insight));
-      const attackRanking = teams
-        .slice()
-        .filter((team) => getAttackValue(team) > 0)
-        .sort((left, right) =>
-          getAttackValue(right) - getAttackValue(left)
-        )
-        .slice(0, 5)
-        .map((team) =>
-          buildInsightTeam(
-            team,
-            teamStats,
-            getAttackValue(team),
-            getAttackLabel(team)
-          )
-        )
-        .filter((insight): insight is NonNullable<typeof insight> => Boolean(insight));
-      const defenseRanking = teams
-        .slice()
-        .filter((team) => getDefenseValue(team) > 0)
-        .sort((left, right) =>
-          getDefenseValue(left) - getDefenseValue(right)
-        )
-        .slice(0, 5)
-        .map((team) =>
-          buildInsightTeam(
-            team,
-            teamStats,
-            getDefenseValue(team),
-            getDefenseLabel(team)
-          )
-        )
-        .filter((insight): insight is NonNullable<typeof insight> => Boolean(insight));
+      const rankedMetrics = rankInsightsTeams(teams, teamStats, recentTeamMetrics);
+      const attackRanking = rankedMetrics.attack.slice(0, 5).map((insight) => ({
+        ...insight,
+        metricLabel: getAttackLabel(insight.team)
+      }));
+      const defenseRanking = rankedMetrics.defense.slice(0, 5).map((insight) => ({
+        ...insight,
+        metricLabel: getDefenseLabel(insight.team)
+      }));
       const rankedPlayers = players
         .filter((player): player is PlayerSummary & { averages: NonNullable<PlayerSummary["averages"]> } => Boolean(player.averages))
         .sort((left, right) => right.averages.points - left.averages.points || right.averages.assists - left.averages.assists)
