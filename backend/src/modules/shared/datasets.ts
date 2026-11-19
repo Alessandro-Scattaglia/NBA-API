@@ -539,7 +539,7 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
       canonicalId: canonicalGameId(dateTimeUtc, homeIdentity.code, awayIdentity.code),
       gameCode: null,
       dateTimeUtc: new Date(dateTimeUtc).toISOString(),
-      dateLabel: new Date(dateTimeUtc).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }),
+      dateLabel: new Date(dateTimeUtc).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Rome" }),
       status: statusState === "in" ? "live" : isFinal ? "final" : "scheduled",
       statusText: String(statusType?.description ?? "Final"),
       phase,
@@ -685,7 +685,8 @@ function mapScoreboardGame(row: StatsRow, teamsById = new Map<number, string>())
     dateTimeUtc: parsedDate.toISOString(),
     dateLabel: parsedDate.toLocaleString("it-IT", {
       dateStyle: "medium",
-      timeStyle: "short"
+      timeStyle: "short",
+      timeZone: "Europe/Rome"
     }),
     status: asGameStatus(gameStatusId, gameStatusText),
     statusText: gameStatusText || getString(row, ["gameStatusText", "gameLabel"]),
@@ -1134,7 +1135,8 @@ function mapLiveGame(game: Record<string, unknown>): GameSummary {
     dateTimeUtc: parsedDate.toISOString(),
     dateLabel: parsedDate.toLocaleString("it-IT", {
       dateStyle: "medium",
-      timeStyle: "short"
+      timeStyle: "short",
+      timeZone: "Europe/Rome"
     }),
     status: asGameStatus(statusValue, statusText),
     statusText,
@@ -1224,7 +1226,8 @@ function mapScheduleSnapshotGame(game: Record<string, unknown>): GameSummary {
     dateTimeUtc: parsedDate.toISOString(),
     dateLabel: parsedDate.toLocaleString("it-IT", {
       dateStyle: "medium",
-      timeStyle: "short"
+      timeStyle: "short",
+      timeZone: "Europe/Rome"
     }),
     status,
     statusText,
