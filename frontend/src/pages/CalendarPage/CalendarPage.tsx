@@ -23,7 +23,12 @@ function buildCalendarPath(searchParams: URLSearchParams) {
 }
 
 function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 function shiftIsoDate(date: string, days: number) {
@@ -48,7 +53,7 @@ function formatCalendarPill(date: string) {
     weekday: "short",
     day: "2-digit",
     month: "short"
-  }).format(new Date(`${date}T00:00:00.000Z`));
+  }).format(new Date(`${date}T12:00:00.000Z`));
 }
 
 function formatCalendarHeading(date: string) {
@@ -58,7 +63,7 @@ function formatCalendarHeading(date: string) {
     day: "numeric",
     month: "long",
     year: "numeric"
-  }).format(new Date(`${date}T00:00:00.000Z`));
+  }).format(new Date(`${date}T12:00:00.000Z`));
 }
 
 function getDisplayScore(game: GameSummary, side: "home" | "away") {

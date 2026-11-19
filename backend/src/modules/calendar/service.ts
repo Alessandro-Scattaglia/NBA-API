@@ -1,6 +1,7 @@
 import type { ApiEnvelope, CalendarResponse, GameSummary } from "../../types/dto/index.js";
 import { getCurrentSeason, SEASON_END_DATE, SEASON_START_DATE } from "../../config/season.js";
 import { loadCalendarRange } from "../shared/datasets.js";
+import { getItalianDate } from "../../utils/date.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
 
@@ -28,8 +29,8 @@ export function createCalendarService(deps: ServiceDeps) {
         return matchesTeam && matchesStatus && matchesPhase;
       });
 
-      const rangeStart = items[0]?.dateTimeUtc.slice(0, 10) ?? filters.from ?? SEASON_START_DATE;
-      const rangeEnd = items.at(-1)?.dateTimeUtc.slice(0, 10) ?? filters.to ?? SEASON_END_DATE;
+      const rangeStart = items[0] ? getItalianDate(items[0].dateTimeUtc) : filters.from ?? SEASON_START_DATE;
+      const rangeEnd = items.at(-1) ? getItalianDate(items.at(-1)!.dateTimeUtc) : filters.to ?? SEASON_END_DATE;
 
       return toEnvelope(
         {

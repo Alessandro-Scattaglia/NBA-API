@@ -4,6 +4,32 @@ import { SEASON_END_DATE, SEASON_START_DATE } from "../../config/season.js";
 import { loadCalendarRange } from "./datasets.js";
 
 describe("calendar provider merge", () => {
+  it("assigns games to the Italian calendar date in Europe/Rome", async () => {
+    const game = (id: string, date: string, home: string, away: string) => ({
+      id,
+      date,
+      competitions: [{ date, competitors: [
+        { homeAway: "home", team: { abbreviation: home } },
+        { homeAway: "away", team: { abbreviation: away } }
+      ], status: { type: { state: "pre", description: "Scheduled" } } }]
+    });
+    const client = {
+      getGamesSchedule: async () => ({ data: [
+        game("italy-date-18", "2026-11-18T22:00:00Z", "BOS", "LAL"),
+        game("italy-date-19", "2026-11-18T23:00:00Z", "CHI", "NY")
+      ] }),
+      getScheduleSnapshot: async () => ({ leagueSchedule: { gameDates: [] } })
+    } as never;
+
+    const cache = new MemoryCache();
+    const day18 = await loadCalendarRange({ client, cache }, "2026-11-18", "2026-11-18");
+    const day19 = await loadCalendarRange({ client, cache }, "2026-11-19", "2026-11-19");
+
+    expect(day18.value.map((game) => game.gameId)).toEqual(["italy-date-18"]);
+    expect(day19.value.map((game) => game.gameId)).toEqual(["italy-date-19"]);
+    expect(day19.value[0]?.canonicalId).toBe("game:2026-11-18:NYK:CHI");
+  });
+
   it("requests the complete season range, including future games", async () => {
     let requested: [string, string] | undefined;
     const client = {
@@ -31,9 +57,9 @@ describe("calendar provider merge", () => {
       getGamesSchedule: async () => ({
         data: [{
           id: "espn-2",
-          date: "2026-10-02T00:00:00Z",
+          date: "2026-10-02T12:00:00Z",
           competitions: [{
-            date: "2026-10-02T00:00:00Z",
+            date: "2026-10-02T12:00:00Z",
             competitors: [
               { homeAway: "home", team: { abbreviation: "NY" } },
               { homeAway: "away", team: { abbreviation: "NO" } }
@@ -75,7 +101,7 @@ describe("calendar provider merge", () => {
             games: [
               {
                 gameId: "0022600001",
-                gameDateTimeUTC: "2026-10-01T00:00:00Z",
+                gameDateTimeUTC: "2026-10-01T12:00:00Z",
                 gameStatus: 3,
                 gameStatusText: "Final",
                 homeTeam: { teamId: 1610612738, teamTricode: "BOS", score: 90 },
@@ -83,7 +109,7 @@ describe("calendar provider merge", () => {
               },
               {
                 gameId: "0022600002",
-                gameDateTimeUTC: "2026-10-01T02:00:00Z",
+                gameDateTimeUTC: "2026-10-01T14:00:00Z",
                 gameStatus: 1,
                 gameStatusText: "7:00 PM ET",
                 homeTeam: { teamId: 1610612741, teamTricode: "CHI" },
@@ -111,9 +137,9 @@ describe("calendar provider merge", () => {
       getGamesSchedule: async () => ({
         data: [{
           id: "espn-cache-key",
-          date: "2026-10-03T00:00:00Z",
+          date: "2026-10-03T12:00:00Z",
           competitions: [{
-            date: "2026-10-03T00:00:00Z",
+            date: "2026-10-03T12:00:00Z",
             competitors: [
               { homeAway: "home", team: { abbreviation: "BOS" } },
               { homeAway: "away", team: { abbreviation: "LAL" } }
@@ -127,7 +153,7 @@ describe("calendar provider merge", () => {
 
     await loadCalendarRange({ client, cache }, "2026-10-03", "2026-10-03");
 
-    expect(cache.getStats().keys.some((key) => key.startsWith("calendar:v5:"))).toBe(true);
+    expect(cache.getStats().keys.some((key) => key.startsWith("calendar:v6:"))).toBe(true);
   });
 
   it("merges providers by team IDs even when their codes differ", async () => {

@@ -568,7 +568,7 @@ function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-s
       canonicalGameId: canonicalGameId(dateTimeUtc, homeIdentity.code, awayIdentity.code),
       nbaGameId: null,
       espnEventId: eventId,
-      date: dateTimeUtc.slice(0, 10),
+    date: dateTimeUtc.slice(0, 10),
       homeCode: homeIdentity.code,
       awayCode: awayIdentity.code
     });
@@ -1439,16 +1439,31 @@ export async function loadRecentGames(deps: ServiceDeps, days = 45) {
 
 export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: string, forceRefresh = false) {
   const range = clampToSeason(from, to);
-  const seasonRange = clampToSeason(SEASON_START_DATE, SEASON_END_DATE);
-  const key = `calendar:v5:${seasonRange.from}:${seasonRange.to}`;
+  const key = `calendar:v6:${range.from}:${range.to}`;
 
   const loader = async () => {
     let espnGames: GameSummary[] = [];
     try {
-      const response = (await deps.client.getGamesSchedule(seasonRange.from, seasonRange.to)) as { data?: unknown[] };
+      let response: { data?: unknown[] };
+      if (range.from === range.to && deps.client.getEspnScoreboardByDate) {
+        // An Italian day can contain late US-Eastern games from the previous
+        // provider date, so query both adjacent American dates.
+        const [previous, current] = await Promise.all([
+          deps.client.getEspnScoreboardByDate(addCalendarDays(range.from, -1)),
+          deps.client.getEspnScoreboardByDate(range.from)
+        ]);
+        response = {
+          data: [
+            ...(((previous as { events?: unknown[] }).events) ?? []),
+            ...(((current as { events?: unknown[] }).events) ?? [])
+          ]
+        };
+      } else {
+        response = (await deps.client.getGamesSchedule(range.from, range.to)) as { data?: unknown[] };
+      }
       espnGames = mapEspnScoreboardGames({ events: response.data ?? [] }).filter((game) => {
         const date = getCalendarDate(game.dateTimeUtc);
-        return date >= seasonRange.from && date <= seasonRange.to;
+        return date >= range.from && date <= range.to;
       });
     } catch (error) {
       console.warn("[calendar] ESPN failed; using NBA CDN schedule fallback.", error instanceof Error ? error.message : error);
@@ -1459,7 +1474,7 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
       const snapshot = await loadScheduleSnapshotGames(deps, forceRefresh);
       cdnGames = snapshot.value.filter((game) => {
         const date = getCalendarDate(game.dateTimeUtc);
-        return date >= seasonRange.from && date <= seasonRange.to;
+        return date >= range.from && date <= range.to;
       });
     } catch (error) {
       console.warn("[calendar] NBA CDN schedule failed.", error instanceof Error ? error.message : error);
@@ -1501,15 +1516,30 @@ export async function loadCalendarRange(deps: ServiceDeps, from?: string, to?: s
       const key = buildMergeKey(game);
       mergedByKey.set(key, espnByKey.has(key) ? mergeGameData(espnByKey.get(key)!, game) : game);
     }
-    const merged = Array.from(mergedByKey.values());
-
-    if (merged.length === 0) {
-      throw new Error("ESPN and NBA CDN returned an empty or invalid calendar response.");
+    if (range.from <= getItalianDate() && range.to >= getItalianDate()) {
+      try {
+        const liveResponse = (await deps.client.getLiveScoreboard()) as { scoreboard?: { games?: Array<Record<string, unknown>> } };
+        for (const game of (liveResponse.scoreboard?.games ?? []).map((item) => mapLiveGame(item))) {
+          const key = buildMergeKey(game);
+          const current = mergedByKey.get(key);
+          mergedByKey.set(key, current ? mergeGameData(current, game) : game);
+        }
+      } catch (error) {
+        console.warn("[calendar] live scoreboard unavailable; keeping scheduled data", error instanceof Error ? error.message : error);
+      }
     }
+
+    const merged = Array.from(mergedByKey.values()).filter((game) => {
+      const date = getCalendarDate(game.dateTimeUtc);
+      return date >= range.from && date <= range.to;
+    });
 
     return merged.sort((left, right) => left.dateTimeUtc.localeCompare(right.dateTimeUtc));
   };
-  const state = forceRefresh ? await getCache(deps).refresh(key, TTL.calendar, loader, (games) => games.length > 0) : await getCache(deps).getOrLoad(key, TTL.calendar, loader, true, (games) => games.length > 0);
+  const isCurrentDay = range.from <= getItalianDate() && range.to >= getItalianDate();
+  const ttl = isCurrentDay ? TTL.live : TTL.calendar;
+  // An empty day is a valid calendar response (there may simply be no games).
+  const state = forceRefresh ? await getCache(deps).refresh(key, ttl, loader, () => true) : await getCache(deps).getOrLoad(key, ttl, loader, true, () => true);
   return { ...state, value: state.value.filter((game) => { const date = getCalendarDate(game.dateTimeUtc); return date >= range.from && date <= range.to; }) };
 }
 
