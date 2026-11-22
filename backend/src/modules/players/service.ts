@@ -4,10 +4,23 @@ import type { ApiEnvelope, PlayerDetail, PlayersResponse } from "../../types/dto
 import { calculateAge, round, safeNumber } from "../../utils/date.js";
 import { mapAllStatsRows, mapStatsRows } from "../../utils/stats.js";
 import { loadPlayerCatalog } from "../shared/datasets.js";
+import { TEAM_DIRECTORY, getTeamIdentity } from "../../config/teams.js";
 import { toEnvelope } from "../shared/envelope.js";
 import type { ServiceDeps } from "../shared/types.js";
 
 type StatsRow = Record<string, unknown>;
+
+function getNestedText(value: unknown, keys: string[]) {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (!value || typeof value !== "object") return "";
+  const object = value as Record<string, unknown>;
+  return keys.map((key) => object[key]).find((item) => typeof item === "string" || typeof item === "number")?.toString() ?? "";
+}
+
+function getRowValue(row: StatsRow, keys: string[]) {
+  const key = Object.keys(row).find((candidate) => keys.some((wanted) => candidate.toLowerCase() === wanted.toLowerCase()));
+  return key ? row[key] : undefined;
+}
 
 function getInfoValue(row: StatsRow, keys: string[]) {
   for (const key of keys) {
@@ -65,9 +78,38 @@ export function createPlayersService(deps: ServiceDeps) {
     },
 
     async getPlayerDetail(playerId: number): Promise<ApiEnvelope<PlayerDetail>> {
-      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v3:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
+      const state = await (deps.cache ?? cache).getOrLoad(`player-detail:v6:${getCurrentSeason()}:${playerId}`, TTL.profile, async () => {
         const catalogState = await loadPlayerCatalog(deps);
-        const base = catalogState.value.find((player) => player.playerId === playerId);
+        let base = catalogState.value.find((player) => player.playerId === playerId);
+        if (!base && deps.client.getEspnRoster) {
+          const rosterResults = await Promise.allSettled(
+            TEAM_DIRECTORY.map((team) => deps.client.getEspnRoster!(team.teamId))
+          );
+          for (let index = 0; index < rosterResults.length && !base; index += 1) {
+            const result = rosterResults[index];
+            if (result.status !== "fulfilled") continue;
+            const athlete = ((result.value as { athletes?: Array<Record<string, unknown>> }).athletes ?? [])
+              .find((candidate) => String(candidate.id ?? "") === String(playerId));
+            if (!athlete) continue;
+            const team = getTeamIdentity(TEAM_DIRECTORY[index].teamId);
+            const position = athlete.position as Record<string, unknown> | undefined;
+            const fullName = String(athlete.fullName ?? athlete.displayName ?? `Player ${playerId}`);
+            const parts = fullName.split(/\s+/);
+            base = {
+              playerId,
+              firstName: String(athlete.firstName ?? parts[0] ?? ""),
+              lastName: String(athlete.lastName ?? parts.slice(1).join(" ")),
+              fullName,
+              headshot: String((athlete.headshot as Record<string, unknown> | undefined)?.href ?? ""),
+              team: team ? { teamId: team.teamId, name: team.name, code: team.code, logo: team.logo } : null,
+              jersey: String(athlete.jersey ?? "") || null,
+              position: String(position?.abbreviation ?? "") || null,
+              height: String(athlete.displayHeight ?? "") || null,
+              weight: String(athlete.displayWeight ?? "") || null,
+              averages: null
+            };
+          }
+        }
         if (!base) {
           throw new Error(`Player ${playerId} not found`);
         }
@@ -87,6 +129,7 @@ export function createPlayersService(deps: ServiceDeps) {
         const normalizedName = base.fullName.trim().toLowerCase();
         const rosterAthlete = rosterResult.status === "fulfilled"
           ? ((rosterResult.value as { athletes?: Array<Record<string, unknown>> }).athletes ?? []).find((athlete) =>
+              (String(athlete.id ?? "") === String(playerId)) ||
               String(athlete.fullName ?? athlete.displayName ?? "").trim().toLowerCase() === normalizedName
             )
           : undefined;
@@ -95,27 +138,31 @@ export function createPlayersService(deps: ServiceDeps) {
           ...(playoffGameLogsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(playoffGameLogsResult.value) : []),
           ...(gameLogsResult.status === "fulfilled" ? mapStatsRows<StatsRow>(gameLogsResult.value) : [])
         ].sort((a, b) => {
-          const dateA = new Date(String(a.GAME_DATE ?? 0)).getTime();
-          const dateB = new Date(String(b.GAME_DATE ?? 0)).getTime();
+          const dateA = new Date(String(getRowValue(a, ["GAME_DATE", "GAME_DATE_EST", "DATE"]) ?? 0)).getTime();
+          const dateB = new Date(String(getRowValue(b, ["GAME_DATE", "GAME_DATE_EST", "DATE"]) ?? 0)).getTime();
           return dateB - dateA;
         });
 
         let recentGames = allGameLogs
+          .filter((row) => {
+            const date = new Date(String(getRowValue(row, ["GAME_DATE", "GAME_DATE_EST", "DATE"]) ?? "")).getTime();
+            return Number.isFinite(date) && date <= Date.now();
+          })
           .slice(0, 5)
           .map((row) => ({
-            gameId: String(row.GAME_ID ?? ""),
-            gameDate: new Date(String(row.GAME_DATE ?? new Date().toISOString())).toISOString(),
-            matchup: String(row.MATCHUP ?? ""),
-            result: String(row.WL ?? "").trim().toUpperCase() === "W" ? "W" : String(row.WL ?? "").trim().toUpperCase() === "L" ? "L" : "",
-            minutes: round(safeNumber(row.MIN)),
-            points: safeNumber(row.PTS),
-            rebounds: safeNumber(row.REB),
-            assists: safeNumber(row.AST),
-            steals: safeNumber(row.STL),
-            blocks: safeNumber(row.BLK)
+            gameId: String(getRowValue(row, ["GAME_ID", "Game_ID"]) ?? ""),
+            gameDate: new Date(String(getRowValue(row, ["GAME_DATE", "GAME_DATE_EST", "DATE"]))).toISOString(),
+            matchup: String(getRowValue(row, ["MATCHUP"]) ?? ""),
+            result: String(getRowValue(row, ["WL", "RESULT"]) ?? "").trim().toUpperCase() === "W" ? "W" : String(getRowValue(row, ["WL", "RESULT"]) ?? "").trim().toUpperCase() === "L" ? "L" : "",
+            minutes: round(safeNumber(getRowValue(row, ["MIN", "MINUTES"]))),
+            points: safeNumber(getRowValue(row, ["PTS", "POINTS"])),
+            rebounds: safeNumber(getRowValue(row, ["REB", "REBOUNDS"])),
+            assists: safeNumber(getRowValue(row, ["AST", "ASSISTS"])),
+            steals: safeNumber(getRowValue(row, ["STL", "STEALS"])),
+            blocks: safeNumber(getRowValue(row, ["BLK", "BLOCKS"]))
           }));
 
-        if (recentGames.length === 0 && base.team && deps.client.getEspnTeamSchedule && deps.client.getEspnGameSummary) {
+        if (recentGames.length < 5 && base.team && deps.client.getEspnTeamSchedule && deps.client.getEspnGameSummary) {
           const scheduleResult = await Promise.allSettled([
             deps.client.getEspnTeamSchedule(base.team.teamId)
           ]);
@@ -134,7 +181,7 @@ export function createPlayersService(deps: ServiceDeps) {
             completedEvents.map((event) => deps.client.getEspnGameSummary!(String(event.id)))
           );
           const normalizedName = base.fullName.trim().toLowerCase();
-          recentGames = summaries.flatMap((summary, index) => {
+          const espnGames = summaries.flatMap((summary, index) => {
             if (summary.status !== "fulfilled") {
               return [];
             }
@@ -180,6 +227,9 @@ export function createPlayersService(deps: ServiceDeps) {
               blocks: safeNumber(stats[9])
             }];
           });
+          const byId = new Map(recentGames.map((game) => [game.gameId, game]));
+          for (const game of espnGames) if (!byId.has(game.gameId)) byId.set(game.gameId, game);
+          recentGames = Array.from(byId.values()).sort((left, right) => right.gameDate.localeCompare(left.gameDate)).slice(0, 5);
         }
 
         const birthDate =
@@ -199,8 +249,8 @@ export function createPlayersService(deps: ServiceDeps) {
           weight: base.weight ?? (String(rosterAthlete?.displayWeight ?? "") || null),
           birthDate,
           age: calculateAge(birthDate),
-          country: getInfoValue(info, ["COUNTRY", "COUNTRY_CODE"]) || null,
-          school: getInfoValue(info, ["SCHOOL", "COLLEGE"]) || null,
+          country: getInfoValue(info, ["COUNTRY", "COUNTRY_CODE"]) || getNestedText(rosterAthlete?.birthPlace ?? rosterAthlete?.birthCountry, ["displayName", "name", "country"]) || null,
+          school: getInfoValue(info, ["SCHOOL", "COLLEGE"]) || String((rosterAthlete?.school as Record<string, unknown> | undefined)?.displayName ?? (rosterAthlete?.school as Record<string, unknown> | undefined)?.name ?? "") || null,
           experience: getInfoValue(info, ["SEASON_EXP", "EXPERIENCE"]) || null,
           draft: draftParts.length > 0 ? draftParts.join(" - ") : null,
           recentGames

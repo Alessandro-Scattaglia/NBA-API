@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { DataStamp, EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/common/States";
 import { SurfaceCard } from "../../components/cards/SurfaceCard";
 import { apiGet } from "../../lib/api";
@@ -10,6 +10,7 @@ import "./PlayerDetailPage.css";
 export function PlayerDetailPage() {
   const params = useParams();
   const playerId = params.playerId ?? "";
+  const navigate = useNavigate();
   const query = useQuery({
     queryKey: ["player", playerId],
     queryFn: () => apiGet<PlayerDetail>(`/api/players/${playerId}`)
@@ -26,6 +27,7 @@ export function PlayerDetailPage() {
   if (!query.data) {
     return <EmptyState label="Giocatore non disponibile." />;
   }
+
 
   const { data, meta } = query.data;
 

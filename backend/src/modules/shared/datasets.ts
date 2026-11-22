@@ -502,7 +502,7 @@ function compareFallbackStandings(left: StandingsRow, right: StandingsRow, games
   return pointDifferential(right) - pointDifferential(left);
 }
 
-function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-season"): GameSummary[] {
+export function mapEspnScoreboardGames(response: unknown, phase: GamePhase = "regular-season"): GameSummary[] {
   const events = (response as { events?: Array<Record<string, unknown>> }).events ?? [];
 
   return events.flatMap((event) => {
@@ -724,7 +724,7 @@ function getCache(deps: ServiceDeps) {
 }
 
 export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
-  const key = `standings-dataset:v6-${getCurrentSeason()}-espn-fallback`;
+    const key = `standings-dataset:v7-${getCurrentSeason()}-espn-fallback`;
   const loader = async () => {
     try {
       const [standingsResponseResult, playoffPictureResponseResult] = await Promise.allSettled([
@@ -751,29 +751,30 @@ export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
         .filter((row): row is StandingsRow => row !== null);
 
       if (mappedRows.length === TEAM_DIRECTORY.length && mappedRows.some((row) => row.gamesPlayed > 0)) {
-        const missingForm = mappedRows.some((row) => row.lastTen === "--" || row.streak === "--");
-        if (missingForm) {
-          const scheduleState = await withTimeout(
-            loadScheduleSnapshotGames(deps),
-            STANDINGS_LOAD_TIMEOUT_MS,
-            "standings form"
-          );
+          try {
+            const scheduleState = await withTimeout(
+              loadScheduleSnapshotGames(deps, true),
+              STANDINGS_LOAD_TIMEOUT_MS,
+              "standings form"
+            );
           const scheduleRowsByTeam = buildScheduleFormByTeam(scheduleState.value);
           return assignDivisionRanks(mappedRows
             .map((row) => {
               const scheduleRow = scheduleRowsByTeam.get(row.teamId);
               return {
                 ...row,
-                lastTen: row.lastTen === "--" ? scheduleRow?.lastTen ?? row.lastTen : row.lastTen,
-                streak: row.streak === "--" ? scheduleRow?.streak ?? row.streak : row.streak
+                  // Form and streak are derived from completed games so a
+                  // stale standings snapshot cannot report an impossible W10.
+                  lastTen: scheduleRow?.lastTen ?? row.lastTen,
+                  streak: scheduleRow?.streak ?? row.streak
               };
             })
             .sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed));
+          } catch {
+            return assignDivisionRanks(
+              mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed)
+            );
         }
-
-        return assignDivisionRanks(
-          mappedRows.sort((left, right) => left.conference.localeCompare(right.conference) || left.seed - right.seed)
-        );
       }
     } catch {
       // Fall back to schedule snapshot when stats endpoints are unavailable or too slow.
@@ -857,7 +858,7 @@ export async function loadStandings(deps: ServiceDeps, forceRefresh = false) {
 }
 
 export async function loadPlayerCatalog(deps: ServiceDeps, forceRefresh = false) {
-  const key = `players-catalog:${getCurrentSeason()}`;
+  const key = `players-catalog:v3:${getCurrentSeason()}`;
   const loader = async () => {
     const leagueLeadersRequest = deps.client.getLeagueLeaders
       ? deps.client.getLeagueLeaders("PTS")
@@ -886,6 +887,8 @@ export async function loadPlayerCatalog(deps: ServiceDeps, forceRefresh = false)
             const position = athlete.position as Record<string, unknown> | undefined;
             const headshot = athlete.headshot as Record<string, unknown> | undefined;
             return {
+              // Keep the provider id for players that are only available from
+              // the ESPN roster; the detail service supports this fallback id.
               playerId: safeNumber(athlete.id),
               firstName: String(athlete.firstName ?? ""),
               lastName: String(athlete.lastName ?? ""),
@@ -1046,6 +1049,41 @@ export async function loadPlayerCatalog(deps: ServiceDeps, forceRefresh = false)
         height: player.height ?? existing.height,
         weight: player.weight ?? existing.weight,
         averages: player.averages ?? existing.averages
+      });
+    }
+
+    // The NBA index may contain only players with current statistics. Add the
+    // remaining active roster players from ESPN, preserving ESPN ids only for
+    // these catalog-only records; detail endpoints use the same id consistently.
+    if (deps.client.getEspnRoster) {
+      const knownNames = new Set(Array.from(mergedByPlayerId.values()).map((player) => player.fullName.trim().toLowerCase()));
+      const rosterResults = await Promise.allSettled(TEAM_DIRECTORY.map((team) => deps.client.getEspnRoster!(team.teamId)));
+      rosterResults.forEach((result, index) => {
+        if (result.status !== "fulfilled") return;
+        const team = TEAM_DIRECTORY[index];
+        const athletes = (result.value as { athletes?: Array<Record<string, unknown>> }).athletes ?? [];
+        for (const athlete of athletes) {
+          const fullName = String(athlete.fullName ?? athlete.displayName ?? "").trim();
+          if (!fullName || knownNames.has(fullName.toLowerCase())) continue;
+          const playerId = safeNumber(athlete.id);
+          if (playerId <= 0 || mergedByPlayerId.has(playerId)) continue;
+          const position = athlete.position as Record<string, unknown> | undefined;
+          const nameParts = fullName.split(/\s+/);
+          mergedByPlayerId.set(playerId, {
+            playerId,
+            firstName: String(athlete.firstName ?? nameParts[0] ?? ""),
+            lastName: String(athlete.lastName ?? nameParts.slice(1).join(" ")),
+            fullName,
+            headshot: String((athlete.headshot as Record<string, unknown> | undefined)?.href ?? ""),
+            team: resolveTeamReference(team.teamId, team.code),
+            jersey: String(athlete.jersey ?? "") || null,
+            position: String(position?.abbreviation ?? "") || null,
+            height: String(athlete.displayHeight ?? "") || null,
+            weight: String(athlete.displayWeight ?? "") || null,
+            averages: null
+          });
+          knownNames.add(fullName.toLowerCase());
+        }
       });
     }
 
